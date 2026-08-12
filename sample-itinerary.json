@@ -1,0 +1,48 @@
+{
+  "tripName": "Orlando — roteiro de demonstração",
+  "timezone": "America/New_York",
+  "settings": {
+    "delayThreshold": 15,
+    "longWaitThreshold": 60
+  },
+  "days": [
+    {
+      "date": "2026-09-10",
+      "label": "Magic Kingdom",
+      "park": "magic-kingdom",
+      "activities": [
+        {"id":"mk-01","time":"08:30","title":"Chegada e entrada no parque","type":"travel","duration":20,"priority":5,"flexible":false,"indoor":false,"weatherSensitive":false,"area":"Main Street"},
+        {"id":"mk-02","time":"09:00","title":"Seven Dwarfs Mine Train","entityName":"Seven Dwarfs Mine Train","type":"attraction","duration":8,"priority":5,"flexible":true,"indoor":false,"weatherSensitive":true,"area":"Fantasyland","plannedWait":35},
+        {"id":"mk-03","time":"10:00","title":"Haunted Mansion","entityName":"Haunted Mansion","type":"attraction","duration":12,"priority":4,"flexible":true,"indoor":true,"weatherSensitive":false,"area":"Liberty Square","plannedWait":25},
+        {"id":"mk-04","time":"11:00","title":"Big Thunder Mountain Railroad","entityName":"Big Thunder Mountain Railroad","type":"attraction","duration":7,"priority":5,"flexible":true,"indoor":false,"weatherSensitive":true,"area":"Frontierland","plannedWait":35},
+        {"id":"mk-05","time":"12:30","title":"Almoço","type":"meal","duration":60,"priority":5,"flexible":false,"indoor":true,"weatherSensitive":false,"area":"Adventureland"},
+        {"id":"mk-06","time":"14:00","title":"Pirates of the Caribbean","entityName":"Pirates of the Caribbean","type":"attraction","duration":9,"priority":4,"flexible":true,"indoor":true,"weatherSensitive":false,"area":"Adventureland","plannedWait":20},
+        {"id":"mk-07","time":"15:00","title":"TRON Lightcycle / Run","entityName":"TRON Lightcycle / Run","type":"attraction","duration":7,"priority":5,"flexible":true,"indoor":false,"weatherSensitive":true,"area":"Tomorrowland","plannedWait":45},
+        {"id":"mk-08","time":"20:00","title":"Encerramento / show noturno","type":"show","duration":30,"priority":5,"flexible":false,"indoor":false,"weatherSensitive":true,"area":"Central Plaza"}
+      ]
+    },
+    {
+      "date": "2026-09-11",
+      "label": "Dia sem parque",
+      "park": "off-day",
+      "activities": [
+        {"id":"off-01","time":"09:30","title":"Café da manhã sem pressa","type":"meal","duration":60,"priority":3,"flexible":true,"indoor":true,"weatherSensitive":false,"area":"Hotel"},
+        {"id":"off-02","time":"11:00","title":"Compras / outlet","type":"shopping","duration":180,"priority":3,"flexible":true,"indoor":true,"weatherSensitive":false,"area":"Orlando"},
+        {"id":"off-03","time":"18:30","title":"Jantar","type":"meal","duration":90,"priority":4,"flexible":false,"indoor":true,"weatherSensitive":false,"area":"Orlando"}
+      ]
+    },
+    {
+      "date": "2026-09-12",
+      "label": "Universal Islands of Adventure",
+      "park": "islands-of-adventure",
+      "activities": [
+        {"id":"ioa-01","time":"08:30","title":"Entrada no parque","type":"travel","duration":20,"priority":5,"flexible":false,"indoor":false,"weatherSensitive":false,"area":"Port of Entry"},
+        {"id":"ioa-02","time":"09:00","title":"Hagrid's Magical Creatures Motorbike Adventure","entityName":"Hagrid’s Magical Creatures Motorbike Adventure™","type":"attraction","duration":8,"priority":5,"flexible":true,"indoor":false,"weatherSensitive":true,"area":"Hogsmeade","plannedWait":60},
+        {"id":"ioa-03","time":"10:30","title":"Jurassic World VelociCoaster","entityName":"Jurassic World VelociCoaster","type":"attraction","duration":7,"priority":5,"flexible":true,"indoor":false,"weatherSensitive":true,"area":"Jurassic Park","plannedWait":45},
+        {"id":"ioa-04","time":"12:00","title":"The Amazing Adventures of Spider-Man","entityName":"The Amazing Adventures of Spider-Man®","type":"attraction","duration":8,"priority":4,"flexible":true,"indoor":true,"weatherSensitive":false,"area":"Marvel Super Hero Island","plannedWait":25},
+        {"id":"ioa-05","time":"13:00","title":"Almoço","type":"meal","duration":60,"priority":5,"flexible":false,"indoor":true,"weatherSensitive":false,"area":"Jurassic Park"},
+        {"id":"ioa-06","time":"15:00","title":"Jurassic Park River Adventure","entityName":"Jurassic Park River Adventure","type":"attraction","duration":10,"priority":4,"flexible":true,"indoor":false,"weatherSensitive":true,"area":"Jurassic Park","plannedWait":30}
+      ]
+    }
+  ]
+}

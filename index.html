@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#eff6ff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Orlando Flow" />
+  <script>
+    (() => {
+      const universalParks = new Set(['universal-studios-florida', 'islands-of-adventure', 'epic-universe']);
+      try {
+        const saved = JSON.parse(localStorage.getItem('orlando-flow-state-v1'));
+        const selectedDay = saved?.days?.find(day => day.date === saved?.selectedDate);
+        const park = saved?.selectedPark || selectedDay?.park || 'magic-kingdom';
+        document.documentElement.dataset.theme = saved?.settings?.darkMode ? 'dark' : 'light';
+        document.documentElement.dataset.parkTheme = park;
+        document.documentElement.dataset.brand = park === 'off-day' ? 'neutral' : universalParks.has(park) ? 'universal' : 'disney';
+      } catch {
+        document.documentElement.dataset.theme = 'light';
+        document.documentElement.dataset.parkTheme = 'magic-kingdom';
+        document.documentElement.dataset.brand = 'disney';
+      }
+    })();
+  </script>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <link rel="stylesheet" href="./styles.css" />
+  <title>Orlando Flow</title>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand-lockup">
+        <div class="app-mark" id="appMark" aria-hidden="true">
+          <svg viewBox="0 0 48 48" role="img" aria-hidden="true"><path d="M7 40V25l5-3v-8l4 2v-6l4 2 4-9 4 9 4-2v6l4-2v8l5 3v15H7Z"/><path d="M18 40V29h12v11M12 25h24M17 17h14M24 3v-2m0 0 3 2m-3-2-3 2"/><path d="M10 31h5m18 0h5M21 34h6" opacity=".72"/></svg>
+        </div>
+        <div>
+          <p class="eyebrow" id="tripLabel">ORLANDO FLOW</p>
+          <h1 id="dayTitle">Hoje</h1>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="icon-btn theme-toggle" id="themeToggleBtn" type="button" aria-label="Ativar modo escuro" aria-pressed="false" title="Ativar modo escuro">
+          <span class="theme-icon theme-icon-sun" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
+          </span>
+          <span class="theme-icon theme-icon-moon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M20 15.2A8.4 8.4 0 0 1 8.8 4 8.5 8.5 0 1 0 20 15.2Z"/></svg>
+          </span>
+          <span class="sr-only">Alternar modo escuro</span>
+        </button>
+        <button class="icon-btn" id="refreshBtn" type="button" aria-label="Atualizar dados" title="Atualizar dados">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5"/><path d="M6.1 9A7 7 0 0 1 18.7 7.2L20 11M4 13l1.3 3.8A7 7 0 0 0 17.9 15"/></svg>
+        </button>
+        <span class="net-pill" id="netPill">online</span>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="view active" data-view="today">
+        <div class="park-signature" id="parkSignature" aria-live="polite">
+          <span class="park-context-mark" id="parkContextMark" aria-hidden="true">
+            <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M4 31V19l4-2.5V11l3 1.5V8l3 1.5L18 3l4 6.5L25 8v4.5l3-1.5v5.5l4 2.5v12H4Z"/><path d="M13 31v-8h10v8M9 20h18M14 13h8M18 3V1.5"/></svg>
+          </span>
+          <span class="park-context-copy">
+            <small id="parkFamilyLabel">Disney Parks</small>
+            <strong id="parkThemeName">Magic Kingdom</strong>
+          </span>
+          <span class="park-context-pill" id="parkThemeCue">Reino mágico</span>
+        </div>
+
+        <div class="hero-card" id="statusCard">
+          <div class="hero-row">
+            <div>
+              <span class="kicker">Ritmo do roteiro</span>
+              <div class="status-line"><span class="status-dot"></span><strong id="planStatus">Calculando…</strong></div>
+            </div>
+            <div class="clock-box">
+              <span id="orlandoClock">--:--</span>
+              <small>Orlando</small>
+            </div>
+          </div>
+          <p id="statusDetail" class="muted">Carregando o roteiro.</p>
+          <div class="progress-track"><div id="dayProgress" class="progress-fill"></div></div>
+          <div class="mini-stats">
+            <span><b id="doneCount">0</b> feitas</span>
+            <span><b id="pendingCount">0</b> pendentes</span>
+            <span><b id="delayValue">0</b> min</span>
+          </div>
+        </div>
+
+        <div class="weather-strip" id="weatherStrip">
+          <div class="weather-icon">☀︎</div>
+          <div class="grow">
+            <strong id="weatherHeadline">Clima</strong>
+            <small id="weatherDetail">Atualize para consultar a previsão.</small>
+          </div>
+          <span class="risk-badge" id="weatherRisk">--</span>
+        </div>
+
+        <div class="movement-strip" id="movementStrip">
+          <div class="movement-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-3 18 2-6-2-3 2-4 3 3 3 1m-5 3 4 6m-8-8-3 3"/></svg>
+          </div>
+          <div class="grow">
+            <strong id="movementHeadline">Movimento do dia</strong>
+            <small id="movementDetail">GPS desligado · toque em iniciar para medir distância.</small>
+          </div>
+          <button class="movement-toggle" id="gpsToggleBtn" type="button">Iniciar GPS</button>
+        </div>
+
+        <section class="section-block">
+          <div class="section-title-row">
+            <div>
+              <span class="kicker">Agora</span>
+              <h2>Próximo passo</h2>
+            </div>
+            <button class="text-btn" id="optimizeBtn">Otimizar</button>
+          </div>
+          <div id="nextCard" class="next-card empty">Nenhuma atividade para hoje.</div>
+        </section>
+
+        <section class="section-block">
+          <div class="section-title-row">
+            <div>
+              <span class="kicker">Plano do dia</span>
+              <h2>Linha do tempo</h2>
+            </div>
+            <select id="daySelect" class="compact-select" aria-label="Selecionar dia"></select>
+          </div>
+          <div id="timeline" class="timeline"></div>
+        </section>
+      </section>
+
+      <section class="view" data-view="live">
+        <section class="section-block top-section">
+          <div class="section-title-row">
+            <div>
+              <span class="kicker">Dados ao vivo</span>
+              <h2>Filas & recomendações</h2>
+            </div>
+            <button class="text-btn" id="liveRefreshBtn">Atualizar</button>
+          </div>
+          <div class="filters-row">
+            <select id="parkSelect" class="wide-select" aria-label="Selecionar parque para dados ao vivo e tema visual"></select>
+            <select id="waitFilter" class="compact-select">
+              <option value="all">Todas</option>
+              <option value="30">≤ 30 min</option>
+              <option value="45">≤ 45 min</option>
+              <option value="60">≤ 60 min</option>
+            </select>
+          </div>
+          <div class="autocomplete-row">
+            <label class="autocomplete-field">
+              <span class="sr-only">Buscar atração</span>
+              <input id="liveAttractionSearch" type="search" list="attractionSuggestions" autocomplete="off" placeholder="Buscar atração… ex.: Haunted Mansion" />
+            </label>
+          </div>
+          <div id="liveStatus" class="source-note">Aguardando consulta.</div>
+
+          <section id="replanPanel" class="replan-panel" aria-live="polite">
+            <div class="replan-head">
+              <div>
+                <span class="kicker">Replanejamento inteligente</span>
+                <h3 id="replanTitle">Analisando o restante do dia</h3>
+              </div>
+              <span id="replanBadge" class="replan-badge warn">ANÁLISE</span>
+            </div>
+            <div id="replanTriggers" class="replan-triggers"></div>
+            <p id="replanSummary" class="replan-summary">Comparando o roteiro com filas, clima e horário atual.</p>
+            <div id="replanComparison" class="replan-comparison"></div>
+            <div id="replanExplanations" class="replan-explanations"></div>
+            <div id="replanActions" class="replan-actions">
+              <button class="secondary-btn" id="keepOriginalBtn" type="button">Manter roteiro original</button>
+              <button class="primary-btn" id="applyReplanBtn" type="button">Aplicar novo roteiro</button>
+            </div>
+            <button class="text-btn replan-json-btn" id="downloadReplanJsonBtn" type="button" hidden>Baixar JSON da análise</button>
+            <button class="text-btn replan-analyze" id="analyzeReplanBtn" type="button" hidden>Analisar novamente</button>
+          </section>
+
+          <div id="recommendations" class="recommendation-list"></div>
+          <div id="waitList" class="wait-list"></div>
+        </section>
+      </section>
+
+      <section class="view" data-view="history">
+        <section class="section-block top-section">
+          <div class="section-title-row">
+            <div>
+              <span class="kicker">Memória da viagem</span>
+              <h2>Histórico</h2>
+            </div>
+            <button class="text-btn danger" id="clearHistoryBtn">Limpar</button>
+          </div>
+          <div id="historySummary" class="summary-grid"></div>
+          <div id="historyList" class="history-list"></div>
+        </section>
+      </section>
+
+      <section class="view" data-view="report">
+        <section class="section-block top-section">
+          <div class="section-title-row">
+            <div>
+              <span class="kicker">Seu recap</span>
+              <h2>Report da viagem</h2>
+            </div>
+            <select id="reportScope" class="compact-select">
+              <option value="day">Dia</option>
+              <option value="trip">Viagem</option>
+            </select>
+          </div>
+          <div id="reportHero" class="report-hero"></div>
+          <div id="reportStats" class="report-stats"></div>
+
+          <section class="report-tier report-tier-overall">
+            <div class="report-tier-heading">
+              <div>
+                <span class="kicker" id="reportOverallKicker">Visão geral</span>
+                <h3>Melhores de todos</h3>
+              </div>
+              <span class="report-tier-badge" id="reportOverallBadge">ALL PARKS</span>
+            </div>
+            <div class="report-section">
+              <h3>Ranking das atrações</h3>
+              <div id="rankingList"></div>
+            </div>
+            <div class="report-section">
+              <h3>Ranking de restaurantes & pratos</h3>
+              <div id="mealRankingList"></div>
+            </div>
+            <div class="report-section">
+              <h3>Insights da viagem</h3>
+              <div id="insightsGrid" class="insights-grid"></div>
+            </div>
+            <div class="report-section">
+              <h3>Momentos divertidos</h3>
+              <div id="funStats" class="fun-grid"></div>
+            </div>
+          </section>
+
+          <section class="report-tier">
+            <div class="report-tier-heading">
+              <div>
+                <span class="kicker">Comparativo</span>
+                <h3>Por franquia</h3>
+              </div>
+            </div>
+            <div id="franchiseReportSections" class="report-group-list"></div>
+          </section>
+
+          <section class="report-tier">
+            <div class="report-tier-heading">
+              <div>
+                <span class="kicker">Detalhes</span>
+                <h3>Por parque</h3>
+              </div>
+            </div>
+            <div id="parkReportSections" class="report-group-list"></div>
+          </section>
+
+          <div class="action-grid">
+            <button class="primary-btn" id="shareCardBtn">Compartilhar card</button>
+            <button class="secondary-btn" id="exportReportBtn">Exportar report HTML</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" data-view="settings">
+        <section class="section-block top-section">
+          <div>
+            <span class="kicker">Configuração</span>
+            <h2>Roteiro & preferências</h2>
+          </div>
+
+          <div class="settings-card">
+            <label>Nome da viagem
+              <input id="tripNameInput" type="text" placeholder="Orlando 2026" />
+            </label>
+            <label>Limite de atraso para alerta
+              <div class="range-row"><input id="delayThreshold" type="range" min="5" max="45" step="5" /><span id="delayThresholdValue">15 min</span></div>
+            </label>
+            <label>Fila considerada “longa”
+              <div class="range-row"><input id="longWaitThreshold" type="range" min="30" max="120" step="5" /><span id="longWaitThresholdValue">60 min</span></div>
+            </label>
+            <div class="settings-subsection">
+              <h3>Movimento por GPS</h3>
+              <p class="muted">O app guarda apenas os totais de distância; coordenadas não são salvas no histórico.</p>
+              <label>Passada média (cm)
+                <input id="strideCmInput" type="number" inputmode="decimal" min="40" max="120" step="1" placeholder="75" />
+              </label>
+              <label>Peso de referência para calorias (kg, opcional)
+                <input id="weightKgInput" type="number" inputmode="decimal" min="30" max="250" step="0.5" placeholder="Ex.: 70" />
+              </label>
+              <div class="settings-inline-actions">
+                <button class="secondary-btn" id="gpsSettingsBtn" type="button">Iniciar GPS</button>
+                <button class="ghost-btn" id="resetMovementBtn" type="button">Zerar movimento do dia</button>
+              </div>
+              <small class="help-text">Passos e calorias são estimativas a partir da distância GPS. Para melhor resultado, mantenha o app ativo durante os deslocamentos.</small>
+            </div>
+            <button class="secondary-btn" id="notificationBtn">Ativar notificações</button>
+            <small class="help-text">No MVP, os alertas automáticos são confiáveis enquanto o app está aberto ou ativo. Push real em segundo plano exige um serviço de push/backend.</small>
+          </div>
+
+          <div class="settings-card">
+            <h3>Importar ou exportar roteiro</h3>
+            <p class="muted">Use o JSON de exemplo como modelo. O app salva tudo localmente no aparelho.</p>
+            <label class="file-btn">Importar JSON<input id="importInput" type="file" accept="application/json,.json" hidden /></label>
+            <button class="secondary-btn" id="exportDataBtn">Exportar backup JSON</button>
+            <button class="ghost-btn" id="loadDemoBtn">Restaurar roteiro de demonstração</button>
+          </div>
+
+          <div class="settings-card">
+            <h3>Instalar no celular</h3>
+            <p class="muted">Quando publicado em HTTPS, o app pode ser adicionado à tela inicial e abrir sem a barra do navegador.</p>
+            <button class="secondary-btn" id="installBtn" hidden>Instalar aplicativo</button>
+          </div>
+
+          <div class="settings-card">
+            <h3>Fontes de dados</h3>
+            <p class="source-note">Filas: ThemeParks.wiki · Clima: Open-Meteo. Os dados ao vivo dependem de internet e da disponibilidade dos provedores.</p>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Navegação principal">
+      <button class="nav-item active" data-target="today" aria-label="Hoje">
+        <span class="nav-icon themed-home-icon" id="homeParkIcon" aria-hidden="true"><svg viewBox="0 0 36 36" aria-hidden="true"><path d="M4 31V19l4-2.5V11l3 1.5V8l3 1.5L18 3l4 6.5L25 8v4.5l3-1.5v5.5l4 2.5v12H4Z"/><path d="M13 31v-8h10v8M9 20h18M14 13h8M18 3V1.5"/></svg></span><small>Hoje</small>
+      </button>
+      <button class="nav-item" data-target="live" aria-label="Ao vivo">
+        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 28 28"><circle cx="14" cy="14" r="3"/><path d="M8.3 8.3a8 8 0 0 0 0 11.4m11.4 0a8 8 0 0 0 0-11.4M4.8 4.8a13 13 0 0 0 0 18.4m18.4 0a13 13 0 0 0 0-18.4"/></svg></span><small>Ao vivo</small>
+      </button>
+      <button class="nav-item" data-target="history" aria-label="Histórico">
+        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M7 4h14M7 24h14M9 5v4c0 2.7 1.8 4.2 5 5-3.2.8-5 2.3-5 5v4m10-18v4c0 2.7-1.8 4.2-5 5 3.2.8 5 2.3 5 5v4"/><path d="M10.5 9.2h7L14 13l-3.5-3.8Zm0 9.6h7L14 15l-3.5 3.8Z" opacity=".72"/></svg></span><small>Histórico</small>
+      </button>
+      <button class="nav-item" data-target="report" aria-label="Report">
+        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M5 5h18v18H5z"/><path d="M9 18v-4m5 4V9m5 9v-7"/></svg></span><small>Report</small>
+      </button>
+      <button class="nav-item" data-target="settings" aria-label="Ajustes">
+        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 28 28"><circle cx="14" cy="14" r="3.3"/><path d="M14 3.5v2.4m0 16.2v2.4M3.5 14h2.4m16.2 0h2.4M6.6 6.6l1.7 1.7m11.4 11.4 1.7 1.7M6.6 21.4l1.7-1.7M19.7 8.3l1.7-1.7"/><circle cx="14" cy="14" r="8"/></svg></span><small>Ajustes</small>
+      </button>
+    </nav>
+  </div>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <dialog id="completeDialog" class="sheet-dialog">
+    <form method="dialog" id="completeForm">
+      <div class="sheet-handle"></div>
+      <h3 id="completeTitle">Registrar atividade</h3>
+      <p id="completeHint" class="muted completion-hint"></p>
+      <input type="hidden" id="completeActivityId" />
+
+      <div id="attractionCompletionFields" class="completion-fields" hidden>
+        <label>Tempo real de fila (min)
+          <input id="actualWaitInput" type="number" min="0" step="1" inputmode="numeric" placeholder="0" />
+        </label>
+      </div>
+
+      <div id="mealCompletionFields" class="completion-fields" hidden>
+        <label>Restaurante / local
+          <input id="restaurantNameInput" type="text" maxlength="100" autocomplete="off" list="restaurantSuggestions" placeholder="Ex.: Columbia Harbour House" />
+        </label>
+        <label>Prato / refeição <span class="muted">(opcional)</span>
+          <input id="mealItemInput" type="text" maxlength="100" autocomplete="off" list="mealSuggestions" placeholder="Ex.: cheeseburger, pizza, combo..." />
+        </label>
+      </div>
+
+      <fieldset id="ratingFieldset">
+        <legend>Nota <span class="muted">(de 0,5 em 0,5)</span></legend>
+        <div class="rating-control">
+          <div class="rating-visual" aria-hidden="true">
+            <span class="rating-empty">★★★★★</span>
+            <span class="rating-fill" id="ratingFill">★★★★★</span>
+          </div>
+          <strong class="rating-value" id="ratingValue">Sem nota</strong>
+          <input id="ratingSlider" type="range" min="0" max="5" step="0.5" value="0" aria-label="Nota da experiência, de zero a cinco estrelas em incrementos de meia estrela" />
+          <div class="rating-scale" aria-hidden="true"><span>0</span><span>2,5</span><span>5</span></div>
+        </div>
+      </fieldset>
+
+      <label id="commentField">Comentário rápido
+        <input id="commentInput" type="text" maxlength="100" placeholder="Valeu repetir? Momento favorito?" />
+      </label>
+
+      <div class="dialog-actions">
+        <button value="cancel" class="ghost-btn">Cancelar</button>
+        <button value="default" id="saveCompletionBtn" class="primary-btn">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <datalist id="restaurantSuggestions"></datalist>
+  <datalist id="mealSuggestions"></datalist>
+  <datalist id="attractionSuggestions"></datalist>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
