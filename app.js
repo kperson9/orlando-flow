@@ -146,6 +146,7 @@ function parkIconSvg(parkKey = state.selectedPark, className = '') {
   const cls = className ? ` class="${className}"` : '';
   const open = `<svg${cls} viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">`;
   const close = '</svg>';
+  const rasterIcon = (src) => `<span class="park-icon-raster" style="--park-icon-url:url('${src}')"><img src="${src}" alt=""${className ? ` class="park-icon-image ${className}"` : ' class="park-icon-image"'}/></span>`;
   const icons = {
     'magic-kingdom': `${open}
       <path class="park-icon-soft" d="M8 57h48v-4H8z"/>
@@ -162,11 +163,11 @@ function parkIconSvg(parkKey = state.selectedPark, className = '') {
       <path class="park-icon-thin" d="M20 10 32 20 44 10M11 20l10 8 11-8 11 8 10-8M8 31l13-3 11 8 11-8 13 3M13 43l8-15 11 8 11-8 8 15M22 51l10-15 10 15M32 5v48M8 31h48"/>
       <path d="M25 53 23 60m16-7 2 7M21 60h22"/>
       ${close}`,
-    'animal-kingdom': `<img src="./icons/animal-kingdom-reference-clean.png" alt=""${className ? ` class="park-icon-image ${className}"` : ' class="park-icon-image"'} style="width:100%;height:100%;object-fit:contain;display:block">`,
-    'hollywood-studios': `<img src="./icons/hollywood-studios-reference-clean.png" alt=""${className ? ` class="park-icon-image ${className}"` : ' class="park-icon-image"'} style="width:100%;height:100%;object-fit:contain;display:block">`,
-    'epic-universe': `<img src="./icons/epic-universe-reference-clean.png" alt=""${className ? ` class="park-icon-image ${className}"` : ' class="park-icon-image"'} style="width:100%;height:100%;object-fit:contain;display:block">`,
-    'islands-of-adventure': `<img src="./icons/islands-of-adventure-reference-clean.png" alt=""${className ? ` class="park-icon-image ${className}"` : ' class="park-icon-image"'} style="width:100%;height:100%;object-fit:contain;display:block">`,
-    'universal-studios-florida': `<img src="./icons/universal-studios-reference-clean.png" alt=""${className ? ` class="park-icon-image ${className}"` : ' class="park-icon-image"'} style="width:100%;height:100%;object-fit:contain;display:block">`,
+    'animal-kingdom': rasterIcon('./icons/animal-kingdom-reference-clean.png'),
+    'hollywood-studios': rasterIcon('./icons/hollywood-studios-reference-clean.png'),
+    'epic-universe': rasterIcon('./icons/epic-universe-reference-clean.png'),
+    'islands-of-adventure': rasterIcon('./icons/islands-of-adventure-hp-clean.png'),
+    'universal-studios-florida': rasterIcon('./icons/universal-studios-globe-clean.png'),
     'off-day': `${open}<path d="M32 8l5 14 14 5-14 5-5 14-5-14-14-5 14-5 5-14Z"/><circle cx="32" cy="32" r="24" opacity=".45"/>${close}`
   };
   return icons[parkKey] || icons['off-day'];
@@ -1630,9 +1631,9 @@ function reportGroupCard(title, records, { parkKey = null, brand = null, kicker 
   const icon = parkKey
     ? `<span class="report-group-icon">${parkIconSvg(parkKey)}</span>`
     : effectiveBrand === 'disney'
-      ? `<span class="report-group-icon"><img src="${DISNEY_REPORT_LOGO}" alt="" style="width:31px;height:31px;object-fit:contain;display:block"></span>`
+      ? `<span class="report-group-icon"><span class="report-franchise-raster" style="--park-icon-url:url('${DISNEY_REPORT_LOGO}');width:31px;height:31px"><img src="${DISNEY_REPORT_LOGO}" alt=""></span></span>`
       : effectiveBrand === 'universal'
-        ? `<span class="report-group-icon"><img src="${UNIVERSAL_REPORT_LOGO}" alt="" style="width:38px;height:31px;object-fit:contain;display:block"></span>`
+        ? `<span class="report-group-icon"><span class="report-franchise-raster" style="--park-icon-url:url('${UNIVERSAL_REPORT_LOGO}');width:38px;height:31px"><img src="${UNIVERSAL_REPORT_LOGO}" alt=""></span></span>`
         : `<span class="report-group-icon report-group-letter">O</span>`;
   const attractionsHtml = topAttractions.length
     ? topAttractions.map((x,i)=>`<div class="report-mini-rank"><b>${i+1}</b><span><strong>${escapeHtml(x.a?.title || x.r.title || 'Atração')}</strong><small>${formatRating(x.r.rating, true)} · fila ${Number(x.r.actualWait||0)} min</small></span></div>`).join('')
@@ -2141,7 +2142,7 @@ function bindEvents() {
   $('#exportReportBtn').addEventListener('click',exportReport);
   $('#exportDataBtn').addEventListener('click',exportBackup);
   $('#loadDemoBtn').addEventListener('click',async()=>{ if(confirm('Substituir o roteiro atual pelo exemplo?')){await loadDemo();renderAll();} });
-  $('#importInput').addEventListener('change',async e=>{ const file=e.target.files?.[0]; if(!file)return; try{const data=JSON.parse(await file.text());validateImportedTrip(data);state.tripName=data.tripName||state.tripName;state.timezone=data.timezone||ORLANDO_TZ;state.settings={...state.settings,...(data.settings||{})};state.days=data.days;state.history=data.history||[];state.stepsByDate=data.stepsByDate||{};state.movementByDate=data.movementByDate||{};state.originalPlans=data.originalPlans||snapshotOriginalPlans(state.days);state.replanDecisions=data.replanDecisions||{};state.replanHistory=data.replanHistory||[];state.lastReplanAnalyses=data.lastReplanAnalyses||{};state.selectedDate=chooseRelevantDate();const d=getSelectedDay();if(PARKS[d?.park]?.entityId)state.selectedPark=d.park;ensureOriginalPlans();saveState();renderAll();toast('Roteiro importado com sucesso.');}catch(err){alert(`Não foi possível importar: ${err.message}`);} finally{e.target.value='';} });
+  $('#importInput').addEventListener('change',async e=>{ const file=e.target.files?.[0]; if(!file)return; try{const data=JSON.parse(await file.text());validateImportedTrip(data);state.tripName=data.tripName||state.tripName;state.timezone=data.timezone||ORLANDO_TZ;state.settings={...state.settings,...(data.settings||{})};state.days=data.days;state.history=data.history||[];state.stepsByDate=data.stepsByDate||{};state.movementByDate=data.movementByDate||{};state.originalPlans=data.originalPlans||snapshotOriginalPlans(state.days);state.replanDecisions=data.replanDecisions||{};state.replanHistory=data.replanHistory||[];state.lastReplanAnalyses=data.lastReplanAnalyses||{};state.queueHistory=data.queueHistory||state.queueHistory||{};state.scheduleCache=data.scheduleCache||state.scheduleCache||{};state.attractionGeo=data.attractionGeo||state.attractionGeo||{};state.attractionPreferences=data.attractionPreferences||state.attractionPreferences||{};state.passBookings=data.passBookings||state.passBookings||{};state.emergencyLog=data.emergencyLog||state.emergencyLog||[];state.emergencyState=data.emergencyState||null;state.selectedDate=chooseRelevantDate();const d=getSelectedDay();if(PARKS[d?.park]?.entityId)state.selectedPark=d.park;ensureOriginalPlans();saveState();renderAll();toast('Roteiro importado com sucesso.');}catch(err){alert(`Não foi possível importar: ${err.message}`);} finally{e.target.value='';} });
   $('#tripNameInput').addEventListener('change',e=>{state.tripName=e.target.value.trim()||'Orlando Flow';saveState();renderHeader();});
   $('#delayThreshold').addEventListener('input',e=>{$('#delayThresholdValue').textContent=`${e.target.value} min`;});
   $('#delayThreshold').addEventListener('change',e=>{state.settings.delayThreshold=Number(e.target.value);saveState();renderStatus();});
@@ -2160,6 +2161,2237 @@ function bindEvents() {
   window.addEventListener('pagehide',()=>saveState());
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'){renderAll();evaluateAlerts();} });
 }
+
+/* ============================================================
+   Orlando Flow v21 — Park Copilot decision engine
+   ============================================================ */
+const COPILOT_PRIORITY_LEVELS = {
+  must: { label:'Imperdível', value:100 },
+  want: { label:'Quero muito', value:82 },
+  normal: { label:'Normal', value:60 },
+  low: { label:'Não faço questão', value:30 },
+  empty: { label:'Só se estiver vazio', value:12 }
+};
+
+const COPILOT_PROFILES = {
+  max: {
+    label:'Express 🔥',
+    description:'Otimiza throughput: filas, tendência e caminhada pesam mais.',
+    weights:{ wait:28, forecast:20, distance:20, priority:10, climate:7, schedule:10, energy:5 },
+    attractionReward:34,
+    timePenalty:.11,
+    relaxPause:0
+  },
+  experience: {
+    label:'Experiência ❤️',
+    description:'Equilibra favoritas, clima, compromissos e eficiência.',
+    weights:{ wait:18, forecast:14, distance:12, priority:24, climate:12, schedule:14, energy:6 },
+    attractionReward:20,
+    timePenalty:.075,
+    relaxPause:0
+  },
+  relax: {
+    label:'Relax 🧘🏻',
+    description:'Evita correria: proximidade, energia e respiros têm mais peso.',
+    weights:{ wait:12, forecast:10, distance:20, priority:18, climate:10, schedule:15, energy:15 },
+    attractionReward:8,
+    timePenalty:.045,
+    relaxPause:20
+  }
+};
+
+const COPILOT_WEATHER_HIGH = new Set([
+  'seven dwarfs mine train','big thunder mountain railroad','tianas bayou adventure','tron lightcycle run',
+  'test track','slinky dog dash','expedition everest','kilimanjaro safaris',
+  'hagrids magical creatures motorbike adventure','jurassic world velocicoaster','jurassic park river adventure',
+  'stardust racers','mine cart madness'
+]);
+const COPILOT_WEATHER_LOW = new Set([
+  'haunted mansion','pirates of the caribbean','space mountain','guardians of the galaxy cosmic rewind',
+  'remys ratatouille adventure','frozen ever after','spaceship earth','the twilight zone tower of terror',
+  'star wars rise of the resistance','millennium falcon smugglers run','avatar flight of passage',
+  'harry potter and the escape from gringotts','revenge of the mummy','men in black alien attack',
+  'the amazing adventures of spider man','harry potter and the forbidden journey',
+  'monsters unchained the frankenstein experiment','harry potter and the battle at the ministry',
+  'mario kart bowsers challenge'
+]);
+
+function clamp(value, min=0, max=100) {
+  return Math.max(min, Math.min(max, Number(value || 0)));
+}
+
+function ensureCopilotState() {
+  if (!state.settings || typeof state.settings !== 'object') state.settings = {};
+  if (!COPILOT_PROFILES[state.settings.optimizationMode]) state.settings.optimizationMode = 'experience';
+  if (!Number.isFinite(Number(state.settings.walkingMetersPerMinute))) state.settings.walkingMetersPerMinute = 75;
+  if (!Number.isFinite(Number(state.settings.emergencyWaitJump))) state.settings.emergencyWaitJump = 30;
+  if (!state.queueHistory || typeof state.queueHistory !== 'object') state.queueHistory = {};
+  if (!state.scheduleCache || typeof state.scheduleCache !== 'object') state.scheduleCache = {};
+  if (!state.attractionGeo || typeof state.attractionGeo !== 'object') state.attractionGeo = {};
+  if (!state.attractionPreferences || typeof state.attractionPreferences !== 'object') state.attractionPreferences = {};
+  if (!Array.isArray(state.emergencyLog)) state.emergencyLog = [];
+  if (!state.emergencyState || typeof state.emergencyState !== 'object') state.emergencyState = null;
+}
+
+function copilotProfile() {
+  ensureCopilotState();
+  return COPILOT_PROFILES[state.settings.optimizationMode] || COPILOT_PROFILES.experience;
+}
+
+function preferenceKey(value) {
+  return normalizeName(typeof value === 'string' ? value : (value?.entityName || value?.title || value?.name || ''));
+}
+
+function getAttractionPreference(value) {
+  ensureCopilotState();
+  return state.attractionPreferences[preferenceKey(value)] || {};
+}
+
+function priorityCodeFromActivity(activity) {
+  const pref = getAttractionPreference(activity);
+  if (COPILOT_PRIORITY_LEVELS[pref.priority]) return pref.priority;
+  const p = Number(activity?.priority || 3);
+  if (p >= 5) return 'must';
+  if (p >= 4) return 'want';
+  if (p <= 1) return 'empty';
+  if (p <= 2) return 'low';
+  return 'normal';
+}
+
+function personalPriorityMeta(activity, currentWait = null) {
+  const code = priorityCodeFromActivity(activity);
+  const base = COPILOT_PRIORITY_LEVELS[code] || COPILOT_PRIORITY_LEVELS.normal;
+  let value = base.value;
+  if (code === 'empty') value = Number(currentWait) <= 15 ? 72 : Math.max(5, 34 - Number(currentWait || 0));
+  return { code, label:base.label, score:clamp(value) };
+}
+
+function repeatWantedFor(activity) {
+  return Boolean(getAttractionPreference(activity).repeatWanted);
+}
+
+function passMetaFor(activity) {
+  const pref = getAttractionPreference(activity);
+  const passType = pref.passType || activity?.passType || 'none';
+  const passTime = pref.passTime || activity?.passTime || '';
+  const passWindowMinutes = Math.max(15, Math.min(180, Number(pref.passWindowMinutes || activity?.passWindowMinutes || 60)));
+  return { passType, passTime, passWindowMinutes };
+}
+
+function weatherImpactForActivity(activity) {
+  const pref = getAttractionPreference(activity);
+  if (['high','medium','low'].includes(pref.weatherImpact)) return pref.weatherImpact;
+  if (activity?.weatherImpact && ['high','medium','low'].includes(activity.weatherImpact)) return activity.weatherImpact;
+  if (activity?.indoor === true) return 'low';
+  if (activity?.weatherSensitive === true) return 'high';
+  const key = preferenceKey(activity);
+  if (COPILOT_WEATHER_HIGH.has(key)) return 'high';
+  if (COPILOT_WEATHER_LOW.has(key)) return 'low';
+  return 'medium';
+}
+
+function isFixedAnchor(activity) {
+  if (!activity) return false;
+  if (activity.fixedAnchor === true || activity.anchor === true) return true;
+  if (activity.flexible === false) return true;
+  return ['show','fireworks','parade','reservation','early-entry','entertainment'].includes(String(activity.type || '').toLowerCase());
+}
+
+function anchorBufferMinutes(activity) {
+  if (!isFixedAnchor(activity)) return 0;
+  const type = String(activity.type || '').toLowerCase();
+  const fallback = ['show','fireworks','parade','entertainment'].includes(type) ? 40 : type === 'reservation' ? 20 : 10;
+  return Math.max(0, Math.min(120, Number(activity.arrivalBuffer ?? fallback)));
+}
+
+function queueStoreFor(parkKey, name, create=false) {
+  ensureCopilotState();
+  if (!state.queueHistory[parkKey] && create) state.queueHistory[parkKey] = {};
+  const park = state.queueHistory[parkKey] || {};
+  const key = normalizeName(name);
+  if (!park[key] && create) park[key] = [];
+  return park[key] || [];
+}
+
+function recordQueueSnapshot(parkKey, payload) {
+  if (!payload?.liveData?.length) return;
+  ensureCopilotState();
+  const now = Number(payload.fetchedAt || Date.now());
+  const cutoff = now - 14 * 24 * 60 * 60 * 1000;
+  for (const entry of payload.liveData) {
+    const wait = extractStandby(entry);
+    const status = String(entry.status || '').toUpperCase();
+    if (wait == null && !status) continue;
+    const arr = queueStoreFor(parkKey, entry.name, true);
+    const last = arr.at(-1);
+    if (last && Math.abs(now - Number(last.t || 0)) < 90_000 && last.wait === wait && last.status === status) continue;
+    arr.push({ t:now, wait:wait == null ? null : Number(wait), status, entityId:entry.entityId || entry.id || null });
+    const trimmed = arr.filter(x => Number(x.t || 0) >= cutoff).slice(-180);
+    state.queueHistory[parkKey][normalizeName(entry.name)] = trimmed;
+  }
+}
+
+function queueSamples(parkKey, name, onlyWait=true) {
+  const arr = queueStoreFor(parkKey, name, false);
+  return onlyWait ? arr.filter(x => Number.isFinite(Number(x.wait))) : arr;
+}
+
+function queueTrendMeta(parkKey, name) {
+  const now = Date.now();
+  const samples = queueSamples(parkKey, name).filter(x => now - Number(x.t) <= 90*60_000).slice(-12);
+  if (samples.length < 2) return { slopePerHour:0, label:'Estável', direction:'stable', confidence:'baixa' };
+  const x0 = samples[0].t;
+  const xs = samples.map(s => (s.t - x0)/60000);
+  const ys = samples.map(s => Number(s.wait));
+  const xm = xs.reduce((a,b)=>a+b,0)/xs.length;
+  const ym = ys.reduce((a,b)=>a+b,0)/ys.length;
+  const den = xs.reduce((sum,x)=>sum+(x-xm)**2,0) || 1;
+  const slopePerMinute = xs.reduce((sum,x,i)=>sum+(x-xm)*(ys[i]-ym),0)/den;
+  const slopePerHour = clamp(slopePerMinute * 60, -50, 50);
+  if (slopePerHour >= 8) return { slopePerHour, label:'Aumentando', direction:'up', confidence:samples.length >= 4 ? 'média' : 'baixa' };
+  if (slopePerHour <= -8) return { slopePerHour, label:'Diminuindo', direction:'down', confidence:samples.length >= 4 ? 'média' : 'baixa' };
+  return { slopePerHour, label:'Estável', direction:'stable', confidence:samples.length >= 4 ? 'média' : 'baixa' };
+}
+
+function parkHoursForDate(parkKey, date = getOrlandoParts().date) {
+  const payload = state.scheduleCache?.[parkKey];
+  const entries = payload?.schedule || [];
+  const operating = entries.filter(x => x.date === date && String(x.type || '').toUpperCase() === 'OPERATING');
+  const primary = operating[0] || entries.find(x => x.date === date) || null;
+  if (!primary) return { open:540, close:1320, source:'fallback' };
+  const hhmm = iso => iso ? formatTimeISO(iso) : null;
+  const open = hhmm(primary.openingTime);
+  const close = hhmm(primary.closingTime);
+  return { open:open ? timeToMinutes(open) : 540, close:close ? timeToMinutes(close) : 1320, source:'schedule', entry:primary };
+}
+
+function demandFactorAt(minute, parkKey=state.selectedPark, date=getOrlandoParts().date) {
+  const hours = parkHoursForDate(parkKey, date);
+  const span = Math.max(240, hours.close - hours.open);
+  const p = clamp((Number(minute)-hours.open)/span, 0, 1);
+  if (p <= .08) return .62;
+  if (p <= .18) return .82;
+  if (p <= .32) return 1.02;
+  if (p <= .62) return 1.16;
+  if (p <= .76) return 1.04;
+  if (p <= .88) return .90;
+  return .72;
+}
+
+function historicalWaitAtMinute(parkKey, name, minute, date=getOrlandoParts().date) {
+  const samples = queueSamples(parkKey, name);
+  if (!samples.length) return { wait:null, count:0 };
+  const target = Number(minute);
+  const bucket = samples.filter(s => {
+    const p = getOrlandoParts(new Date(Number(s.t)));
+    const sm = p.hour*60+p.minute;
+    const circular = Math.min(Math.abs(sm-target), 1440-Math.abs(sm-target));
+    return circular <= 35;
+  });
+  if (bucket.length < 2) return { wait:null, count:bucket.length };
+  const values = bucket.map(x=>Number(x.wait)).sort((a,b)=>a-b);
+  const trim = values.length >= 6 ? values.slice(1,-1) : values;
+  return { wait:Math.round(trim.reduce((a,b)=>a+b,0)/trim.length), count:bucket.length };
+}
+
+function predictedWaitFor(name, currentWait, targetMinute, parkKey=state.selectedPark, activity=null) {
+  if (!Number.isFinite(Number(currentWait))) return null;
+  const now = getOrlandoParts();
+  const nowMin = now.hour*60 + now.minute;
+  const horizon = Math.max(0, Number(targetMinute)-nowMin);
+  const trend = queueTrendMeta(parkKey, name);
+  const trendEstimate = Number(currentWait) + (trend.slopePerHour/60) * Math.min(horizon, 90);
+  const histTarget = historicalWaitAtMinute(parkKey, name, targetMinute, now.date);
+  const histNow = historicalWaitAtMinute(parkKey, name, nowMin, now.date);
+  const profileEstimate = histTarget.wait != null
+    ? histTarget.wait
+    : Number(currentWait) * (demandFactorAt(targetMinute,parkKey,now.date) / Math.max(.45,demandFactorAt(nowMin,parkKey,now.date)));
+  const planned = Number(activity?.plannedWait);
+  const baseline = Number.isFinite(planned) ? planned : (histNow.wait ?? Number(currentWait));
+  const trendWeight = horizon <= 60 ? .55 : .35;
+  const profileWeight = horizon <= 60 ? .30 : .50;
+  const estimate = trendEstimate*trendWeight + profileEstimate*profileWeight + baseline*.15;
+  return Math.max(5, Math.round(clamp(estimate, 5, 180)));
+}
+
+function bestQueueWindow(name, currentWait, parkKey=state.selectedPark, activity=null, weatherPayload=null) {
+  if (!Number.isFinite(Number(currentWait))) return null;
+  const now = getOrlandoParts();
+  const nowMin = now.hour*60 + now.minute;
+  const hours = parkHoursForDate(parkKey, now.date);
+  const closing = Math.max(nowMin+30, hours.close);
+  let best = null;
+  for (let minute = Math.ceil((nowMin+30)/30)*30; minute <= closing-20; minute += 30) {
+    const wait = predictedWaitFor(name,currentWait,minute,parkKey,activity);
+    if (wait == null) continue;
+    const risk = weatherRiskForHour(weatherAtMinute(weatherPayload,minute,now.date));
+    const impact = weatherImpactForActivity(activity || {title:name});
+    let adjusted = wait;
+    if (impact === 'high' && risk.score > 0) adjusted += risk.level === 'high' ? 50 : 25;
+    if (isFixedAnchor(activity)) adjusted += 100;
+    if (!best || adjusted < best.adjusted) best = { minute, wait, adjusted, risk };
+  }
+  if (!best || Number(currentWait)-best.wait < Math.max(8, Number(currentWait)*.15)) return null;
+  return { ...best, time:minutesToTime(best.minute), saving:Math.max(0,Number(currentWait)-best.wait) };
+}
+
+async function fetchParkSchedule(parkKey=state.selectedPark) {
+  ensureCopilotState();
+  const park = PARKS[parkKey];
+  if (!park?.entityId) return null;
+  const cached = state.scheduleCache[parkKey];
+  if (cached && Date.now()-Number(cached.fetchedAt||0) < 6*60*60_000) return cached;
+  try {
+    const res = await fetch(`${API_BASE}/entity/${park.entityId}/schedule`, { headers:{Accept:'application/json'} });
+    if (!res.ok) throw new Error(`Schedule HTTP ${res.status}`);
+    const data = await res.json();
+    const payload = { fetchedAt:Date.now(), schedule:data.schedule || [] };
+    state.scheduleCache[parkKey] = payload;
+    saveState();
+    return payload;
+  } catch {
+    return cached || null;
+  }
+}
+
+function geoStore(parkKey, name, value=null) {
+  ensureCopilotState();
+  if (!state.attractionGeo[parkKey]) state.attractionGeo[parkKey] = {};
+  const key = normalizeName(name);
+  if (value) state.attractionGeo[parkKey][key] = value;
+  return state.attractionGeo[parkKey][key] || null;
+}
+
+async function hydrateAttractionLocations(parkKey, liveData=[]) {
+  if (!gpsLastPoint || !navigator.onLine) return;
+  const day = getSelectedDay();
+  const pendingNames = new Set((day?.activities || []).filter(a=>a.type==='attraction'&&!isDone(a.id)).map(a=>preferenceKey(a)));
+  const candidates = [...liveData]
+    .filter(x => x.name && (x.entityId || x.id))
+    .sort((a,b)=>Number(pendingNames.has(normalizeName(b.name)))-Number(pendingNames.has(normalizeName(a.name))) || (extractStandby(a)??999)-(extractStandby(b)??999))
+    .filter(x => !geoStore(parkKey,x.name))
+    .slice(0,10);
+  let cursor=0;
+  async function worker(){
+    while(cursor<candidates.length){
+      const entry=candidates[cursor++];
+      const entityId=entry.entityId||entry.id;
+      try{
+        const res=await fetch(`${API_BASE}/entity/${entityId}`,{headers:{Accept:'application/json'}});
+        if(!res.ok) continue;
+        const data=await res.json();
+        const lat=Number(data.location?.latitude), lon=Number(data.location?.longitude);
+        if(Number.isFinite(lat)&&Number.isFinite(lon)) geoStore(parkKey,entry.name,{lat,lon,entityId,source:'themeparks-wiki',updatedAt:Date.now()});
+      }catch{}
+    }
+  }
+  await Promise.all([worker(),worker(),worker()]);
+  saveState();
+}
+
+function liveEntryForActivity(activity, liveData=[]) {
+  return activity ? findLiveMatch(activity,liveData) : null;
+}
+
+function activityCoordinatesCopilot(activity, parkKey=state.selectedPark, liveEntry=null) {
+  const lat=Number(activity?.lat ?? activity?.latitude), lon=Number(activity?.lon ?? activity?.lng ?? activity?.longitude);
+  if(Number.isFinite(lat)&&Number.isFinite(lon)) return {lat,lon,source:'itinerary'};
+  const pref=getAttractionPreference(activity || liveEntry?.name || '');
+  const plat=Number(pref.lat), plon=Number(pref.lon);
+  if(Number.isFinite(plat)&&Number.isFinite(plon)) return {lat:plat,lon:plon,source:'preference'};
+  return geoStore(parkKey, liveEntry?.name || activity?.entityName || activity?.title || '');
+}
+
+function walkingMeta(activity, liveEntry=null, day=getSelectedDay(), previousActivity=null) {
+  const parkKey=day?.park || state.selectedPark;
+  const target=activityCoordinatesCopilot(activity,parkKey,liveEntry);
+  const speed=Math.max(45,Math.min(100,Number(state.settings.walkingMetersPerMinute||75)));
+  if(gpsLastPoint&&target){
+    const straight=haversineMeters(gpsLastPoint,target);
+    const meters=Math.round(straight*1.22);
+    return { minutes:Math.max(1,Math.ceil(meters/speed)), meters, source:'gps', known:true };
+  }
+  if(previousActivity){
+    const p=activityCoordinatesCopilot(previousActivity,parkKey);
+    if(p&&target){
+      const meters=Math.round(haversineMeters(p,target)*1.22);
+      return {minutes:Math.max(1,Math.ceil(meters/speed)),meters,source:'route',known:true};
+    }
+    if(normalizeName(previousActivity.area||'')&&normalizeName(previousActivity.area||'')===normalizeName(activity?.area||'')) return {minutes:4,meters:null,source:'area',known:false};
+  }
+  return {minutes:10,meters:null,source:'fallback',known:false};
+}
+
+function nextAnchorFor(day, fromMinute=null) {
+  const now=getOrlandoParts();
+  const start=fromMinute==null?now.hour*60+now.minute:Number(fromMinute);
+  return (day?.activities||[])
+    .filter(a=>isFixedAnchor(a)&&!a.replanDeferred&&!isDone(a.id)&&!isSkipped(a.id)&&timeToMinutes(a.time)>=start)
+    .sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time))[0]||null;
+}
+
+function passScheduleScore(activity, startMinute) {
+  const pass=passMetaFor(activity);
+  if(pass.passType==='none') return {score:55,active:false,label:null};
+  if(!pass.passTime) return {score:72,active:false,label:`${pass.passType==='single'?'Single Pass':'Multi Pass'} marcado`};
+  const p=timeToMinutes(pass.passTime), end=p+pass.passWindowMinutes;
+  if(startMinute>=p&&startMinute<=end) return {score:100,active:true,label:`janela ${pass.passTime}–${minutesToTime(end)}`};
+  if(startMinute<p){
+    const d=p-startMinute;
+    return {score:clamp(80-d*.45,20,80),active:false,label:`pass às ${pass.passTime}`};
+  }
+  return {score:8,active:false,label:'janela do pass já passou'};
+}
+
+function effectiveQueueMinutes(activity, wait, startMinute) {
+  const pass=passScheduleScore(activity,startMinute);
+  if(pass.active){
+    const type=passMetaFor(activity).passType;
+    return Math.min(Number(wait||0), type==='single'?10:15);
+  }
+  return Number(wait||0);
+}
+
+function recentEnergyMeta(day=getSelectedDay()) {
+  const movement=movementMetricsForDate(day?.date || getOrlandoParts().date);
+  const now=Date.now();
+  const recent=getDayHistory(day?.date).filter(r=>r.actualEnd&&now-new Date(r.actualEnd).getTime()<=120*60_000).length;
+  const km=movement.distanceKm;
+  const score=clamp(100-Math.max(0,km-5)*6-recent*7,18,100);
+  return {score,km,recent};
+}
+
+function climateScoreMeta(activity, weatherPayload, startMinute=null) {
+  const impact=weatherImpactForActivity(activity);
+  const now=getOrlandoParts();
+  const minute=startMinute==null?now.hour*60+now.minute:Number(startMinute);
+  const hour=weatherAtMinute(weatherPayload,minute,now.date);
+  const risk=weatherRiskForHour(hour || relevantWeather(weatherPayload).current);
+  const rel=relevantWeather(weatherPayload);
+  const nextRiskMin=rel.nextRisk?timeToMinutes(rel.nextRisk.time.slice(11,16)):null;
+  if(impact==='high'){
+    if(risk.level==='high') return {score:5,impact,risk,reason:'alto risco climático agora'};
+    if(risk.level==='medium') return {score:22,impact,risk,reason:'clima pode interromper a operação'};
+    if(nextRiskMin!=null&&nextRiskMin>=minute&&nextRiskMin-minute<=90) return {score:96,impact,risk,reason:`priorizar antes do risco às ${rel.nextRisk.time.slice(11,16)}`};
+    return {score:72,impact,risk,reason:'janela climática segura'};
+  }
+  if(impact==='low'){
+    if(risk.score>0) return {score:94,impact,risk,reason:'boa opção protegida durante o mau tempo'};
+    return {score:62,impact,risk,reason:'baixo impacto climático'};
+  }
+  if(risk.level==='high') return {score:35,impact,risk,reason:'clima desfavorável'};
+  if(risk.level==='medium') return {score:48,impact,risk,reason:'algum impacto de clima'};
+  return {score:65,impact,risk,reason:'clima compatível'};
+}
+
+function scheduleScoreMeta(activity, startMinute, totalMinutes, day=getSelectedDay()) {
+  const pass=passScheduleScore(activity,startMinute);
+  const anchor=nextAnchorFor(day,startMinute);
+  const hours=parkHoursForDate(day?.park||state.selectedPark,day?.date||getOrlandoParts().date);
+  const end=startMinute+totalMinutes;
+  let score=65, blocked=false, reason='cabe no restante do roteiro';
+  if(end>hours.close){score=0;blocked=true;reason=`não termina antes do fechamento (${minutesToTime(hours.close)})`;}
+  if(anchor&&anchor.id!==activity?.id){
+    const deadline=timeToMinutes(anchor.time)-anchorBufferMinutes(anchor);
+    if(end>deadline){score=0;blocked=true;reason=`conflita com ${anchor.title} às ${anchor.time}`;}
+    else{
+      const slack=deadline-end;
+      score=clamp(70+Math.min(25,slack*.12),0,100);
+      reason=`preserva ${anchor.title} + ${anchorBufferMinutes(anchor)} min de chegada`;
+    }
+  }
+  if(!blocked&&pass.passType!=='none'){
+    score=clamp(score*.55+pass.score*.45);
+    if(pass.label) reason=`${reason}; ${pass.label}`;
+  }
+  return {score,blocked,reason,anchor,pass,hours};
+}
+
+function copilotScoreForEntry(entry, day=getSelectedDay(), weatherPayload=state.weatherCache[state.selectedPark], startMinute=null, previousActivity=null) {
+  ensureCopilotState();
+  const name=entry?.name || entry?.title || 'Atração';
+  const liveData=state.liveCache[day?.park||state.selectedPark]?.liveData||[];
+  const planned=(day?.activities||[]).find(a=>a.type==='attraction'&&findLiveMatch(a,[entry])) || null;
+  const activity=planned || {id:`live-${normalizeName(name)}`,title:name,entityName:name,type:'attraction',duration:8,priority:3,flexible:true,area:'',indoor:undefined,weatherSensitive:undefined};
+  const status=String(entry?.status||'OPERATING').toUpperCase();
+  const wait=extractStandby(entry);
+  if(['DOWN','CLOSED','REFURBISHMENT'].includes(status)) return {activity,entry,wait:null,score:0,band:'INDISPONÍVEL',bandClass:'bad',blocked:true,reasons:[`status ${status.toLowerCase()}`],components:{},walk:{minutes:0,known:false},forecast:{trend:queueTrendMeta(day?.park||state.selectedPark,name),p30:null,p60:null,best:null}};
+  if(wait==null) return {activity,entry,wait:null,score:25,band:'SEM FILA',bandClass:'neutral',blocked:false,reasons:['tempo de fila indisponível'],components:{},walk:{minutes:10,known:false},forecast:{trend:queueTrendMeta(day?.park||state.selectedPark,name),p30:null,p60:null,best:null}};
+  const now=getOrlandoParts();
+  const minute=startMinute==null?now.hour*60+now.minute:Number(startMinute);
+  const walk=walkingMeta(activity,entry,day,previousActivity);
+  const p30=predictedWaitFor(name,wait,minute+30,day?.park||state.selectedPark,activity);
+  const p60=predictedWaitFor(name,wait,minute+60,day?.park||state.selectedPark,activity);
+  const trend=queueTrendMeta(day?.park||state.selectedPark,name);
+  const best=bestQueueWindow(name,wait,day?.park||state.selectedPark,activity,weatherPayload);
+  const histNow=historicalWaitAtMinute(day?.park||state.selectedPark,name,minute,day?.date||now.date);
+  const reference=histNow.wait ?? (Number.isFinite(Number(activity.plannedWait))?Number(activity.plannedWait):Math.max(30,wait));
+  const absolute=clamp(100-wait*1.2);
+  const relative=clamp(50+(reference-wait)*1.5);
+  const waitScore=clamp(absolute*.55+relative*.45);
+  let forecastScore=clamp(50+((p60??wait)-wait)*1.5+((p30??wait)-wait)*.75);
+  if(best) forecastScore=clamp(forecastScore-best.saving*.8);
+  const distanceScore=walk.known?clamp(100-walk.minutes*4):55;
+  const priority=personalPriorityMeta(activity,wait);
+  const climate=climateScoreMeta(activity,weatherPayload,minute);
+  const effectiveWait=effectiveQueueMinutes(activity,wait,minute);
+  const totalMinutes=walk.minutes+effectiveWait+Number(activity.duration||8);
+  const schedule=scheduleScoreMeta(activity,minute,totalMinutes,day);
+  const energy=recentEnergyMeta(day);
+  const profile=copilotProfile();
+  const components={wait:waitScore,forecast:forecastScore,distance:distanceScore,priority:priority.score,climate:climate.score,schedule:schedule.score,energy:energy.score};
+  let score=Object.entries(profile.weights).reduce((sum,[key,w])=>sum+(components[key]??50)*w/100,0);
+  const doneRecords=(state.history||[]).filter(r=>r.status==='done'&&isAttractionRecord(r)&&normalizeName(activityForRecord(r)?.title||r.title||'')===normalizeName(name));
+  if(doneRecords.length&&!repeatWantedFor(activity)) score-=45;
+  if(priority.code==='empty'&&wait>15) score-=20;
+  if(schedule.blocked) score=0;
+  score=Math.round(clamp(score));
+  const band=score>=72?'FAÇA AGORA':score>=45?'ESPERE':'EVITE AGORA';
+  const bandClass=score>=72?'good':score>=45?'warn':'bad';
+  const reasons=[];
+  if(priority.score>=82) reasons.push(priority.label);
+  if(waitScore>=75) reasons.push(`fila favorável (${wait} min)`);
+  if(forecastScore>=72&&p60>wait) reasons.push(`fila tende a subir para ~${p60} min`);
+  if(forecastScore<=35&&best) reasons.push(`janela melhor por volta de ${best.time}`);
+  if(walk.known) reasons.push(`${walk.minutes} min de caminhada`);
+  if(climate.score>=85||climate.score<=25) reasons.push(climate.reason);
+  if(schedule.pass?.passType!=='none') reasons.push(schedule.pass.label||'pass marcado');
+  if(doneRecords.length&&!repeatWantedFor(activity)) reasons.push('já realizada e repetir não está habilitado');
+  return {activity,entry,wait,score,band,bandClass,blocked:schedule.blocked,reasons,components,walk,totalMinutes,effectiveWait,priority,climate,schedule,energy,forecast:{trend,p30,p60,best,reference,historicalCount:histNow.count}};
+}
+
+function scoreAtMinuteForActivity(activity, livePayload, weatherPayload, minute, previousActivity=null, day=getSelectedDay()) {
+  const entry=findLiveMatch(activity,livePayload?.liveData||[]);
+  if(!entry) return null;
+  const current=extractStandby(entry);
+  if(current==null) return null;
+  const predicted=predictedWaitFor(entry.name,current,minute,day?.park||state.selectedPark,activity);
+  const synthetic={...entry,queue:{...(entry.queue||{}),STANDBY:{...(entry.queue?.STANDBY||{}),waitTime:predicted}}};
+  return copilotScoreForEntry(synthetic,day,weatherPayload,minute,previousActivity);
+}
+
+function scoreNonAttractionAtMinute(activity, weatherPayload, minute, previousActivity=null, day=getSelectedDay()) {
+  const walk=walkingMeta(activity,null,day,previousActivity);
+  const priority=personalPriorityMeta(activity,0);
+  const climate=climateScoreMeta(activity,weatherPayload,minute);
+  const energy=recentEnergyMeta(day);
+  const totalMinutes=walk.minutes+Number(activity.duration||20);
+  const schedule=scheduleScoreMeta(activity,minute,totalMinutes,day);
+  const profile=copilotProfile();
+  const type=String(activity.type||'other').toLowerCase();
+  const restful=['break','meal','restaurant','food','shopping','photo','restroom','bathroom','coffee'].includes(type);
+  const components={wait:55,forecast:55,distance:walk.known?clamp(100-walk.minutes*4):60,priority:priority.score,climate:climate.score,schedule:schedule.score,energy:energy.score};
+  let score=Object.entries(profile.weights).reduce((sum,[key,w])=>sum+(components[key]??50)*w/100,0);
+  if(restful&&state.settings.optimizationMode==='relax') score+=18;
+  if(restful&&state.settings.optimizationMode==='max') score-=12;
+  score=Math.round(clamp(score));
+  return {activity,entry:null,wait:0,effectiveWait:0,score,band:score>=72?'FAÇA AGORA':score>=45?'ESPERE':'EVITE AGORA',bandClass:score>=72?'good':score>=45?'warn':'bad',blocked:schedule.blocked,reasons:[restful?'pausa/experiência sem fila':'atividade do roteiro',schedule.reason],components,walk,totalMinutes,priority,climate,schedule,energy,forecast:{trend:null,p30:null,p60:null,best:null}};
+}
+
+function sequenceUtility(item, profile) {
+  const priority=item.priority?.score||50;
+  const type=String(item.activity?.type||'attraction').toLowerCase();
+  const attraction=type==='attraction';
+  const restful=['break','meal','restaurant','food','shopping','photo','restroom','bathroom','coffee'].includes(type);
+  const modeBonus=attraction?profile.attractionReward:(restful&&state.settings.optimizationMode==='relax'?26:restful&&state.settings.optimizationMode==='max'?-10:8);
+  return item.score + modeBonus + priority*.10 - item.totalMinutes*profile.timePenalty;
+}
+
+function automaticRelaxAttractionsPerHour(day, startMinute, blockEnd) {
+  if (!day) return 1;
+
+  const hours = parkHoursForDate(day.park, day.date);
+  const now = getOrlandoParts();
+  const pending = (day.activities || []).filter(a => !isDone(a.id) && !isSkipped(a.id) && !a.replanDeferred);
+  const rides = pending.filter(a => a.type === 'attraction');
+
+  const windowStart = Math.max(
+    Number(startMinute || hours.open),
+    day.date === now.date ? now.hour * 60 + now.minute : hours.open
+  );
+  const windowEnd = Math.min(Number(blockEnd || hours.close), hours.close);
+
+  // Tempo realmente disponível: desconta refeições, pausas, shows, reservas
+  // e outros compromissos fixos que já fazem parte do dia.
+  const fixedMinutes = pending.reduce((sum, a) => {
+    const t = timeToMinutes(a.time);
+    if (t < windowStart || t >= windowEnd) return sum;
+    if (a.type === 'attraction' && a.flexible !== false) return sum;
+    return sum + Number(a.duration || 20) + Number(a.arrivalBuffer || 0);
+  }, 0);
+
+  const usableMinutes = Math.max(60, windowEnd - windowStart - fixedMinutes);
+  const usableHours = usableMinutes / 60;
+  const rideDensity = rides.length / usableHours;
+
+  // Relax trabalha com no máximo 1–2 atrações por hora.
+  // Dia leve = 1/h; dia mais carregado = até 2/h.
+  let limit = rideDensity > 1.15 ? 2 : 1;
+
+  // Na parte final do dia o modo Relax desacelera automaticamente,
+  // mesmo que o roteiro original tenha sido muito carregado.
+  const daySpan = Math.max(240, hours.close - hours.open);
+  const dayProgress = clamp((windowStart - hours.open) / daySpan, 0, 1);
+  const completedRides = (state.history || []).filter(r =>
+    r.date === day.date && r.status === 'done' && isAttractionRecord(r)
+  ).length;
+
+  if (dayProgress >= 0.72 || completedRides >= 7) limit = 1;
+
+  return limit;
+}
+
+function optimizeSequenceBlock(metas, startMinute, blockEnd, nextAnchor, livePayload, weatherPayload, day, previousActivity=null) {
+  const profile=copilotProfile();
+  const maxPerHour=state.settings.optimizationMode==='relax'?automaticRelaxAttractionsPerHour(day,startMinute,blockEnd):99;
+  let beam=[{time:startMinute,remaining:metas,seq:[],utility:0,prev:previousActivity,hourCounts:{},pauseNotes:[]}];
+  let best=beam[0];
+  for(let depth=0;depth<Math.min(7,metas.length);depth++){
+    const expanded=[];
+    for(const node of beam){
+      const candidates=node.remaining.map(meta=>{
+        const pass=passMetaFor(meta.activity);
+        let candidateStart=node.time;
+        if(pass.passType!=='none'&&pass.passTime) candidateStart=Math.max(candidateStart,timeToMinutes(pass.passTime));
+        const scored=meta.activity.type==='attraction'?scoreAtMinuteForActivity(meta.activity,livePayload,weatherPayload,candidateStart,node.prev,day):scoreNonAttractionAtMinute(meta.activity,weatherPayload,candidateStart,node.prev,day);
+        return scored?{meta,scored,start:candidateStart}:null;
+      }).filter(Boolean).filter(x=>!x.scored.blocked).sort((a,b)=>b.scored.score-a.scored.score).slice(0,9);
+      for(const c of candidates){
+        let start=c.start;
+        const key=String(Math.floor(start/60));
+        const isRide=c.meta.activity.type==='attraction';
+        const count=Number(node.hourCounts[key]||0);
+        let pause=0;
+        if(state.settings.optimizationMode==='relax'&&isRide&&count>=maxPerHour){
+          const nextHour=(Math.floor(start/60)+1)*60;
+          pause=Math.max(profile.relaxPause,nextHour-start);
+          start+=pause;
+        }
+        const rescored=start===c.start?c.scored:(c.meta.activity.type==='attraction'?scoreAtMinuteForActivity(c.meta.activity,livePayload,weatherPayload,start,node.prev,day):scoreNonAttractionAtMinute(c.meta.activity,weatherPayload,start,node.prev,day));
+        if(!rescored||rescored.blocked) continue;
+        const end=start+rescored.totalMinutes;
+        if(end>blockEnd) continue;
+        const hourCounts={...node.hourCounts};
+        if(isRide)hourCounts[String(Math.floor(start/60))]=Number(hourCounts[String(Math.floor(start/60))]||0)+1;
+        const next={
+          time:end,
+          remaining:node.remaining.filter(x=>x.activity.id!==c.meta.activity.id),
+          seq:[...node.seq,{...c.meta,scoreMeta:rescored,time:minutesToTime(start),predictedWait:rescored.effectiveWait,walkMinutes:rescored.walk.minutes,estimatedMinutes:rescored.totalMinutes}],
+          utility:node.utility+sequenceUtility(rescored,profile),
+          prev:c.meta.activity,
+          hourCounts,
+          pauseNotes:pause?[...node.pauseNotes,{at:minutesToTime(node.time),minutes:pause}]:node.pauseNotes
+        };
+        expanded.push(next);
+        const completionBonus=next.seq.length*(state.settings.optimizationMode==='max'?26:state.settings.optimizationMode==='experience'?12:4);
+        if(next.utility+completionBonus>best.utility+best.seq.length*(state.settings.optimizationMode==='max'?26:state.settings.optimizationMode==='experience'?12:4)) best=next;
+      }
+    }
+    if(!expanded.length) break;
+    beam=expanded.sort((a,b)=>(b.utility+b.seq.length*14)-(a.utility+a.seq.length*14)).slice(0,36);
+  }
+  return best;
+}
+
+function detectEmergency(day, livePayload, weatherPayload) {
+  if(!day||day.date!==getOrlandoParts().date||!livePayload) return null;
+  const pending=(day.activities||[]).filter(a=>a.type==='attraction'&&!isDone(a.id)&&!isSkipped(a.id));
+  const parkKey=day.park;
+  for(const activity of pending){
+    const entry=findLiveMatch(activity,livePayload.liveData||[]);
+    if(!entry) continue;
+    const status=String(entry.status||'').toUpperCase();
+    const samples=queueSamples(parkKey,entry.name,false);
+    const prev=samples.length>=2?samples.at(-2):null;
+    if(['DOWN','CLOSED'].includes(status)&&prev&&String(prev.status||'').toUpperCase()==='OPERATING') return {type:'closure',severity:'high',activityId:activity.id,label:`${activity.title} fechou`,detail:'A atração mudou de OPERATING para indisponível.'};
+    const wait=extractStandby(entry);
+    if(wait!=null&&prev&&Number.isFinite(Number(prev.wait))){
+      const jump=wait-Number(prev.wait);
+      if(jump>=Number(state.settings.emergencyWaitJump||30)&&wait>=Number(prev.wait)*1.45) return {type:'queue-spike',severity:'high',activityId:activity.id,label:`Fila de ${activity.title} disparou`,detail:`Subiu de ${prev.wait} para ${wait} min.`};
+    }
+  }
+  const rel=relevantWeather(weatherPayload);
+  const now=getOrlandoParts(); const nowMin=now.hour*60+now.minute;
+  if(rel.nextRisk){
+    const riskMin=timeToMinutes(rel.nextRisk.time.slice(11,16));
+    const highPending=pending.filter(a=>weatherImpactForActivity(a)==='high');
+    if(highPending.length&&riskMin>=nowMin&&riskMin-nowMin<=30&&weatherRiskForHour(rel.nextRisk).level==='high') return {type:'storm',severity:'high',label:`Tempestade possível em ${riskMin-nowMin} min`,detail:`${highPending.length} atração(ões) de alto impacto climático ainda estão pendentes.`};
+  }
+  return null;
+}
+
+function updateEmergencyState(day, livePayload, weatherPayload) {
+  ensureCopilotState();
+  const emergency=detectEmergency(day,livePayload,weatherPayload);
+  if(!emergency) return;
+  const key=`${day.date}|${emergency.type}|${emergency.activityId||''}|${emergency.label}`;
+  if(state.emergencyState?.key===key&&Date.now()-Number(state.emergencyState.createdAt||0)<45*60_000) return;
+  state.emergencyState={...emergency,key,createdAt:Date.now(),dismissed:false};
+  state.emergencyLog.push({...state.emergencyState});
+  state.emergencyLog=state.emergencyLog.slice(-50);
+  forceReplanAnalysis=true;
+  saveState();
+  notifyOnce(`emergency-${key}`,'Orlando Flow · Modo emergência',`${emergency.label}. Novo roteiro recalculado; abra Ao vivo para revisar e aplicar.`);
+}
+
+function activeEmergencyFor(day) {
+  const e=state.emergencyState;
+  if(!e||e.dismissed||!day||Date.now()-Number(e.createdAt||0)>60*60_000) return null;
+  return e;
+}
+
+function renderEmergencyPanel(day, livePayload, weatherPayload) {
+  const el=$('#emergencyPanel');
+  if(!el) return;
+  const emergency=activeEmergencyFor(day);
+  if(!emergency){el.hidden=true;currentEmergencyProposal=null;return;}
+  const proposal=generateReplanProposal(day,livePayload,weatherPayload,true);
+  currentEmergencyProposal=proposal;
+  el.hidden=false;
+  $('#emergencyTitle').textContent=emergency.label;
+  $('#emergencyDetail').textContent=`${emergency.detail} O motor recalculou a sequência restante considerando filas, caminhada, clima, passes e âncoras.`;
+  const count=proposal?.scheduled?.filter(x=>!x.fixed).length||0;
+  $('#emergencyRouteSummary').textContent=proposal?`${count} atração(ões) reordenadas · ${proposal.deferred?.length||0} deixada(s) para depois.`:'Não foi possível montar uma alternativa segura.';
+  $('#applyEmergencyBtn').disabled=!proposal;
+}
+
+let currentEmergencyProposal=null;
+
+function saveAttractionPreferenceFromUI() {
+  const name=$('#preferenceAttractionInput')?.value.trim();
+  if(!name){toast('Escolha ou digite uma atração.');return;}
+  const key=normalizeName(name);
+  const passType=$('#preferencePassType')?.value||'none';
+  state.attractionPreferences[key]={
+    ...(state.attractionPreferences[key]||{}),
+    name,
+    priority:$('#preferencePriority')?.value||'normal',
+    repeatWanted:$('#preferenceRepeat')?.value==='yes',
+    weatherImpact:$('#preferenceWeatherImpact')?.value||'auto',
+    passType,
+    passTime:passType==='none'?'':($('#preferencePassTime')?.value||''),
+    passWindowMinutes:Math.max(15,Math.min(180,Number($('#preferencePassWindow')?.value||60))),
+    updatedAt:Date.now()
+  };
+  saveState(); renderAll(); toast('Preferência da atração salva.');
+}
+
+function loadPreferenceForm(name) {
+  const p=getAttractionPreference(name);
+  if($('#preferencePriority')) $('#preferencePriority').value=p.priority||'normal';
+  if($('#preferenceRepeat')) $('#preferenceRepeat').value=p.repeatWanted?'yes':'no';
+  if($('#preferenceWeatherImpact')) $('#preferenceWeatherImpact').value=p.weatherImpact||'auto';
+  if($('#preferencePassType')) $('#preferencePassType').value=p.passType||'none';
+  if($('#preferencePassTime')) $('#preferencePassTime').value=p.passTime||'';
+  if($('#preferencePassWindow')) $('#preferencePassWindow').value=p.passWindowMinutes||60;
+  togglePassFields();
+}
+
+function togglePassFields(){
+  const on=($('#preferencePassType')?.value||'none')!=='none';
+  const group=$('#passTimeFields'); if(group) group.hidden=!on;
+}
+
+function renderPreferenceList(){
+  const el=$('#preferenceList'); if(!el)return;
+  const values=Object.entries(state.attractionPreferences||{}).map(([key,p])=>({key,p})).sort((a,b)=>(b.p.updatedAt||0)-(a.p.updatedAt||0));
+  el.innerHTML=values.length?values.map(({key,p})=>{
+    const level=COPILOT_PRIORITY_LEVELS[p.priority]?.label||'Normal';
+    const pass=p.passType&&p.passType!=='none'?` · ${p.passType==='single'?'Single Pass':'Multi Pass'}${p.passTime?` ${p.passTime}`:''}`:'';
+    return `<div class="preference-row"><div><strong>${escapeHtml(p.name||key)}</strong><small>${escapeHtml(level)} · repetir ${p.repeatWanted?'sim':'não'}${escapeHtml(pass)}</small></div><button class="ghost-btn compact" data-pref-remove="${escapeHtml(key)}">remover</button></div>`;
+  }).join(''):'<p class="muted">Nenhuma preferência específica configurada. A prioridade do roteiro continua valendo.</p>';
+}
+
+function openAnchorDialog(){
+  const day=getSelectedDay();
+  const dateSelect=$('#anchorDateInput');
+  if(dateSelect) dateSelect.innerHTML=(state.days||[]).map(d=>`<option value="${d.date}" ${d.date===day?.date?'selected':''}>${escapeHtml(formatDate(d.date))} · ${escapeHtml(d.label||PARKS[d.park]?.name||'Dia')}</option>`).join('');
+  $('#anchorTitleInput').value=''; $('#anchorTimeInput').value=''; $('#anchorDurationInput').value='30'; $('#anchorBufferInput').value='40'; $('#anchorSkippableInput').checked=true;
+  $('#anchorDialog').showModal();
+}
+
+function addAnchorFromDialog(){
+  const date=$('#anchorDateInput').value, title=$('#anchorTitleInput').value.trim(), time=$('#anchorTimeInput').value;
+  const day=state.days.find(d=>d.date===date);
+  if(!day||!title||!/^\d{2}:\d{2}$/.test(time)){toast('Informe dia, nome e horário da âncora.');return false;}
+  const type=$('#anchorTypeInput').value||'show';
+  const a={id:`anchor-${date}-${Date.now()}`,time,title,type,duration:Math.max(5,Number($('#anchorDurationInput').value||30)),priority:5,flexible:false,fixedAnchor:true,arrivalBuffer:Math.max(0,Number($('#anchorBufferInput').value||40)),skippable:$('#anchorSkippableInput').checked,indoor:false,weatherSensitive:type!=='reservation',area:''};
+  day.activities.push(a); day.activities.sort((x,y)=>timeToMinutes(x.time)-timeToMinutes(y.time));
+  state.originalPlans[date]=(day.activities||[]).map((x,index)=>({...structuredClone(x),originalIndex:index,replanDeferred:false}));
+  delete state.replanDecisions[date]; delete state.lastReplanAnalyses[date];
+  saveState(); renderAll(); toast(`${title} adicionado como âncora fixa.`); return true;
+}
+
+function renderScoreWeightsPreview(){
+  const el=$('#scoreWeightsPreview'); if(!el)return;
+  const p=copilotProfile();
+  const labels={wait:'Fila atual',forecast:'Previsão',distance:'Distância',priority:'Prioridade',climate:'Clima',schedule:'Roteiro',energy:'Energia'};
+  el.innerHTML=Object.entries(p.weights).map(([k,v])=>`<span><b>${v}%</b>${labels[k]}</span>`).join('');
+}
+
+// ---- Wrap/replace the original engine after all legacy functions are defined. ----
+const legacyLoadState=loadState;
+loadState=async function(){await legacyLoadState();ensureCopilotState();saveState();};
+
+const legacyLoadDemo=loadDemo;
+loadDemo=async function(showMessage=true){await legacyLoadDemo(showMessage);ensureCopilotState();state.queueHistory={};state.scheduleCache={};state.emergencyState=null;saveState();};
+
+const legacyFetchLive=fetchLive;
+fetchLive=async function(parkKey=state.selectedPark){
+  const payload=await legacyFetchLive(parkKey);
+  if(payload){recordQueueSnapshot(parkKey,payload);await fetchParkSchedule(parkKey);await hydrateAttractionLocations(parkKey,payload.liveData||[]);saveState();}
+  return payload;
+};
+
+activityCoordinates=function(activity){return activityCoordinatesCopilot(activity,state.selectedPark,null);};
+
+nextFixedActivity=function(day){return nextAnchorFor(day);};
+
+estimatedWaitAtMinute=function(meta,minute,nowMin){
+  if(meta.activity?.type!=='attraction') return 0;
+  const name=meta.liveEntry?.name||meta.activity?.entityName||meta.activity?.title;
+  const current=Number.isFinite(meta.liveWait)?meta.liveWait:(Number.isFinite(meta.wait)?meta.wait:null);
+  const predicted=predictedWaitFor(name,current,minute,getSelectedDay()?.park||state.selectedPark,meta.activity);
+  return predicted ?? Math.max(5,Math.round(Number(current||meta.plannedWait||30)/5)*5);
+};
+
+replanCandidateMeta=function(activity,livePayload,weatherPayload,nowMin){
+  const entry=findLiveMatch(activity,livePayload?.liveData||[]);
+  const liveWait=extractStandby(entry);
+  const plannedWait=Number.isFinite(Number(activity.plannedWait))?Number(activity.plannedWait):null;
+  const scored=activity.type==='attraction'?(entry?copilotScoreForEntry(entry,getSelectedDay(),weatherPayload,nowMin):null):scoreNonAttractionAtMinute(activity,weatherPayload,nowMin,null,getSelectedDay());
+  const wait=activity.type==='attraction'?(liveWait??plannedWait??25):0;
+  const wasSkipped=isSkipped(activity.id)&&activity.type==='attraction';
+  let score=(scored?.score??50)+(wasSkipped?20:0);
+  const reasons=[...(scored?.reasons||[])]; if(wasSkipped)reasons.unshift('atração pulada: procurando nova janela');
+  return {activity,liveEntry:entry,liveWait,plannedWait,wait,score,reasons,estimatedMinutes:scored?.totalMinutes??wait+Number(activity.duration||10)+10,wasSkipped,scoreMeta:scored};
+};
+
+optimizeCandidates=function(day,livePayload,weatherPayload){
+  if(!day||!livePayload)return[];
+  const doneNames=new Set((state.history||[]).filter(r=>r.status==='done'&&isAttractionRecord(r)).map(r=>normalizeName(activityForRecord(r)?.title||r.title||'')));
+  return (livePayload.liveData||[]).map(entry=>copilotScoreForEntry(entry,day,weatherPayload)).filter(x=>x&&x.wait!=null&&!x.blocked)
+    .filter(x=>!doneNames.has(normalizeName(x.entry.name))||repeatWantedFor(x.activity))
+    .sort((a,b)=>b.score-a.score||a.totalMinutes-b.totalMinutes).slice(0,5);
+};
+
+const legacyGetReplanTriggers=getReplanTriggers;
+getReplanTriggers=function(day,livePayload,weatherPayload){
+  const base=legacyGetReplanTriggers(day,livePayload,weatherPayload);
+  const emergency=detectEmergency(day,livePayload,weatherPayload);
+  if(emergency&&!base.some(x=>x.type===`emergency-${emergency.type}`)) base.unshift({type:`emergency-${emergency.type}`,severity:'high',label:emergency.label,value:emergency.detail,activityId:emergency.activityId});
+  return base;
+};
+
+replanSignature=function(day,triggers){
+  const parts=(triggers||[]).map(t=>`${t.type}:${t.activityId||''}:${String(t.value||t.label||'').slice(0,40)}`);
+  return `${day?.date||'none'}|${parts.sort().join('|')}`;
+};
+
+generateReplanProposal=function(day,livePayload,weatherPayload,force=false){
+  if(!day)return null;
+  ensureCopilotState();
+  const triggers=getReplanTriggers(day,livePayload,weatherPayload);
+  if(!triggers.length&&!force)return null;
+  const pendingNormal=(day.activities||[]).filter(a=>!isDone(a.id)&&!isSkipped(a.id));
+  const skippedRecoverable=(day.activities||[]).filter(a=>a.type==='attraction'&&isSkipped(a.id)&&!isDone(a.id));
+  const pending=[...new Map([...pendingNormal,...skippedRecoverable].map(a=>[a.id,a])).values()];
+  if(!pending.length)return null;
+  const now=getOrlandoParts(); const today=day.date===now.date;
+  const nowMin=today?now.hour*60+now.minute:Math.min(...pending.map(a=>timeToMinutes(a.time)));
+  let cursor=Math.min(1430,nowMin+(today?5:0));
+  const original=getOriginalActivities(day); const originalMap=new Map(original.map(a=>[a.id,a]));
+  const scheduled=[], explanations=[];
+  const pastAnchors=pendingNormal.filter(a=>isFixedAnchor(a)&&timeToMinutes(a.time)<cursor).sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time));
+  for(const a of pastAnchors){
+    if(a.skippable!==false){explanations.push({tone:'warn',title:`${a.title}: horário já passou`,detail:'Âncora mantida como pendente; você pode pulá-la para liberar o restante do roteiro.'});continue;}
+    scheduled.push({id:a.id,activity:a,time:minutesToTime(cursor),originalTime:originalMap.get(a.id)?.time||a.time,fixed:true,movedFixed:true,wait:null,predictedWait:null,estimatedMinutes:Number(a.duration||20)});cursor+=Number(a.duration||20)+5;
+  }
+  const futureAnchors=pendingNormal.filter(a=>isFixedAnchor(a)&&!pastAnchors.some(p=>p.id===a.id)).sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time));
+  let flexible=pending.filter(a=>!isFixedAnchor(a)||skippedRecoverable.some(s=>s.id===a.id)).map(a=>replanCandidateMeta(a,livePayload,weatherPayload,nowMin));
+  let previous=(day.activities||[]).filter(a=>isDone(a.id)).at(-1)||null;
+  function fillTo(blockEnd,nextAnchor=null){
+    const result=optimizeSequenceBlock(flexible,cursor,blockEnd,nextAnchor,livePayload,weatherPayload,day,previous);
+    for(const item of result.seq){
+      scheduled.push({id:item.activity.id,activity:item.activity,time:item.time,originalTime:originalMap.get(item.activity.id)?.time||item.activity.time,fixed:false,movedFixed:false,wait:item.liveWait,predictedWait:item.predictedWait,plannedWait:item.plannedWait,reasons:item.scoreMeta?.reasons||item.reasons,estimatedMinutes:item.estimatedMinutes,wasSkipped:item.wasSkipped,walkMinutes:item.walkMinutes,score:item.scoreMeta?.score,scoreBand:item.scoreMeta?.band});
+      previous=item.activity;
+    }
+    if(result.seq.length){cursor=result.time;const ids=new Set(result.seq.map(x=>x.activity.id));flexible=flexible.filter(x=>!ids.has(x.activity.id));}
+    for(const pause of result.pauseNotes||[]) explanations.push({tone:'good',title:'Pausa inteligente reservada',detail:`Modo Relax adicionou ${pause.minutes} min de respiro por volta de ${pause.at}.`});
+  }
+  for(const anchor of futureAnchors){
+    const anchorMin=timeToMinutes(anchor.time), buffer=anchorBufferMinutes(anchor), deadline=Math.max(cursor,anchorMin-buffer);
+    fillTo(deadline,anchor);
+    if(cursor>deadline) explanations.push({tone:'warn',title:`Janela protegida para ${anchor.title}`,detail:`o motor parou novas atrações para preservar ${buffer} min de deslocamento/fila antes de ${anchor.time}.`});
+    scheduled.push({id:anchor.id,activity:anchor,time:anchor.time,originalTime:originalMap.get(anchor.id)?.time||anchor.time,fixed:true,movedFixed:false,wait:null,predictedWait:null,estimatedMinutes:Number(anchor.duration||20),arrivalBuffer:buffer});
+    explanations.push({tone:'good',title:`${anchor.title} preservado`,detail:`âncora às ${anchor.time}; ${buffer} min anteriores ficaram protegidos para chegada.`});
+    cursor=Math.max(cursor,anchorMin+Number(anchor.duration||20)); previous=anchor;
+  }
+  const hours=parkHoursForDate(day.park,day.date);
+  const latestOriginal=Math.max(...pending.map(a=>timeToMinutes(a.time)+Number(a.duration||10)),0);
+  const dayEnd=Math.min(1435,Math.max(cursor+120,latestOriginal+45,hours.close));
+  fillTo(dayEnd,null);
+  const deferred=flexible.sort((a,b)=>b.score-a.score).map(meta=>({id:meta.activity.id,activity:meta.activity,originalTime:originalMap.get(meta.activity.id)?.time||meta.activity.time,wait:meta.liveWait,predictedWait:estimatedWaitAtMinute(meta,dayEnd,nowMin),plannedWait:meta.plannedWait,reasons:meta.reasons,wasSkipped:meta.wasSkipped,score:meta.score}));
+  for(const item of scheduled.filter(x=>!x.fixed)){
+    const originalMin=timeToMinutes(item.originalTime),newMin=timeToMinutes(item.time),delta=newMin-originalMin;
+    let detail=`score ${item.score??'--'} · fila prevista ${item.predictedWait??item.wait??'--'} min · caminhada ${item.walkMinutes??10} min.`;
+    if(item.wasSkipped) explanations.push({tone:'good',title:`${item.activity.title} recuperada`,detail:`reencaixada às ${item.time}; ${detail}`});
+    else if(Math.abs(delta)>=15) explanations.push({tone:'good',title:`${item.activity.title} ${delta<0?'antecipada':'movida'}`,detail});
+  }
+  deferred.slice(0,5).forEach(item=>explanations.push({tone:'warn',title:`${item.activity.title} ficou para depois`,detail:`A sequência global encontrou melhor valor nas outras decisões; previsão no fim do bloco: ${item.predictedWait??'--'} min.`}));
+  const originalPending=pending.map(a=>({id:a.id,title:a.title,time:originalMap.get(a.id)?.time||a.time,fixed:isFixedAnchor(a),skipped:isSkipped(a.id)})).sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time));
+  const proposed=scheduled.slice().sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time)).map(a=>({id:a.id,title:a.activity.title,time:a.time,fixed:a.fixed,deferred:false,recoveredSkipped:Boolean(a.wasSkipped),predictedWait:a.predictedWait,score:a.score,walkMinutes:a.walkMinutes}));
+  deferred.forEach(a=>proposed.push({id:a.id,title:a.activity.title,time:'Fim',fixed:false,deferred:true,recoveredSkipped:Boolean(a.wasSkipped),predictedWait:a.predictedWait,score:a.score}));
+  const profile=copilotProfile();
+  return {date:day.date,generatedAt:Date.now(),triggers,signature:replanSignature(day,triggers.length?triggers:[{type:'manual',value:Math.floor(Date.now()/300000)}]),summary:`Modo ${profile.label}: a sequência restante foi otimizada em conjunto, não apenas a próxima atração. Foram considerados score, previsão de fila, caminhada, clima, passes, energia, fechamento e âncoras fixas.`,original:originalPending,proposed,scheduled,deferred,waitEstimateMethod:'local-history-trend-plus-park-demand-profile',optimizationMode:state.settings.optimizationMode,explanations:[...new Map(explanations.map(x=>[`${x.title}|${x.detail}`,x])).values()].slice(0,14)};
+};
+
+renderLive=function(){
+  ensureCopilotState();
+  const payload=state.liveCache[state.selectedPark],day=getSelectedDay(),weather=state.weatherCache[state.selectedPark];
+
+  renderReplanPanel(day,payload,weather);
+  renderEmergencyPanel(day,payload,weather);
+
+  const mode=$('#copilotModePill');
+  if(mode) mode.textContent=`Modo: ${copilotProfile().label}`;
+
+  const summary=$('#copilotSummary');
+  if(summary) summary.innerHTML=`<strong>Farol de decisão</strong><span><i class="decision-light good"></i> faça agora · <i class="decision-light warn"></i> espere · <i class="decision-light bad"></i> evite agora</span>`;
+
+  if(!payload){
+    $('#liveStatus').textContent='Sem dados. Toque em Atualizar.';
+    const rec=$('#recommendations');
+    if(rec) rec.innerHTML='<p class="muted">As recomendações aparecerão aqui.</p>';
+    return;
+  }
+
+  const ageMin=Math.round((Date.now()-payload.fetchedAt)/60000);
+  const hours=parkHoursForDate(state.selectedPark,day?.date||getOrlandoParts().date);
+  $('#liveStatus').textContent=`Última leitura: ${ageMin<1?'agora':`${ageMin} min atrás`} · ${hours.source==='schedule'?`parque até ${minutesToTime(hours.close)} · `:''}ThemeParks.wiki`;
+
+  const limit=$('#waitFilter').value==='all'?Infinity:Number($('#waitFilter').value);
+  const query=normalizeName($('#liveAttractionSearch')?.value||'');
+
+  if(day?.park!==state.selectedPark){
+    $('#recommendations').innerHTML='<div class="source-note">Selecione o mesmo parque do roteiro do dia para receber recomendações completas do copiloto.</div>';
+    return;
+  }
+
+  const doneNames=new Set(
+    (state.history||[])
+      .filter(r=>r.status==='done'&&isAttractionRecord(r))
+      .map(r=>normalizeName(activityForRecord(r)?.title||r.title||''))
+  );
+
+  let rows=(payload.liveData||[])
+    .map(entry=>({entry,meta:copilotScoreForEntry(entry,day,weather)}))
+    .filter(x=>x.meta && x.meta.wait!=null && !x.meta.blocked)
+    .filter(x=>x.meta.wait<=limit)
+    .filter(x=>!query||normalizeName(x.entry.name).includes(query))
+    .filter(x=>!doneNames.has(normalizeName(x.entry.name))||repeatWantedFor(x.meta.activity))
+    .sort((a,b)=>b.meta.score-a.meta.score||a.meta.totalMinutes-b.meta.totalMinutes);
+
+  // Default: the five most useful decisions. When searching, show matching results.
+  rows=query ? rows.slice(0,10) : rows.slice(0,5);
+
+  $('#recommendations').innerHTML=rows.length?rows.map(({entry,meta})=>{
+    const f=meta.forecast||{};
+    const trendIcon=f.trend?.direction==='up'?'↗':f.trend?.direction==='down'?'↘':'→';
+    const walk=meta.walk?.known?`${meta.walk.minutes} min`:'~10 min*';
+    const waitText=meta.wait==null?'--':`${meta.wait} min`;
+    const costNow=meta.wait==null?'--':`${meta.effectiveWait+meta.walk.minutes} min`;
+
+    const historyBase=f.historySource==='global'
+      ? `histórico global · ${escapeHtml(f.historyConfidence||'insuficiente')}`
+      : Number(f.historicalCount||0)>=2
+        ? 'histórico local'
+        : 'heurística';
+
+    const best=f.best
+      ? `<div class="copilot-detail-item copilot-detail-wide"><span>Melhor janela</span><b>${escapeHtml(f.best.time)} · ~${f.best.wait} min</b><small>economia estimada de ${Math.max(0,Math.round(f.best.saving||0))} min</small></div>`
+      : '';
+
+    const compactReasons=meta.reasons
+      .filter(Boolean)
+      .slice(0,3)
+      .join(' · ') || 'melhor valor para a sequência restante';
+
+    return `<details class="rec-card copilot-rec-expandable ${meta.bandClass}">
+      <summary class="copilot-rec-summary">
+        <span class="decision-light ${meta.bandClass}" aria-hidden="true"></span>
+        <span class="copilot-rec-main">
+          <span class="kicker">${meta.band}</span>
+          <strong>${escapeHtml(entry.name)} · ${waitText}</strong>
+          <span class="rec-reason">${escapeHtml(compactReasons)}</span>
+        </span>
+        <span class="copilot-expand-cue" aria-hidden="true">
+          <span>Detalhes</span>
+          <svg viewBox="0 0 20 20"><path d="m5 7 5 5 5-5"/></svg>
+        </span>
+      </summary>
+
+      <div class="copilot-rec-details">
+        <div class="copilot-detail-score">
+          <span>Score interno</span>
+          <b>${meta.score}<small>/100</small></b>
+          <em>O número fica apenas no detalhe; o farol é a orientação principal.</em>
+        </div>
+
+        <div class="copilot-detail-grid">
+          <div class="copilot-detail-item"><span>Fila agora</span><b>${waitText}</b></div>
+          <div class="copilot-detail-item"><span>Tendência</span><b>${trendIcon} ${escapeHtml(f.trend?.label||'--')}</b></div>
+          <div class="copilot-detail-item"><span>+30 min</span><b>${f.p30??'--'} min</b></div>
+          <div class="copilot-detail-item"><span>+60 min</span><b>${f.p60??'--'} min</b></div>
+          <div class="copilot-detail-item"><span>Caminhada</span><b>${walk}</b></div>
+          <div class="copilot-detail-item"><span>Custo agora</span><b>${costNow}</b></div>
+          <div class="copilot-detail-item copilot-detail-wide"><span>Base da previsão</span><b>${historyBase}</b></div>
+          ${best}
+        </div>
+
+        <div class="copilot-detail-reasons">
+          <span class="copilot-detail-label">Por que esta recomendação?</span>
+          <div class="score-reasons">${meta.reasons.slice(0,5).map(r=>`<span>${escapeHtml(r)}</span>`).join('')}</div>
+        </div>
+      </div>
+    </details>`;
+  }).join(''):'<p class="muted">Nenhuma atração encontrada com esse filtro.</p>';
+};
+
+const legacyRenderSettings=renderSettings;
+renderSettings=function(){legacyRenderSettings();ensureCopilotState();if($('#optimizationMode'))$('#optimizationMode').value=state.settings.optimizationMode;renderPreferenceList();togglePassFields();};
+
+function queueCostMetrics(records){
+  const attrs=records.filter(isAttractionRecord); const actual=attrs.reduce((s,r)=>s+Number(r.actualWait||0),0); const baseline=attrs.reduce((s,r)=>s+Math.max(Number(r.actualWait||0),Number(r.flowBaselineWait??activityForRecord(r)?.plannedWait??r.actualWait??0)),0); return {actual,baseline,saved:Math.max(0,baseline-actual)};
+}
+function formatMinutesLong(min){const n=Math.max(0,Math.round(Number(min||0)));const h=Math.floor(n/60),m=n%60;return h?`${h}h${String(m).padStart(2,'0')}`:`${m} min`;}
+
+const legacyRenderReport=renderReport;
+renderReport=function(){legacyRenderReport();const q=queueCostMetrics(reportRecords());const el=$('#queueCostReport');if(el)el.innerHTML=`<div class="queue-cost-card"><div><span>Tempo perdido</span><b>${formatMinutesLong(q.actual)}</b><small>em filas registradas</small></div><div><span>Sem Orlando Flow</span><b>${formatMinutesLong(q.baseline)}</b><small>baseline estimado</small></div><div class="saved"><span>Economizado</span><b>${formatMinutesLong(q.saved)}</b><small>vs. baseline</small></div></div>`;};
+
+const legacySaveCompletion=saveCompletion;
+saveCompletion=function(id){
+  const day=getSelectedDay(); const activity=day?.activities.find(a=>a.id===id); let baseline=null;
+  if(activity?.type==='attraction'){
+    const live=state.liveCache[day.park]; const entry=findLiveMatch(activity,live?.liveData||[]); const wait=extractStandby(entry); const original=getOriginalActivities(day).find(a=>a.id===id); const target=original?timeToMinutes(original.time):timeToMinutes(activity.time); const hist=historicalWaitAtMinute(day.park,entry?.name||activity.title,target,day.date).wait; baseline=Math.max(Number(wait||0),Number(hist??original?.plannedWait??activity.plannedWait??wait??0));
+  }
+  const ok=legacySaveCompletion(id);
+  if(ok&&activity?.type==='attraction'){
+    const rec=[...state.history].reverse().find(r=>r.activityId===id&&r.status==='done'); if(rec)rec.flowBaselineWait=Math.max(Number(rec.actualWait||0),Number(baseline||rec.actualWait||0));
+    if(gpsLastPoint)geoStore(day.park,activity.entityName||activity.title,{lat:gpsLastPoint.lat,lon:gpsLastPoint.lon,source:'learned-at-completion',updatedAt:Date.now()});
+    saveState(); renderReport();
+  }
+  return ok;
+};
+
+const legacyEvaluateAlerts=evaluateAlerts;
+evaluateAlerts=function(){legacyEvaluateAlerts();const day=getSelectedDay();if(day&&day.date===getOrlandoParts().date){const before=state.emergencyState?.key;updateEmergencyState(day,state.liveCache[day.park],state.weatherCache[day.park]);if(state.emergencyState?.key&&state.emergencyState.key!==before)renderLive();}};
+
+const legacyBuildReportHtml=buildReportHtml;
+buildReportHtml=function(){
+  let html=legacyBuildReportHtml(); const q=queueCostMetrics(reportRecords());
+  const block=`<section class="tier"><h2>Custo da fila</h2><div class="grid"><div class="card"><b>${formatMinutesLong(q.actual)}</b><br>Tempo em filas</div><div class="card"><b>${formatMinutesLong(q.baseline)}</b><br>Sem Orlando Flow (estimado)</div><div class="card"><b>${formatMinutesLong(q.saved)}</b><br>Tempo economizado</div></div></section>`;
+  return html.replace('<section class="tier"><h2>Por franquia</h2>',`${block}<section class="tier"><h2>Por franquia</h2>`);
+};
+
+const legacyBindEvents=bindEvents;
+bindEvents=function(){
+  legacyBindEvents();
+  $('#optimizationMode')?.addEventListener('change',e=>{state.settings.optimizationMode=e.target.value;saveState();renderAll();forceReplanAnalysis=true;});
+  $('#preferenceAttractionInput')?.addEventListener('change',e=>loadPreferenceForm(e.target.value));
+  $('#preferencePassType')?.addEventListener('change',togglePassFields);
+  $('#savePreferenceBtn')?.addEventListener('click',saveAttractionPreferenceFromUI);
+  $('#addAnchorBtn')?.addEventListener('click',openAnchorDialog);
+  $('#saveAnchorBtn')?.addEventListener('click',e=>{e.preventDefault();if(addAnchorFromDialog())$('#anchorDialog').close();});
+  $('#applyEmergencyBtn')?.addEventListener('click',()=>{if(!currentEmergencyProposal)return;currentReplanProposal=currentEmergencyProposal;applyReplanProposal();state.emergencyState=null;saveState();renderAll();toast('Roteiro de emergência aplicado.');});
+  $('#dismissEmergencyBtn')?.addEventListener('click',()=>{if(state.emergencyState)state.emergencyState.dismissed=true;saveState();renderLive();});
+  document.addEventListener('click',e=>{const btn=e.target.closest('[data-pref-remove]');if(btn){delete state.attractionPreferences[btn.dataset.prefRemove];saveState();renderSettings();}});
+};
+
+
+
+/* ============================================================
+   Orlando Flow v22 — Global queue-history integration
+   Cloudflare Worker + D1
+   ============================================================ */
+const GLOBAL_HISTORY_API = 'https://orlando-flow-history.kaue-person9.workers.dev';
+const GLOBAL_HISTORY_STORAGE_KEY = 'orlando-flow-global-history-v1';
+let globalHistoryCache = {};
+
+function loadGlobalHistoryCache() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(GLOBAL_HISTORY_STORAGE_KEY) || '{}');
+    globalHistoryCache = parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    globalHistoryCache = {};
+  }
+}
+
+function persistGlobalHistoryCache() {
+  try {
+    const entries = Object.entries(globalHistoryCache)
+      .sort((a,b)=>Number(b[1]?.fetchedAt||0)-Number(a[1]?.fetchedAt||0))
+      .slice(0,3);
+    localStorage.setItem(GLOBAL_HISTORY_STORAGE_KEY, JSON.stringify(Object.fromEntries(entries)));
+  } catch {}
+}
+
+function globalHistoryEntry(parkKey=state.selectedPark) {
+  return globalHistoryCache?.[parkKey] || null;
+}
+
+function globalInsightFor(parkKey, value) {
+  const cache = globalHistoryEntry(parkKey);
+  const data = cache?.data;
+  if (!data?.attractions) return null;
+
+  const directId = value?.entityId || value?.id || null;
+  if (directId && data.attractions[String(directId)]) return data.attractions[String(directId)];
+
+  const name = normalizeName(typeof value === 'string'
+    ? value
+    : (value?.name || value?.entityName || value?.title || ''));
+  if (!name) return null;
+
+  return Object.values(data.attractions).find(x => normalizeName(x?.name || '') === name) || null;
+}
+
+function orlandoWeekdayShort(date = new Date()) {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: state.timezone || ORLANDO_TZ,
+    weekday: 'short'
+  }).format(date);
+}
+
+function confidencePt(value) {
+  return ({high:'alta',medium:'média',low:'baixa',insufficient:'insuficiente'})[value] || value || 'insuficiente';
+}
+
+function trendPt(value) {
+  if (value === 'increasing') return {label:'Aumentando',direction:'up'};
+  if (value === 'decreasing') return {label:'Diminuindo',direction:'down'};
+  return {label:'Estável',direction:'stable'};
+}
+
+function compactProfileNearest(insight, minute, date = new Date()) {
+  if (!insight) return null;
+  const weekday = orlandoWeekdayShort(date);
+  const normalized = ((Number(minute)%1440)+1440)%1440;
+
+  function find(rows, weekdayMode=false, minSamples=2) {
+    let best=null, bestDistance=Infinity;
+    for (const row of rows || []) {
+      const day = weekdayMode ? row[0] : null;
+      const offset = weekdayMode ? 1 : 0;
+      if (weekdayMode && day !== weekday) continue;
+      const rowMinute = Number(row[offset]);
+      const median = Number(row[offset+1]);
+      const p25 = Number(row[offset+2]);
+      const p75 = Number(row[offset+3]);
+      const samples = Number(row[offset+4]);
+      if (!Number.isFinite(median) || samples < minSamples) continue;
+      const d0=Math.abs(rowMinute-normalized), d=Math.min(d0,1440-d0);
+      if (d<=45 && d<bestDistance) {
+        best={minute:rowMinute,median,p25,p75,samples};
+        bestDistance=d;
+      }
+    }
+    return best;
+  }
+
+  return find(insight.weekdayProfile,true,3) || find(insight.profile,false,2);
+}
+
+async function fetchGlobalParkInsights(parkKey=state.selectedPark, force=false) {
+  if (!PARKS[parkKey]?.entityId || !navigator.onLine) return globalHistoryEntry(parkKey)?.data || null;
+
+  const cached = globalHistoryEntry(parkKey);
+  if (!force && cached?.data && Date.now()-Number(cached.fetchedAt||0) < 8*60_000) return cached.data;
+
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), 12_000);
+  try {
+    const url = `${GLOBAL_HISTORY_API}/api/v3/park-insights?parkKey=${encodeURIComponent(parkKey)}&days=35`;
+    const res = await fetch(url, { headers:{Accept:'application/json'}, signal:controller.signal });
+    if (!res.ok) throw new Error(`Global history HTTP ${res.status}`);
+    const data = await res.json();
+    if (!data?.attractions || data.parkKey !== parkKey) throw new Error('Invalid global history payload');
+    globalHistoryCache[parkKey] = { fetchedAt:Date.now(), data };
+    persistGlobalHistoryCache();
+    return data;
+  } catch (error) {
+    console.warn('Global history unavailable:', error);
+    return cached?.data || null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const v21HistoricalWaitAtMinute = historicalWaitAtMinute;
+historicalWaitAtMinute = function(parkKey, name, minute, date=getOrlandoParts().date) {
+  const insight = globalInsightFor(parkKey, name);
+  if (insight) {
+    const dateObj = new Date(`${date}T12:00:00`);
+    const row = compactProfileNearest(insight, minute, dateObj);
+    if (row) {
+      return {
+        wait:Math.round(row.median),
+        count:row.samples,
+        source:'global',
+        median:row.median,
+        p25:row.p25,
+        p75:row.p75,
+        confidence:confidencePt(insight.confidence)
+      };
+    }
+  }
+  const local = v21HistoricalWaitAtMinute(parkKey,name,minute,date);
+  return {...local, source:local.count>=2?'local':'heuristic', confidence:local.count>=4?'média':'baixa'};
+};
+
+const v21QueueTrendMeta = queueTrendMeta;
+queueTrendMeta = function(parkKey, name) {
+  const insight = globalInsightFor(parkKey,name);
+  const t = insight?.trend;
+  if (t && Number(t.recentSamples||0) >= 3 && Number.isFinite(Number(t.slopeMinutesPerHour))) {
+    const label = trendPt(t.label);
+    return {
+      slopePerHour:Number(t.slopeMinutesPerHour),
+      label:label.label,
+      direction:label.direction,
+      confidence:Number(t.recentSamples)>=8?'alta':Number(t.recentSamples)>=4?'média':'baixa',
+      source:'global'
+    };
+  }
+  return {...v21QueueTrendMeta(parkKey,name), source:'local'};
+};
+
+const v21CopilotScoreForEntry = copilotScoreForEntry;
+copilotScoreForEntry = function(entry, day=getSelectedDay(), weatherPayload=state.weatherCache[state.selectedPark], startMinute=null, previousActivity=null) {
+  const result = v21CopilotScoreForEntry(entry,day,weatherPayload,startMinute,previousActivity);
+  if (!result?.forecast) return result;
+
+  const now=getOrlandoParts();
+  const minute=startMinute==null?now.hour*60+now.minute:Number(startMinute);
+  const hist=historicalWaitAtMinute(day?.park||state.selectedPark,entry?.name||result.activity?.title,minute,day?.date||now.date);
+  result.forecast.historySource=hist.source;
+  result.forecast.historyConfidence=hist.confidence;
+  result.forecast.historicalCount=hist.count;
+  const insight=globalInsightFor(day?.park||state.selectedPark,entry);
+  result.forecast.globalObservations=Number(insight?.observations||0);
+  result.forecast.globalSnapshotCount=Number(globalHistoryEntry(day?.park||state.selectedPark)?.data?.snapshotCount||0);
+
+  if (insight?.bestWindow && Number.isFinite(Number(result.wait))) {
+    const candidateWait=Math.round(Number(insight.bestWindow.median));
+    const saving=Number(result.wait)-candidateWait;
+    if (saving>=Math.max(8,Number(result.wait)*.15)) {
+      const globalBest={
+        minute:Number(insight.bestWindow.minute),
+        time:minutesToTime(Number(insight.bestWindow.minute)),
+        wait:candidateWait,
+        adjusted:candidateWait,
+        saving:Math.round(saving),
+        risk:{level:'low',score:0},
+        source:'global'
+      };
+      if (!result.forecast.best || globalBest.wait < result.forecast.best.wait) result.forecast.best=globalBest;
+    }
+  }
+  return result;
+};
+
+const v21RenderLiveV22 = renderLive;
+renderLive = function() {
+  v21RenderLiveV22();
+  const summary=$('#copilotSummary');
+  if (!summary) return;
+  const cache=globalHistoryEntry(state.selectedPark);
+  const data=cache?.data;
+  if (data) {
+    const age=Math.max(0,Math.round((Date.now()-Number(cache.fetchedAt||0))/60000));
+    summary.innerHTML=`<strong>Farol de decisão</strong><span><i class="decision-light good"></i> faça agora · <i class="decision-light warn"></i> espere · <i class="decision-light bad"></i> evite agora</span><span>Histórico global ativo · ${Number(data.snapshotCount||0)} snapshots do parque · ${Number(data.attractionCount||0)} atrações · atualizado ${age<1?'agora':`há ${age} min`}</span>`;
+  } else {
+    summary.innerHTML=`<strong>Farol de decisão</strong><span><i class="decision-light good"></i> faça agora · <i class="decision-light warn"></i> espere · <i class="decision-light bad"></i> evite agora</span><span>Histórico global ainda indisponível · usando histórico local + heurística como fallback</span>`;
+  }
+};
+
+const v21RefreshExternalV22 = refreshExternal;
+refreshExternal = async function(showToast=true) {
+  const day=getSelectedDay();
+  const park=(day?.park && day.park!=='off-day') ? day.park : state.selectedPark;
+  await Promise.all([
+    v21RefreshExternalV22(false),
+    fetchGlobalParkInsights(park,false)
+  ]);
+  renderAll();
+  evaluateAlerts();
+  if (showToast) toast(navigator.onLine ? 'Dados ao vivo + histórico global atualizados.' : 'Offline: mostrando os últimos dados salvos.');
+};
+
+const v21LoadStateV22 = loadState;
+loadState = async function() {
+  await v21LoadStateV22();
+  loadGlobalHistoryCache();
+};
+
+const v21BindEventsV22 = bindEvents;
+bindEvents = function() {
+  v21BindEventsV22();
+  $('#liveRefreshBtn')?.addEventListener('click',()=>fetchGlobalParkInsights(state.selectedPark,true).then(()=>renderLive()));
+  $('#parkSelect')?.addEventListener('change',()=>fetchGlobalParkInsights(state.selectedPark,false).then(()=>renderLive()));
+};
+
+
+
+/* ============================================================
+   Orlando Flow v25 — Emergency clarity + park preference filter
+   + operational Multi Pass / Single Pass in Today
+   ============================================================ */
+
+function ensureV25State() {
+  ensureCopilotState();
+  if (!state.passBookings || typeof state.passBookings !== 'object') state.passBookings = {};
+}
+
+function dayPassFor(activity) {
+  ensureV25State();
+  if (!activity?.id) return null;
+  return state.passBookings[activity.id] || null;
+}
+
+const v24PassMetaFor = passMetaFor;
+passMetaFor = function(activity) {
+  ensureV25State();
+  const operational = dayPassFor(activity);
+  if (operational) {
+    return {
+      passType: operational.passType || 'none',
+      passTime: operational.passTime || '',
+      passWindowMinutes: Math.max(15, Math.min(180, Number(operational.passWindowMinutes || 60)))
+    };
+  }
+  // v25 intentionally stops reading Pass from attractionPreferences.
+  // Pass is now an operational property of the itinerary activity/day.
+  const passType = activity?.passType || 'none';
+  const passTime = activity?.passTime || '';
+  const passWindowMinutes = Math.max(15, Math.min(180, Number(activity?.passWindowMinutes || 60)));
+  return { passType, passTime, passWindowMinutes };
+};
+
+function passButtonLabel(activity) {
+  const pass = passMetaFor(activity);
+  if (pass.passType === 'single') return pass.passTime ? `Single ${pass.passTime}` : 'Single Pass';
+  if (pass.passType === 'multi') return pass.passTime ? `Multi ${pass.passTime}` : 'Multi Pass';
+  return 'Pass';
+}
+
+function openPassDialog(activityId) {
+  const day = getSelectedDay();
+  const activity = day?.activities?.find(a => a.id === activityId);
+  if (!activity || activity.type !== 'attraction') return;
+  const pass = passMetaFor(activity);
+  $('#passActivityId').value = activity.id;
+  $('#passDialogTitle').textContent = activity.title;
+  $('#dayPassType').value = pass.passType || 'none';
+  $('#dayPassTime').value = pass.passTime || '';
+  $('#dayPassWindow').value = pass.passWindowMinutes || 60;
+  toggleDayPassWindowFields();
+  $('#passDialog').showModal();
+}
+
+function toggleDayPassWindowFields() {
+  const fields = $('#dayPassWindowFields');
+  if (fields) fields.hidden = ($('#dayPassType')?.value || 'none') === 'none';
+}
+
+function saveDayPassFromDialog() {
+  ensureV25State();
+  const activityId = $('#passActivityId')?.value;
+  const day = getSelectedDay();
+  const activity = day?.activities?.find(a => a.id === activityId);
+  if (!activity) return false;
+
+  const passType = $('#dayPassType')?.value || 'none';
+  if (passType === 'none') {
+    delete state.passBookings[activity.id];
+  } else {
+    state.passBookings[activity.id] = {
+      activityId: activity.id,
+      name: activity.title,
+      parkKey: day.park,
+      date: day.date,
+      passType,
+      passTime: $('#dayPassTime')?.value || '',
+      passWindowMinutes: Math.max(15, Math.min(180, Number($('#dayPassWindow')?.value || 60))),
+      updatedAt: Date.now()
+    };
+  }
+  forceReplanAnalysis = true;
+  saveState();
+  renderAll();
+  toast(passType === 'none'
+    ? `Pass removido de ${activity.title}.`
+    : `${passType === 'single' ? 'Single Pass' : 'Multi Pass'} aplicado a ${activity.title}. Roteiro recalculado.`);
+  return true;
+}
+
+const v24RenderTimelineV25 = renderTimeline;
+renderTimeline = function() {
+  const day = getSelectedDay();
+  const items = day?.activities || [];
+  $('#timeline').innerHTML = items.map(a => {
+    const done = isDone(a.id), skipped = isSkipped(a.id), started = isStarted(a.id);
+    const log = getActivityLog(a.id);
+    const cls = done ? 'done' : started ? 'started' : '';
+    const pass = a.type === 'attraction' ? passMetaFor(a) : {passType:'none'};
+    const passMeta = pass.passType !== 'none'
+      ? ` · ${pass.passType === 'single' ? 'Single Pass' : 'Multi Pass'}${pass.passTime ? ` ${pass.passTime}` : ''}`
+      : '';
+    const subtitle = skipped
+      ? 'Pulada'
+      : done
+        ? `Concluída ${formatTimeISO(log?.actualEnd)}${log?.rating ? ` · ${formatRating(log.rating, true)}` : ''}`
+        : a.replanDeferred
+          ? `${a.area || a.type} · opção para o fim do dia${passMeta}`
+          : `${a.area || a.type}${a.flexible ? ' · flexível' : ' · fixo'}${passMeta}`;
+
+    return `<div class="timeline-item ${cls} ${a.replanDeferred ? 'deferred' : ''}">
+      <div class="timeline-time">${a.replanDeferred ? 'OPÇÃO' : escapeHtml(a.time)}</div>
+      <div class="timeline-rail"><span class="timeline-dot"></span></div>
+      <div class="timeline-card">
+        <strong>${escapeHtml(a.title)}</strong>
+        <small>${escapeHtml(subtitle)}</small>
+        ${!done && !skipped ? `<div class="timeline-actions">
+          <button data-start="${a.id}">${started ? 'em andamento' : 'iniciar'}</button>
+          <button data-complete="${a.id}">concluir</button>
+          <button class="danger" data-skip="${a.id}">pular</button>
+          ${a.type === 'attraction' ? `<button class="pass-action ${pass.passType !== 'none' ? 'active' : ''}" data-pass="${a.id}">${escapeHtml(passButtonLabel(a))}</button>` : ''}
+        </div>` : ''}
+      </div>
+    </div>`;
+  }).join('') || '<p class="muted">Sem atividades.</p>';
+};
+
+const v24RenderNextV25 = renderNext;
+renderNext = function() {
+  v24RenderNextV25();
+  const day = getSelectedDay();
+  const next = day?.activities?.find(a => !a.replanDeferred && !isDone(a.id) && !isSkipped(a.id));
+  if (!next || next.type !== 'attraction') return;
+  const row = $('#nextCard')?.querySelector('.button-row');
+  if (!row || row.querySelector('[data-pass]')) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = `secondary-btn pass-action ${passMetaFor(next).passType !== 'none' ? 'active' : ''}`;
+  btn.dataset.pass = next.id;
+  btn.textContent = passButtonLabel(next);
+  row.appendChild(btn);
+};
+
+function preferenceParkOptions() {
+  const disney = ['magic-kingdom','epcot','hollywood-studios','animal-kingdom'];
+  const universal = ['universal-studios-florida','islands-of-adventure','epic-universe'];
+  const option = key => `<option value="${key}">${escapeHtml(PARKS[key]?.name || key)}</option>`;
+  return `<optgroup label="Disney Parks">${disney.map(option).join('')}</optgroup><optgroup label="Universal Orlando">${universal.map(option).join('')}</optgroup>`;
+}
+
+function preferenceAttractionsForPark(parkKey) {
+  const fromDays = (state.days || [])
+    .filter(d => d.park === parkKey)
+    .flatMap(d => (d.activities || []).filter(a => a.type === 'attraction').map(a => a.title));
+
+  const fromLive = (state.liveCache?.[parkKey]?.liveData || [])
+    .filter(x => x?.name && (x?.queue || String(x?.entityType || '').toUpperCase() === 'ATTRACTION'))
+    .map(x => x.name);
+
+  const globalData = typeof globalHistoryEntry === 'function' ? globalHistoryEntry(parkKey)?.data : null;
+  const fromGlobal = globalData?.attractions ? Object.values(globalData.attractions).map(x => x.name) : [];
+
+  return uniqueSuggestions([...fromDays, ...fromLive, ...fromGlobal]);
+}
+
+function renderPreferenceAttractionSuggestions() {
+  const select = $('#preferenceParkSelect');
+  const list = $('#preferenceAttractionSuggestions');
+  if (!select || !list) return;
+
+  if (!select.options.length) select.innerHTML = preferenceParkOptions();
+  const desired = select.value || getSelectedDay()?.park || state.selectedPark || 'magic-kingdom';
+  if ([...select.options].some(o => o.value === desired)) select.value = desired;
+
+  const values = preferenceAttractionsForPark(select.value);
+  list.innerHTML = values.map(v => `<option value="${escapeHtml(v)}"></option>`).join('');
+  const input = $('#preferenceAttractionInput');
+  if (input) input.placeholder = values.length ? 'Buscar atração deste parque' : 'Carregando atrações do parque…';
+}
+
+saveAttractionPreferenceFromUI = function() {
+  const name = $('#preferenceAttractionInput')?.value.trim();
+  if (!name) { toast('Escolha ou digite uma atração.'); return; }
+  const key = normalizeName(name);
+  const parkKey = $('#preferenceParkSelect')?.value || getSelectedDay()?.park || state.selectedPark;
+  state.attractionPreferences[key] = {
+    ...(state.attractionPreferences[key] || {}),
+    name,
+    parkKey,
+    priority: $('#preferencePriority')?.value || 'normal',
+    repeatWanted: $('#preferenceRepeat')?.value === 'yes',
+    weatherImpact: $('#preferenceWeatherImpact')?.value || 'auto',
+    updatedAt: Date.now()
+  };
+  saveState();
+  renderAll();
+  toast('Preferência da atração salva.');
+};
+
+renderPreferenceList = function() {
+  const el = $('#preferenceList');
+  if (!el) return;
+  const parkFilter = $('#preferenceParkSelect')?.value || null;
+  const values = Object.entries(state.attractionPreferences || {})
+    .map(([key,p]) => ({key,p}))
+    .filter(({p}) => !parkFilter || !p.parkKey || p.parkKey === parkFilter)
+    .sort((a,b) => (b.p.updatedAt || 0) - (a.p.updatedAt || 0));
+
+  el.innerHTML = values.length ? values.map(({key,p}) => {
+    const level = COPILOT_PRIORITY_LEVELS[p.priority]?.label || 'Normal';
+    return `<div class="preference-row">
+      <div>
+        <strong>${escapeHtml(p.name || key)}</strong>
+        <small>${escapeHtml(level)} · repetir ${p.repeatWanted ? 'sim' : 'não'} · clima ${escapeHtml(p.weatherImpact || 'auto')}</small>
+      </div>
+      <button class="ghost-btn compact" data-pref-remove="${escapeHtml(key)}">remover</button>
+    </div>`;
+  }).join('') : '<p class="muted">Nenhuma preferência específica configurada para este parque.</p>';
+};
+
+const v24RenderSettingsV25 = renderSettings;
+renderSettings = function() {
+  v24RenderSettingsV25();
+  renderPreferenceAttractionSuggestions();
+  renderPreferenceList();
+};
+
+function emergencyFallbackDetail(emergency, day) {
+  if (emergency?.detail) return emergency.detail;
+  if (emergency?.type === 'closure') return 'Uma atração pendente ficou indisponível.';
+  if (emergency?.type === 'queue-spike') return 'Uma fila subiu de forma abrupta e deixou o plano atual pouco eficiente.';
+  if (emergency?.type === 'storm') return 'Há risco climático alto chegando em até 30 minutos e atrações sensíveis ainda estão pendentes.';
+  const activity = day?.activities?.find(a => a.id === emergency?.activityId);
+  return activity
+    ? `Uma mudança crítica afetou ${activity.title}.`
+    : 'Uma mudança importante de fila, disponibilidade ou clima tornou o roteiro atual menos adequado.';
+}
+
+renderEmergencyPanel = function(day, livePayload, weatherPayload) {
+  const el = $('#emergencyPanel');
+  if (!el) return;
+  const emergency = activeEmergencyFor(day);
+  if (!emergency) {
+    el.hidden = true;
+    currentEmergencyProposal = null;
+    return;
+  }
+
+  const proposal = generateReplanProposal(day, livePayload, weatherPayload, true);
+  currentEmergencyProposal = proposal;
+  el.hidden = false;
+
+  const title = emergency.label && emergency.label !== 'Mudança crítica detectada'
+    ? emergency.label
+    : emergency.type === 'storm'
+      ? 'Clima exige mudança de plano'
+      : emergency.type === 'queue-spike'
+        ? 'Fila mudou bruscamente'
+        : emergency.type === 'closure'
+          ? 'Atração ficou indisponível'
+          : 'Mudança crítica detectada';
+
+  $('#emergencyTitle').textContent = title;
+  $('#emergencyDetail').textContent = emergencyFallbackDetail(emergency, day);
+
+  if (proposal) {
+    const flexible = proposal.scheduled?.filter(x => !x.fixed) || [];
+    const first = flexible[0]?.activity?.title;
+    const count = flexible.length;
+    const deferred = proposal.deferred?.length || 0;
+    $('#emergencyRouteSummary').textContent =
+      `${count} atração(ões) foram reposicionadas${first ? `; a próxima sugerida é ${first}` : ''}. ${deferred ? `${deferred} atração(ões) foram deixadas para depois.` : 'Nenhuma atração precisou ser descartada.'}`;
+  } else {
+    $('#emergencyRouteSummary').textContent = 'O motor não encontrou uma alternativa segura neste momento. Mantenha o roteiro atual e atualize novamente em alguns minutos.';
+  }
+
+  $('#applyEmergencyBtn').disabled = !proposal;
+};
+
+const v24BindEventsV25 = bindEvents;
+bindEvents = function() {
+  v24BindEventsV25();
+
+  document.addEventListener('click', e => {
+    const pass = e.target.closest('[data-pass]');
+    if (pass) {
+      e.preventDefault();
+      openPassDialog(pass.dataset.pass);
+    }
+  });
+
+  $('#dayPassType')?.addEventListener('change', toggleDayPassWindowFields);
+  $('#saveDayPassBtn')?.addEventListener('click', e => {
+    e.preventDefault();
+    if (saveDayPassFromDialog()) $('#passDialog')?.close();
+  });
+
+  $('#preferenceParkSelect')?.addEventListener('change', async e => {
+    const parkKey = e.target.value;
+    if ($('#preferenceAttractionInput')) $('#preferenceAttractionInput').value = '';
+    renderPreferenceAttractionSuggestions();
+    renderPreferenceList();
+    await Promise.all([
+      state.liveCache?.[parkKey] ? Promise.resolve() : fetchLive(parkKey).catch(()=>null),
+      typeof fetchGlobalParkInsights === 'function' ? fetchGlobalParkInsights(parkKey, false).catch(()=>null) : Promise.resolve()
+    ]);
+    renderPreferenceAttractionSuggestions();
+  });
+};
+
+const v24LoadStateV25 = loadState;
+loadState = async function() {
+  await v24LoadStateV25();
+  ensureV25State();
+};
+
+
+
+/* ============================================================
+   Orlando Flow v27 — performance + emergency-state hardening
+   ============================================================ */
+
+function activeViewName() {
+  return document.querySelector('.view.active')?.dataset?.view || 'today';
+}
+
+function renderActiveView(target = activeViewName()) {
+  if (target === 'today') {
+    renderDaySelect();
+    renderStatus();
+    renderWeather();
+    renderMovement();
+    renderNext();
+    renderTimeline();
+    renderAutocompleteLists();
+    return;
+  }
+  if (target === 'live') {
+    renderParks();
+    renderLive();
+    return;
+  }
+  if (target === 'history') {
+    renderHistory();
+    return;
+  }
+  if (target === 'report') {
+    renderReport();
+    return;
+  }
+  if (target === 'settings') {
+    renderSettings();
+    renderAutocompleteLists();
+  }
+}
+
+/*
+ * Antes, renderAll atualizava todas as cinco abas, inclusive as invisíveis.
+ * Agora somente cabeçalho/tema/rede são globais e a aba ativa é recalculada.
+ */
+renderAll = function() {
+  applyParkTheme();
+  applyTheme();
+  renderHeader();
+  renderNetwork();
+  renderActiveView();
+};
+
+const v26SwitchViewV27 = switchView;
+switchView = function(target) {
+  v26SwitchViewV27(target);
+  renderActiveView(target);
+};
+
+/*
+ * Atualização percebida mais rápida:
+ * - fila e clima são buscados juntos;
+ * - uma única renderização principal;
+ * - histórico global não bloqueia a tela: entra em seguida e atualiza apenas
+ *   o que realmente depende dele.
+ */
+refreshExternal = async function(showToast = true) {
+  const day = getSelectedDay();
+  if (day?.park && day.park !== 'off-day') state.selectedPark = day.park;
+  const park = state.selectedPark;
+
+  const primaryTasks = [fetchWeather(park)];
+  if (PARKS[park]?.entityId) primaryTasks.push(fetchLive(park));
+
+  await Promise.allSettled(primaryTasks);
+  renderAll();
+  evaluateAlerts();
+
+  // Não bloqueia a interface esperando o histórico do D1.
+  if (typeof fetchGlobalParkInsights === 'function' && PARKS[park]?.entityId) {
+    fetchGlobalParkInsights(park, false)
+      .then(() => {
+        const view = activeViewName();
+        if (view === 'live') renderLive();
+        else if (view === 'today') {
+          // O próximo passo pode usar previsão histórica, mas não é preciso
+          // redesenhar o restante da aplicação.
+          renderNext();
+        }
+      })
+      .catch(() => {});
+  }
+
+  if (showToast) {
+    toast(navigator.onLine
+      ? 'Dados ao vivo atualizados; histórico global sincroniza em segundo plano.'
+      : 'Offline: mostrando os últimos dados salvos.');
+  }
+};
+
+/*
+ * Uma emergência válida precisa:
+ * - pertencer ao dia corrente em Orlando;
+ * - ser um dos gatilhos reais conhecidos;
+ * - ter título e explicação;
+ * - não estar dispensada nem expirada.
+ *
+ * Isso elimina estados antigos/incompletos salvos por versões anteriores.
+ */
+activeEmergencyFor = function(day) {
+  const e = state.emergencyState;
+  if (!e || !day || e.dismissed) return null;
+
+  const today = getOrlandoParts().date;
+  if (day.date !== today) return null;
+
+  const stateDate = e.dayDate || String(e.key || '').split('|')[0] || '';
+  if (stateDate && stateDate !== day.date) return null;
+
+  if (Date.now() - Number(e.createdAt || 0) > 60 * 60_000) return null;
+
+  const validTypes = new Set(['closure', 'queue-spike', 'storm']);
+  if (!validTypes.has(String(e.type || ''))) return null;
+
+  if (!String(e.label || '').trim()) return null;
+
+  // detail pode ter vindo de uma versão antiga; para gatilhos conhecidos
+  // conseguimos reconstruir uma explicação, então não exigimos o campo.
+  return e;
+};
+
+const v26UpdateEmergencyStateV27 = updateEmergencyState;
+updateEmergencyState = function(day, livePayload, weatherPayload) {
+  const beforeKey = state.emergencyState?.key || null;
+  v26UpdateEmergencyStateV27(day, livePayload, weatherPayload);
+
+  // Marca explicitamente o dia da emergência nas novas ocorrências.
+  if (state.emergencyState?.key && state.emergencyState.key !== beforeKey) {
+    state.emergencyState.dayDate = day?.date || getOrlandoParts().date;
+    const last = state.emergencyLog?.at?.(-1);
+    if (last && last.key === state.emergencyState.key) last.dayDate = state.emergencyState.dayDate;
+    saveState();
+  }
+};
+
+renderEmergencyPanel = function(day, livePayload, weatherPayload) {
+  const el = $('#emergencyPanel');
+  if (!el) return;
+
+  // Estado seguro por padrão: invisível.
+  el.hidden = true;
+  currentEmergencyProposal = null;
+
+  const titleEl = $('#emergencyTitle');
+  const detailEl = $('#emergencyDetail');
+  const routeEl = $('#emergencyRouteSummary');
+  if (titleEl) titleEl.textContent = '';
+  if (detailEl) detailEl.textContent = '';
+  if (routeEl) routeEl.textContent = '';
+
+  const emergency = activeEmergencyFor(day);
+  if (!emergency) return;
+
+  const title = emergency.label ||
+    (emergency.type === 'storm' ? 'Clima exige mudança de plano' :
+     emergency.type === 'queue-spike' ? 'Fila mudou bruscamente' :
+     emergency.type === 'closure' ? 'Atração ficou indisponível' :
+     'Mudança crítica detectada');
+
+  const detail = emergencyFallbackDetail(emergency, day);
+  if (!String(detail || '').trim()) return;
+
+  let proposal = null;
+  try {
+    proposal = generateReplanProposal(day, livePayload, weatherPayload, true);
+  } catch (error) {
+    console.warn('Emergency replan unavailable:', error);
+  }
+
+  currentEmergencyProposal = proposal;
+
+  if (titleEl) titleEl.textContent = title;
+  if (detailEl) detailEl.textContent = detail;
+
+  if (routeEl) {
+    if (proposal) {
+      const flexible = proposal.scheduled?.filter(x => !x.fixed) || [];
+      const first = flexible[0]?.activity?.title;
+      const count = flexible.length;
+      const deferred = proposal.deferred?.length || 0;
+      routeEl.textContent =
+        `${count} atração(ões) foram reposicionadas` +
+        `${first ? `; a próxima sugerida é ${first}` : ''}. ` +
+        `${deferred
+          ? `${deferred} atração(ões) foram deixadas para depois.`
+          : 'Nenhuma atração precisou ser descartada.'}`;
+    } else {
+      routeEl.textContent =
+        'A emergência é real, mas o motor não encontrou uma alternativa segura para aplicar automaticamente.';
+    }
+  }
+
+  $('#applyEmergencyBtn').disabled = !proposal;
+
+  // Só revela o painel depois de título + motivo estarem prontos.
+  el.hidden = false;
+};
+
+
+
+/* ============================================================
+   Orlando Flow v30 — Opportunity engine + Live alert indicator
+   ============================================================ */
+
+const OPPORTUNITY_RULES = Object.freeze({
+  minDropMinutes: 12,
+  minDropRatio: 0.20,
+  minScore: 72,
+  minScoreGain: 8,
+  maxWalkMinutes: 18,
+  cooldownMinutes: 25,
+  activeMinutes: 30
+});
+
+const v29EnsureCopilotStateV30 = ensureCopilotState;
+ensureCopilotState = function() {
+  v29EnsureCopilotStateV30();
+  if (!Array.isArray(state.opportunityLog)) state.opportunityLog = [];
+  if (!state.opportunityState || typeof state.opportunityState !== 'object') state.opportunityState = null;
+  if (!state.opportunityCooldowns || typeof state.opportunityCooldowns !== 'object') state.opportunityCooldowns = {};
+  if (!state.opportunityLastScan || typeof state.opportunityLastScan !== 'object') state.opportunityLastScan = {};
+};
+
+function opportunityActivityKey(activity) {
+  return `${getSelectedDay()?.date || ''}|${activity?.id || preferenceKey(activity)}`;
+}
+
+function priorWaitObservation(parkKey, entry, payloadFetchedAt = Date.now()) {
+  const choices = [];
+  const samples = queueSamples(parkKey, entry?.name || '', true);
+
+  if (samples.length >= 2) {
+    const prev = samples.at(-2);
+    if (Number.isFinite(Number(prev?.wait))) {
+      choices.push({wait:Number(prev.wait), t:Number(prev.t || 0), source:'local'});
+    }
+  }
+
+  if (typeof globalInsightFor === 'function') {
+    const latest = globalInsightFor(parkKey, entry)?.latest;
+    const t = latest?.observedAt ? new Date(latest.observedAt).getTime() : 0;
+    const wait = Number(latest?.waitTime);
+    if (Number.isFinite(wait) && t && t < Number(payloadFetchedAt || Date.now()) - 30_000) {
+      choices.push({wait, t, source:'global'});
+    }
+  }
+
+  return choices
+    .filter(x => x.t && Number.isFinite(x.wait))
+    .sort((a,b) => b.t - a.t)[0] || null;
+}
+
+function syntheticEntryWithWait(entry, wait) {
+  return {
+    ...entry,
+    queue: {
+      ...(entry?.queue || {}),
+      STANDBY: {
+        ...(entry?.queue?.STANDBY || {}),
+        waitTime:Number(wait)
+      }
+    }
+  };
+}
+
+function opportunityCurrentOrderIndex(day, activity) {
+  return (day?.activities || [])
+    .filter(a => !a.replanDeferred && !isDone(a.id) && !isSkipped(a.id))
+    .findIndex(a => a.id === activity?.id);
+}
+
+function detectOpportunity(day, livePayload, weatherPayload) {
+  ensureCopilotState();
+  if (!day || day.date !== getOrlandoParts().date || !livePayload?.liveData?.length) return null;
+  if (activeEmergencyFor(day)) return null;
+
+  const parkKey = day.park;
+  const now = getOrlandoParts();
+  const nowMinute = now.hour * 60 + now.minute;
+  const pending = (day.activities || []).filter(a =>
+    a.type === 'attraction' &&
+    !a.replanDeferred &&
+    !isDone(a.id) &&
+    !isSkipped(a.id)
+  );
+
+  const candidates = [];
+
+  for (const activity of pending) {
+    const entry = findLiveMatch(activity, livePayload.liveData || []);
+    if (!entry || String(entry.status || '').toUpperCase() !== 'OPERATING') continue;
+
+    const currentWait = extractStandby(entry);
+    if (!Number.isFinite(Number(currentWait))) continue;
+
+    const prior = priorWaitObservation(parkKey, entry, livePayload.fetchedAt);
+    if (!prior || prior.wait <= 0) continue;
+
+    const drop = prior.wait - Number(currentWait);
+    const dropRatio = drop / Math.max(1, prior.wait);
+    if (drop < OPPORTUNITY_RULES.minDropMinutes || dropRatio < OPPORTUNITY_RULES.minDropRatio) continue;
+
+    const cooldownKey = `${day.date}|${activity.id}`;
+    const cooldownAt = Number(state.opportunityCooldowns[cooldownKey] || 0);
+    if (Date.now() - cooldownAt < OPPORTUNITY_RULES.cooldownMinutes * 60_000) continue;
+
+    const currentMeta = copilotScoreForEntry(entry, day, weatherPayload, nowMinute);
+    if (!currentMeta || currentMeta.blocked || currentMeta.score < OPPORTUNITY_RULES.minScore) continue;
+
+    const priorityCode = currentMeta.priority?.code || priorityCodeFromActivity(activity);
+    const priorityRelevant = ['must','want'].includes(priorityCode) || currentMeta.score >= 88;
+    if (!priorityRelevant) continue;
+
+    const previousMeta = copilotScoreForEntry(
+      syntheticEntryWithWait(entry, prior.wait),
+      day,
+      weatherPayload,
+      nowMinute
+    );
+    const scoreGain = currentMeta.score - Number(previousMeta?.score || 0);
+    if (scoreGain < OPPORTUNITY_RULES.minScoreGain && currentMeta.score < 84) continue;
+
+    const walkMinutes = Number(currentMeta.walk?.minutes || 10);
+    if (walkMinutes > OPPORTUNITY_RULES.maxWalkMinutes && drop < 30) continue;
+
+    if (currentMeta.climate?.impact === 'high' && Number(currentMeta.climate?.score || 0) < 30) continue;
+
+    const p30 = Number(currentMeta.forecast?.p30);
+    const climateUrgent = Number(currentMeta.climate?.score || 0) >= 90;
+    if (!climateUrgent && Number.isFinite(p30) && p30 <= Number(currentWait) - 8) continue;
+
+    const currentIndex = opportunityCurrentOrderIndex(day, activity);
+    if (currentIndex <= 0) continue;
+
+    const netGain = drop - Math.max(0, walkMinutes - 5) * 0.5;
+    if (netGain < 8) continue;
+
+    candidates.push({
+      activity,
+      entry,
+      currentWait:Number(currentWait),
+      priorWait:Number(prior.wait),
+      priorSource:prior.source,
+      drop:Math.round(drop),
+      dropRatio,
+      score:currentMeta.score,
+      scoreGain:Math.round(scoreGain),
+      meta:currentMeta,
+      walkMinutes,
+      netGain
+    });
+  }
+
+  candidates.sort((a,b) =>
+    (b.score + b.drop*.55 + b.scoreGain*.8 - b.walkMinutes*.35) -
+    (a.score + a.drop*.55 + a.scoreGain*.8 - a.walkMinutes*.35)
+  );
+
+  for (const candidate of candidates) {
+    const proposal = generateReplanProposal(day, livePayload, weatherPayload, true);
+    if (!proposal) continue;
+
+    const flexible = (proposal.scheduled || []).filter(x => !x.fixed);
+    const proposedIndex = flexible.findIndex(x => x.activity?.id === candidate.activity.id);
+    if (proposedIndex < 0 || proposedIndex > 1) continue;
+
+    const currentIndex = opportunityCurrentOrderIndex(day, candidate.activity);
+    if (currentIndex <= proposedIndex) continue;
+
+    const nextAnchor = candidate.meta.schedule?.anchor;
+
+    return {
+      type:'queue-drop',
+      severity:'positive',
+      activityId:candidate.activity.id,
+      activityTitle:candidate.activity.title,
+      label:`${candidate.activity.title} virou oportunidade`,
+      currentWait:candidate.currentWait,
+      priorWait:candidate.priorWait,
+      priorSource:candidate.priorSource,
+      drop:candidate.drop,
+      dropRatio:candidate.dropRatio,
+      score:candidate.score,
+      scoreGain:candidate.scoreGain,
+      priorityLabel:candidate.meta.priority?.label || 'Prioritária',
+      walkMinutes:candidate.walkMinutes,
+      walkKnown:Boolean(candidate.meta.walk?.known),
+      climateReason:candidate.meta.climate?.reason || 'clima compatível',
+      scheduleReason:candidate.meta.schedule?.reason || 'compatível com o roteiro',
+      trendLabel:candidate.meta.forecast?.trend?.label || 'Estável',
+      p30:candidate.meta.forecast?.p30 ?? null,
+      p60:candidate.meta.forecast?.p60 ?? null,
+      nextAnchorTitle:nextAnchor?.title || null,
+      nextAnchorTime:nextAnchor?.time || null,
+      estimatedQueueSaving:candidate.drop
+    };
+  }
+
+  return null;
+}
+
+function updateOpportunityState(day, livePayload, weatherPayload) {
+  ensureCopilotState();
+  if (!day || !livePayload) return;
+
+  const scanKey = `${day.date}|${day.park}`;
+  const scanStamp = Number(livePayload.fetchedAt || 0);
+  if (scanStamp && Number(state.opportunityLastScan[scanKey] || 0) === scanStamp) return;
+  if (scanStamp) state.opportunityLastScan[scanKey] = scanStamp;
+
+  const opportunity = detectOpportunity(day, livePayload, weatherPayload);
+
+  if (!opportunity) {
+    if (state.opportunityState && !state.opportunityState.dismissed) {
+      state.opportunityState = null;
+      saveState();
+    }
+    return;
+  }
+
+  const key = `${day.date}|${opportunity.activityId}|${Math.round(opportunity.priorWait/5)}|${Math.round(opportunity.currentWait/5)}`;
+  const existing = state.opportunityState;
+  if (existing?.key === key && Date.now() - Number(existing.createdAt || 0) < OPPORTUNITY_RULES.activeMinutes * 60_000) return;
+
+  state.opportunityState = {
+    ...opportunity,
+    key,
+    dayDate:day.date,
+    createdAt:Date.now(),
+    dismissed:false
+  };
+  state.opportunityLog.push({...state.opportunityState});
+  state.opportunityLog = state.opportunityLog.slice(-50);
+  saveState();
+
+  notifyOnce(
+    `opportunity-${day.date}-${opportunity.activityId}-${Math.round(opportunity.currentWait/5)}`,
+    'Orlando Flow · Oportunidade',
+    `${opportunity.activityTitle} caiu de ${opportunity.priorWait} para ${opportunity.currentWait} min. Há uma nova sequência que pode valer mais a pena.`
+  );
+}
+
+function activeOpportunityFor(day) {
+  ensureCopilotState();
+  const o = state.opportunityState;
+  if (!o || o.dismissed || !day) return null;
+  if (day.date !== getOrlandoParts().date) return null;
+  if (o.dayDate && o.dayDate !== day.date) return null;
+  if (Date.now() - Number(o.createdAt || 0) > OPPORTUNITY_RULES.activeMinutes * 60_000) return null;
+  if (activeEmergencyFor(day)) return null;
+  return o;
+}
+
+let currentOpportunityProposal = null;
+
+function opportunityReasons(o) {
+  if (!o) return [];
+  const reasons = [
+    o.priorityLabel,
+    `${o.walkKnown ? o.walkMinutes : `~${o.walkMinutes}`} min de caminhada`,
+    o.climateReason,
+    o.scheduleReason,
+    o.trendLabel ? `tendência: ${o.trendLabel.toLowerCase()}` : null
+  ];
+  if (o.p30 != null && Number(o.p30) > Number(o.currentWait)) reasons.push(`+30 min: ~${o.p30} min`);
+  return [...new Set(reasons.filter(Boolean))].slice(0,5);
+}
+
+function renderOpportunityPanel(day, livePayload, weatherPayload) {
+  const el = $('#opportunityPanel');
+  if (!el) return;
+
+  el.hidden = true;
+  currentOpportunityProposal = null;
+
+  const o = activeOpportunityFor(day);
+  if (!o) return;
+
+  let proposal = null;
+  try {
+    proposal = generateReplanProposal(day, livePayload, weatherPayload, true);
+  } catch (error) {
+    console.warn('Opportunity replan unavailable:', error);
+  }
+  if (!proposal) return;
+
+  const flexible = (proposal.scheduled || []).filter(x => !x.fixed);
+  const proposedIndex = flexible.findIndex(x => x.activity?.id === o.activityId);
+  if (proposedIndex < 0 || proposedIndex > 1) return;
+
+  currentOpportunityProposal = proposal;
+
+  $('#opportunityTitle').textContent = `${o.activityTitle} caiu para ${o.currentWait} min`;
+  $('#opportunityDetail').textContent =
+    `A fila caiu de ${o.priorWait} para ${o.currentWait} min (-${o.drop} min). ` +
+    `O motor recalculou o restante do dia antes de sugerir a mudança.`;
+
+  $('#opportunityReasons').innerHTML = opportunityReasons(o)
+    .map(r => `<li>${escapeHtml(r)}</li>`)
+    .join('');
+
+  const sequence = flexible.slice(0,4).map(x => x.activity?.title).filter(Boolean);
+  $('#opportunityRouteSummary').textContent = sequence.length
+    ? sequence.join(' → ')
+    : 'A sequência foi reorganizada para aproveitar a janela atual.';
+
+  $('#opportunityGain').textContent =
+    `Economia potencial de ~${o.estimatedQueueSaving} min de fila nesta atração` +
+    `${o.scoreGain > 0 ? ` · score interno +${o.scoreGain}` : ''}.`;
+
+  $('#applyOpportunityBtn').disabled = false;
+  el.hidden = false;
+}
+
+function dismissOpportunity() {
+  const day = getSelectedDay();
+  const o = activeOpportunityFor(day);
+  if (!o) return;
+
+  state.opportunityCooldowns[`${day.date}|${o.activityId}`] = Date.now();
+  state.opportunityState.dismissed = true;
+  saveState();
+  renderLive();
+  updateLiveAlertIndicator();
+  toast('Roteiro atual mantido. Esta oportunidade entra em cooldown por alguns minutos.');
+}
+
+function applyOpportunity() {
+  const day = getSelectedDay();
+  const o = activeOpportunityFor(day);
+  const proposal = currentOpportunityProposal;
+  if (!o || !proposal || !day || proposal.date !== day.date) return;
+
+  state.opportunityCooldowns[`${day.date}|${o.activityId}`] = Date.now();
+  state.opportunityState.dismissed = true;
+  state.opportunityState.applied = true;
+
+  currentReplanProposal = proposal;
+  saveState();
+  applyReplanProposal();
+  updateLiveAlertIndicator();
+}
+
+function updateLiveAlertIndicator() {
+  const nav = document.querySelector('.nav-item[data-target="live"]');
+  if (!nav) return;
+
+  const day = getSelectedDay();
+  const emergency = activeEmergencyFor(day);
+  const opportunity = activeOpportunityFor(day);
+
+  nav.classList.remove('has-alert','alert-emergency','alert-opportunity');
+
+  if (emergency) {
+    nav.classList.add('has-alert','alert-emergency');
+    nav.setAttribute('aria-label','Ao vivo — emergência ativa');
+  } else if (opportunity) {
+    nav.classList.add('has-alert','alert-opportunity');
+    nav.setAttribute('aria-label','Ao vivo — oportunidade disponível');
+  } else {
+    nav.setAttribute('aria-label','Ao vivo');
+  }
+}
+
+const v29RenderLiveV30 = renderLive;
+renderLive = function() {
+  const day = getSelectedDay();
+  const parkKey = day?.park || state.selectedPark;
+  const live = state.liveCache[parkKey];
+  const weather = state.weatherCache[parkKey];
+
+  if (day?.date === getOrlandoParts().date && live) {
+    updateOpportunityState(day, live, weather);
+  }
+
+  v29RenderLiveV30();
+  renderOpportunityPanel(day, live, weather);
+  updateLiveAlertIndicator();
+};
+
+const v29RenderAllV30 = renderAll;
+renderAll = function() {
+  v29RenderAllV30();
+  updateLiveAlertIndicator();
+};
+
+const v29EvaluateAlertsV30 = evaluateAlerts;
+evaluateAlerts = function() {
+  v29EvaluateAlertsV30();
+  const day = getSelectedDay();
+  const parkKey = day?.park || state.selectedPark;
+  const live = state.liveCache[parkKey];
+  const weather = state.weatherCache[parkKey];
+
+  if (day?.date === getOrlandoParts().date && live) {
+    updateOpportunityState(day, live, weather);
+  }
+
+  updateLiveAlertIndicator();
+  if (activeViewName() === 'live') renderOpportunityPanel(day, live, weather);
+};
+
+const v29BindEventsV30 = bindEvents;
+bindEvents = function() {
+  v29BindEventsV30();
+  $('#applyOpportunityBtn')?.addEventListener('click', applyOpportunity);
+  $('#dismissOpportunityBtn')?.addEventListener('click', dismissOpportunity);
+  $('#dismissEmergencyBtn')?.addEventListener('click', () => setTimeout(updateLiveAlertIndicator, 0));
+  $('#applyEmergencyBtn')?.addEventListener('click', () => setTimeout(updateLiveAlertIndicator, 0));
+};
+
+const v29LoadDemoV30 = loadDemo;
+loadDemo = async function(showMessage = true) {
+  await v29LoadDemoV30(showMessage);
+  ensureCopilotState();
+  state.opportunityState = null;
+  state.opportunityLog = [];
+  state.opportunityCooldowns = {};
+  state.opportunityLastScan = {};
+  saveState();
+};
+
 
 async function init() {
   await loadState();

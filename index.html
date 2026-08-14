@@ -160,6 +160,54 @@
           </div>
           <div id="liveStatus" class="source-note">Aguardando consulta.</div>
 
+          <div class="copilot-topline">
+            <span id="copilotModePill" class="mode-pill">Modo: Experiência</span>
+            <div id="copilotSummary" class="copilot-summary"></div>
+          </div>
+
+          <section id="emergencyPanel" class="emergency-panel" aria-live="assertive" hidden>
+            <div class="emergency-icon">!</div>
+            <div class="grow">
+              <span class="kicker">Modo emergência</span>
+              <h3 id="emergencyTitle">Mudança crítica detectada</h3>
+              <div class="emergency-explanation">
+                <strong>O que aconteceu</strong>
+                <p id="emergencyDetail"></p>
+                <strong>Impacto no roteiro</strong>
+                <p id="emergencyRouteSummary"></p>
+              </div>
+              <div class="button-row emergency-actions">
+                <button class="primary-btn" id="applyEmergencyBtn" type="button">Aplicar novo roteiro</button>
+                <button class="ghost-btn" id="dismissEmergencyBtn" type="button">Dispensar</button>
+              </div>
+            </div>
+          </section>
+
+          <section id="opportunityPanel" class="opportunity-panel" aria-live="polite" hidden>
+            <div class="opportunity-icon" aria-hidden="true">↓</div>
+            <div class="grow">
+              <span class="kicker">Oportunidade detectada</span>
+              <h3 id="opportunityTitle">Uma janela melhor apareceu</h3>
+
+              <div class="opportunity-explanation">
+                <strong>Por que vale considerar agora</strong>
+                <p id="opportunityDetail"></p>
+                <ul id="opportunityReasons" class="opportunity-reasons"></ul>
+
+                <strong>Nova sequência sugerida</strong>
+                <p id="opportunityRouteSummary"></p>
+
+                <strong>Ganho potencial</strong>
+                <p id="opportunityGain"></p>
+              </div>
+
+              <div class="button-row opportunity-actions">
+                <button class="primary-btn" id="applyOpportunityBtn" type="button">Aplicar novo roteiro</button>
+                <button class="ghost-btn" id="dismissOpportunityBtn" type="button">Manter atual</button>
+              </div>
+            </div>
+          </section>
+
           <section id="replanPanel" class="replan-panel" aria-live="polite">
             <div class="replan-head">
               <div>
@@ -180,8 +228,9 @@
             <button class="text-btn replan-analyze" id="analyzeReplanBtn" type="button" hidden>Analisar novamente</button>
           </section>
 
+          <div class="copilot-section-head"><span class="kicker">Decisão agora</span><h3>Melhores próximas escolhas</h3></div>
           <div id="recommendations" class="recommendation-list"></div>
-          <div id="waitList" class="wait-list"></div>
+          <small class="help-text copilot-list-help">Toque em uma atração para expandir fila prevista, caminhada, melhor janela, base histórica e score interno. *Quando a posição exata ainda não estiver disponível, a caminhada usa um buffer conservador.</small>
         </section>
       </section>
 
@@ -229,6 +278,10 @@
             <div class="report-section">
               <h3>Ranking de restaurantes & pratos</h3>
               <div id="mealRankingList"></div>
+            </div>
+            <div class="report-section">
+              <h3>Custo da fila</h3>
+              <div id="queueCostReport"></div>
             </div>
             <div class="report-section">
               <h3>Insights da viagem</h3>
@@ -301,6 +354,53 @@
             </div>
             <button class="secondary-btn" id="notificationBtn">Ativar notificações</button>
             <small class="help-text">No MVP, os alertas automáticos são confiáveis enquanto o app está aberto ou ativo. Push real em segundo plano exige um serviço de push/backend.</small>
+          </div>
+
+          <div class="settings-card">
+            <h3>Modo do copiloto</h3>
+            <label>Modo
+              <select id="optimizationMode" class="wide-select">
+                <option value="max">Express 🔥</option>
+                <option value="experience">Experiência ❤️</option>
+                <option value="relax">Relax 🧘🏻</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="settings-card">
+            <h3>Atrações obrigatórias</h3>
+            <p class="muted">Defina preferências pessoais antes da viagem. Multi Pass e Single Pass agora são aplicados diretamente na Linha do tempo, em Hoje.</p>
+            <label>Parque
+              <select id="preferenceParkSelect" class="wide-select"></select>
+            </label>
+            <label>Atração
+              <input id="preferenceAttractionInput" type="search" list="preferenceAttractionSuggestions" autocomplete="off" placeholder="Selecione primeiro o parque" />
+            </label>
+            <div class="two-col-settings">
+              <label>Importância
+                <select id="preferencePriority">
+                  <option value="must">Imperdível</option>
+                  <option value="want">Quero muito</option>
+                  <option value="normal" selected>Normal</option>
+                  <option value="low">Não faço questão</option>
+                  <option value="empty">Só se estiver vazio</option>
+                </select>
+              </label>
+              <label>Quero repetir
+                <select id="preferenceRepeat"><option value="no">Não</option><option value="yes">Sim</option></select>
+              </label>
+              <label>Impacto climático
+                <select id="preferenceWeatherImpact"><option value="auto">Automático</option><option value="high">Alto</option><option value="medium">Médio</option><option value="low">Baixo / indoor</option></select>
+              </label>
+            </div>
+            <button class="secondary-btn" id="savePreferenceBtn" type="button">Salvar preferência</button>
+            <div id="preferenceList" class="preference-list"></div>
+          </div>
+
+          <div class="settings-card">
+            <h3>Eventos & horários fixos</h3>
+            <p class="muted">Shows, desfiles, fogos, reservas e Early Entry viram âncoras. O motor protege o tempo de chegada antes deles; se você pular a âncora, a sequência é liberada e recalculada.</p>
+            <button class="secondary-btn" id="addAnchorBtn" type="button">Adicionar evento fixo</button>
           </div>
 
           <div class="settings-card">
@@ -392,9 +492,55 @@
     </form>
   </dialog>
 
+
+  <dialog id="passDialog" class="sheet-dialog">
+    <form method="dialog" id="passForm">
+      <div class="sheet-handle"></div>
+      <span class="kicker">Decisão do dia</span>
+      <h3 id="passDialogTitle">Aplicar Pass</h3>
+      <p class="muted">Registre a reserva que você realmente possui. O motor recalcula o restante do roteiro imediatamente.</p>
+      <input id="passActivityId" type="hidden" />
+      <label>Tipo
+        <select id="dayPassType">
+          <option value="none">Sem Pass / remover</option>
+          <option value="multi">Multi Pass</option>
+          <option value="single">Single Pass</option>
+        </select>
+      </label>
+      <div id="dayPassWindowFields" class="two-col-settings">
+        <label>Início da janela <span class="muted">(opcional)</span><input id="dayPassTime" type="time" /></label>
+        <label>Duração da janela (min)<input id="dayPassWindow" type="number" min="15" max="180" step="15" value="60" /></label>
+      </div>
+      <small class="help-text">Se ainda não souber o horário, você pode marcar apenas Multi Pass ou Single Pass e informar a janela depois.</small>
+      <div class="dialog-actions">
+        <button value="cancel" class="ghost-btn">Cancelar</button>
+        <button value="default" id="saveDayPassBtn" class="primary-btn">Aplicar ao roteiro</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="anchorDialog" class="sheet-dialog">
+    <form method="dialog" id="anchorForm">
+      <span class="kicker">Âncora do roteiro</span>
+      <h3>Adicionar evento fixo</h3>
+      <p class="muted">Ex.: Fantasmic 21:00 com 40 min de chegada reserva automaticamente 20:20–21:00.</p>
+      <label>Dia<select id="anchorDateInput"></select></label>
+      <label>Nome<input id="anchorTitleInput" type="text" maxlength="100" placeholder="Fantasmic!" /></label>
+      <div class="two-col-settings">
+        <label>Tipo<select id="anchorTypeInput"><option value="show">Show</option><option value="fireworks">Fogos</option><option value="parade">Desfile</option><option value="early-entry">Early Entry</option><option value="reservation">Reserva</option><option value="entertainment">Entretenimento</option></select></label>
+        <label>Horário<input id="anchorTimeInput" type="time" /></label>
+        <label>Duração (min)<input id="anchorDurationInput" type="number" min="5" max="240" step="5" value="30" /></label>
+        <label>Reserva para chegada (min)<input id="anchorBufferInput" type="number" min="0" max="120" step="5" value="40" /></label>
+      </div>
+      <label class="check-line"><input id="anchorSkippableInput" type="checkbox" checked /> Permitir pular durante o dia</label>
+      <div class="dialog-actions"><button value="cancel" class="ghost-btn">Cancelar</button><button value="default" id="saveAnchorBtn" class="primary-btn">Adicionar</button></div>
+    </form>
+  </dialog>
+
   <datalist id="restaurantSuggestions"></datalist>
   <datalist id="mealSuggestions"></datalist>
   <datalist id="attractionSuggestions"></datalist>
+  <datalist id="preferenceAttractionSuggestions"></datalist>
 
   <script type="module" src="./app.js"></script>
 </body>
