@@ -1117,3 +1117,813 @@ html[data-theme="dark"] .rating-empty { color: color-mix(in srgb, var(--muted) 5
   .rating-value { justify-self: start; }
   .rating-visual { font-size: 25px; }
 }
+
+
+/* Orlando Flow v21 — Park Copilot */
+.copilot-topline{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;margin:12px 0 14px}.mode-pill{display:inline-flex;align-items:center;padding:7px 10px;border-radius:999px;background:var(--accent-soft,#e8eef8);color:var(--accent,#315b8c);font-size:.76rem;font-weight:900;letter-spacing:.02em}.copilot-summary{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:.74rem;color:var(--muted-text,#6b7280)}.copilot-summary strong{color:var(--text,#172033)}
+.emergency-panel{display:flex;gap:12px;padding:16px;border-radius:20px;margin:14px 0;background:color-mix(in srgb,#d63b3b 11%,var(--surface,#fff));border:1px solid color-mix(in srgb,#d63b3b 38%,transparent);box-shadow:0 12px 30px rgba(110,20,20,.10)}.emergency-icon{flex:0 0 38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#c92e2e;color:#fff;font-weight:950;font-size:1.2rem}.emergency-panel h3{margin:2px 0 4px;color:#b32626}.emergency-panel p{margin:0 0 4px}.emergency-actions{margin-top:10px}
+.copilot-section-head{margin:22px 0 9px}.copilot-section-head h3{margin:2px 0 0;font-size:1rem}.copilot-wait-card{padding:14px;border:1px solid var(--border,#dfe5ee);border-radius:18px;background:var(--surface,#fff);margin:9px 0;box-shadow:0 7px 22px rgba(20,35,60,.05)}.copilot-wait-head{display:flex;gap:10px;justify-content:space-between;align-items:flex-start}.copilot-wait-head strong{display:block}.copilot-wait-head small{display:block;color:var(--muted-text,#77808e);margin-top:2px}.score-badge{min-width:74px;text-align:center;border-radius:14px;padding:7px 8px;font-size:.62rem;font-weight:900;line-height:1.05}.score-badge b{display:block;font-size:1.25rem}.score-badge.good{background:#def7e8;color:#11643a}.score-badge.warn{background:#fff0c7;color:#895900}.score-badge.bad{background:#fee3e3;color:#9b2424}.score-badge.neutral{background:#edf0f5;color:#5a6472}.forecast-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px;margin:11px 0 8px}.forecast-grid span{font-size:.72rem;color:var(--muted-text,#6f7885)}.forecast-grid b{color:var(--text,#172033)}.score-reasons{display:flex;gap:6px;flex-wrap:wrap}.score-reasons span{font-size:.68rem;padding:5px 7px;border-radius:999px;background:var(--chip-bg,#f2f5f9);color:var(--muted-text,#596170)}
+.copilot-rec{display:flex!important;align-items:flex-start;gap:12px}.rec-score{width:48px;flex:0 0 48px;text-align:center;border-radius:15px;padding:8px 4px;background:var(--accent-soft,#edf3ff)}.rec-score span{display:block;font-size:.62rem;color:var(--muted-text,#657080)}.rec-score b{display:block;font-size:1.35rem;color:var(--accent,#315b8c)}.factor-bars{display:flex;gap:3px;margin-top:8px}.factor-bars>span{display:block;flex:1;height:4px;border-radius:99px;background:var(--border,#e2e7ee);overflow:hidden}.factor-bars i{display:block;height:100%;width:var(--value);background:currentColor;opacity:.55;border-radius:99px}.best-windows{display:grid;gap:7px}.window-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:10px 12px;border-radius:14px;background:var(--surface,#fff);border:1px solid var(--border,#e2e7ee);font-size:.76rem}.window-row span{color:var(--muted-text,#6b7280)}.window-row>b{color:#14744a}
+.score-weights-preview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:10px 0}.score-weights-preview span{display:flex;align-items:baseline;gap:6px;padding:8px 10px;border-radius:12px;background:var(--chip-bg,#f3f6fa);font-size:.72rem;color:var(--muted-text,#677180)}.score-weights-preview b{color:var(--text,#172033);font-size:.85rem}.two-col-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.preference-list{display:grid;gap:7px;margin-top:12px}.preference-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 10px;border-radius:13px;background:var(--chip-bg,#f4f6f9)}.preference-row strong,.preference-row small{display:block}.preference-row small{color:var(--muted-text,#737c89);font-size:.7rem;margin-top:2px}.ghost-btn.compact{padding:7px 9px;font-size:.7rem}.check-line{display:flex!important;flex-direction:row!important;align-items:center;gap:8px}.check-line input{width:auto!important}
+.queue-cost-card{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.queue-cost-card>div{padding:14px;border-radius:16px;background:var(--surface,#fff);border:1px solid var(--border,#e2e7ee)}.queue-cost-card span,.queue-cost-card small{display:block;color:var(--muted-text,#6f7885);font-size:.69rem}.queue-cost-card b{display:block;font-size:1.25rem;margin:3px 0}.queue-cost-card .saved{background:color-mix(in srgb,#23a66d 10%,var(--surface,#fff));border-color:color-mix(in srgb,#23a66d 30%,transparent)}.queue-cost-card .saved b{color:#15784d}
+@media(max-width:520px){.two-col-settings{grid-template-columns:1fr}.queue-cost-card{grid-template-columns:1fr}.forecast-grid{grid-template-columns:1fr 1fr}.window-row{grid-template-columns:1fr auto}.window-row span{grid-column:1/-1}.copilot-topline{align-items:flex-start}.copilot-summary{display:block}.copilot-summary strong,.copilot-summary span{display:block}}
+
+/* ============================================================
+   Orlando Flow v23 — Copilot mobile visual robustness
+   Ensures v21/v22 copilot cards render correctly even when
+   upgrading from an older local stylesheet.
+   ============================================================ */
+.copilot-wait-card,
+.copilot-wait-card * {
+  box-sizing: border-box;
+}
+
+.copilot-wait-card {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+}
+
+.copilot-wait-head > div:first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.copilot-wait-head strong {
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
+.copilot-wait-head small {
+  line-height: 1.3;
+}
+
+.score-badge {
+  flex: 0 0 auto;
+}
+
+.forecast-grid > span {
+  display: block;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.forecast-grid > span > b {
+  display: block;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.score-reasons > span {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.25;
+}
+
+.copilot-summary > span {
+  line-height: 1.35;
+}
+
+@media (max-width: 520px) {
+  .copilot-wait-card {
+    padding: 13px;
+    border-radius: 17px;
+    margin: 9px 0;
+  }
+
+  .copilot-wait-head {
+    gap: 8px;
+  }
+
+  .score-badge {
+    min-width: 68px;
+    padding: 7px 6px;
+  }
+
+  .forecast-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px 12px;
+    margin-top: 12px;
+  }
+
+  .forecast-grid > span {
+    padding: 7px 8px;
+    border-radius: 11px;
+    background: var(--chip-bg, #f2f5f9);
+  }
+
+  .forecast-grid > span > b {
+    font-size: .78rem;
+  }
+
+  .score-reasons {
+    margin-top: 4px;
+  }
+}
+
+@media (max-width: 360px) {
+  .forecast-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   Orlando Flow v24 — Copiloto compacto + detalhes expansíveis
+   ============================================================ */
+.copilot-rec-expandable {
+  display: block !important;
+  padding: 0;
+  overflow: hidden;
+  color: var(--ink);
+}
+
+.copilot-rec-expandable > summary {
+  list-style: none;
+}
+
+.copilot-rec-expandable > summary::-webkit-details-marker {
+  display: none;
+}
+
+.copilot-rec-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 13px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.copilot-rec-summary:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: -3px;
+  border-radius: 16px;
+}
+
+.decision-light {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  border-radius: 999px;
+  vertical-align: -1px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 13%, transparent);
+}
+
+.decision-light.good {
+  background: #21b66f;
+  color: #21b66f;
+}
+
+.decision-light.warn {
+  background: #f2b01e;
+  color: #f2b01e;
+}
+
+.decision-light.bad {
+  background: #e34b55;
+  color: #e34b55;
+}
+
+.copilot-rec-summary > .decision-light {
+  width: 15px;
+  height: 15px;
+  flex-basis: 15px;
+}
+
+.copilot-rec-main {
+  display: block;
+  min-width: 0;
+}
+
+.copilot-rec-main .kicker {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.copilot-rec-main strong {
+  display: block;
+  color: var(--ink);
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+}
+
+.copilot-rec-main .rec-reason {
+  display: block;
+  line-height: 1.35;
+}
+
+.copilot-expand-cue {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.copilot-expand-cue svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform .18s ease;
+}
+
+.copilot-rec-expandable[open] .copilot-expand-cue svg {
+  transform: rotate(180deg);
+}
+
+.copilot-rec-details {
+  border-top: 1px solid color-mix(in srgb, var(--gold) 22%, var(--line));
+  padding: 12px 13px 14px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+
+.copilot-detail-score {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  align-items: center;
+  margin-bottom: 11px;
+  padding: 9px 10px;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--accent-soft) 58%, var(--surface));
+}
+
+.copilot-detail-score > span {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 750;
+}
+
+.copilot-detail-score > b {
+  color: var(--ink);
+  font-size: 1.05rem;
+}
+
+.copilot-detail-score > b small {
+  color: var(--muted);
+  font-size: .68rem;
+}
+
+.copilot-detail-score > em {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: .65rem;
+  font-style: normal;
+  line-height: 1.3;
+}
+
+.copilot-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.copilot-detail-item {
+  min-width: 0;
+  padding: 9px 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-2) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+}
+
+.copilot-detail-item > span,
+.copilot-detail-item > small {
+  display: block;
+  color: var(--muted);
+  font-size: .67rem;
+  line-height: 1.25;
+}
+
+.copilot-detail-item > b {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink);
+  font-size: .82rem;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+}
+
+.copilot-detail-item > small {
+  margin-top: 3px;
+}
+
+.copilot-detail-wide {
+  grid-column: 1 / -1;
+}
+
+.copilot-detail-reasons {
+  margin-top: 11px;
+}
+
+.copilot-detail-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 800;
+}
+
+.copilot-rec-details .score-reasons span {
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+}
+
+.copilot-summary .decision-light {
+  width: 9px;
+  height: 9px;
+  margin: 0 2px 0 5px;
+  box-shadow: none;
+}
+
+.copilot-summary .decision-light:first-child {
+  margin-left: 0;
+}
+
+.copilot-list-help {
+  display: block;
+  margin-top: 7px;
+  line-height: 1.4;
+}
+
+/* The old standalone blue forecast cards are no longer part of the v24 UI. */
+.copilot-wait-card {
+  display: none !important;
+}
+
+@media (max-width: 520px) {
+  .copilot-rec-summary {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .copilot-expand-cue {
+    grid-column: 2;
+    justify-self: start;
+    margin-top: 1px;
+  }
+
+  .copilot-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 360px) {
+  .copilot-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .copilot-detail-wide {
+    grid-column: auto;
+  }
+}
+
+/* ============================================================
+   Orlando Flow v25 — Emergency clarity + operational Pass
+   ============================================================ */
+.emergency-explanation {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 11px 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, #d63b3b 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, #d63b3b 22%, var(--line));
+}
+
+.emergency-explanation strong {
+  color: var(--ink);
+  font-size: .72rem;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.emergency-explanation p {
+  margin: 0 0 7px !important;
+  color: var(--ink) !important;
+  opacity: 1 !important;
+  line-height: 1.4;
+  font-size: .84rem;
+}
+
+.emergency-explanation p:last-child {
+  margin-bottom: 0 !important;
+}
+
+.timeline-actions .pass-action,
+.pass-action {
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--line));
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface));
+  color: var(--accent-strong, var(--accent));
+}
+
+.timeline-actions .pass-action.active,
+.pass-action.active {
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--line));
+  font-weight: 850;
+}
+
+#passDialog .help-text {
+  display: block;
+  margin: 4px 0 10px;
+}
+
+#dayPassWindowFields[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 520px) {
+  .emergency-panel {
+    align-items: flex-start;
+  }
+
+  .emergency-explanation {
+    padding: 10px;
+  }
+
+  .timeline-actions {
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+
+  .timeline-actions .pass-action {
+    min-width: 72px;
+  }
+}
+
+/* ============================================================
+   Orlando Flow v28 — emergency panel visibility hardening
+   ============================================================ */
+.emergency-panel[hidden] {
+  display: none !important;
+}
+
+/* ============================================================
+   Orlando Flow v29 — full dark-mode readability audit
+   ============================================================ */
+
+/* Compatibility tokens for components introduced after the original theme.
+   Their old fallback values were light-theme grays, which became too dark
+   against night surfaces. */
+:root {
+  --text: var(--ink);
+  --muted-text: var(--muted);
+  --border: var(--line);
+  --chip-bg: var(--surface-2);
+}
+
+/* Raster park/franchise logos keep original artwork in light mode. */
+.park-icon-raster,
+.report-franchise-raster {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: block;
+  min-width: 0;
+  min-height: 0;
+}
+
+.park-icon-raster > img,
+.report-franchise-raster > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* In night mode, raster logos become a monochrome mask using currentColor.
+   This makes them behave exactly like the internal SVG park icons:
+   - app/context mark -> white
+   - bottom navigation -> muted/accent color
+   - report -> franchise/park accent color. */
+html[data-theme="dark"] .park-icon-raster > img,
+html[data-theme="dark"] .report-franchise-raster > img {
+  opacity: 0;
+}
+
+html[data-theme="dark"] .park-icon-raster::before,
+html[data-theme="dark"] .report-franchise-raster::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  -webkit-mask-image: var(--park-icon-url);
+  mask-image: var(--park-icon-url);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+/* All interactive fields receive the same dark surface/foreground treatment.
+   This covers newer search/time/date controls that were not in the old rule. */
+html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  color: var(--ink);
+  background: var(--surface-2);
+  border-color: var(--control-border);
+}
+
+html[data-theme="dark"] select option {
+  color: var(--ink);
+  background: var(--surface);
+}
+
+/* New/copilot components: eliminate hard-coded light-mode foregrounds. */
+html[data-theme="dark"] .copilot-summary,
+html[data-theme="dark"] .copilot-summary span,
+html[data-theme="dark"] .copilot-wait-head small,
+html[data-theme="dark"] .forecast-grid span,
+html[data-theme="dark"] .rec-score span,
+html[data-theme="dark"] .window-row span,
+html[data-theme="dark"] .score-weights-preview span,
+html[data-theme="dark"] .preference-row small,
+html[data-theme="dark"] .queue-cost-card span,
+html[data-theme="dark"] .queue-cost-card small {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .copilot-summary strong,
+html[data-theme="dark"] .forecast-grid b,
+html[data-theme="dark"] .score-weights-preview b {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .window-row > b,
+html[data-theme="dark"] .queue-cost-card .saved b {
+  color: var(--good);
+}
+
+html[data-theme="dark"] .emergency-panel h3 {
+  color: var(--bad);
+}
+
+/* Keep warning recommendation cards clearly legible without becoming a
+   bright yellow slab at night. */
+html[data-theme="dark"] .rec-card {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--soft-warn) 58%, var(--surface));
+  border-color: color-mix(in srgb, var(--warn) 30%, var(--line));
+}
+
+html[data-theme="dark"] .rec-card .rec-reason {
+  color: var(--warn);
+}
+
+/* Expanded copilot detail cards. */
+html[data-theme="dark"] .copilot-rec-details {
+  background: color-mix(in srgb, var(--surface-2) 70%, var(--surface));
+}
+
+html[data-theme="dark"] .copilot-detail-item,
+html[data-theme="dark"] .copilot-rec-details .score-reasons span,
+html[data-theme="dark"] .preference-row,
+html[data-theme="dark"] .queue-cost-card > div,
+html[data-theme="dark"] .window-row {
+  color: var(--ink);
+  background: var(--surface-2);
+  border-color: var(--line);
+}
+
+/* History/report/settings cards: stronger boundary in night mode. */
+html[data-theme="dark"] .timeline-card,
+html[data-theme="dark"] .next-card,
+html[data-theme="dark"] .summary-card,
+html[data-theme="dark"] .stat-card,
+html[data-theme="dark"] .settings-card,
+html[data-theme="dark"] .settings-subsection,
+html[data-theme="dark"] .insight-card,
+html[data-theme="dark"] .report-tier,
+html[data-theme="dark"] .report-group-card,
+html[data-theme="dark"] .report-group-stats span,
+html[data-theme="dark"] .rating-control {
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+/* Completed timeline cards were becoming too faint on dark surfaces. */
+html[data-theme="dark"] .timeline-item.done .timeline-card {
+  opacity: .82;
+}
+
+/* Unselected rating stars were intentionally very faint in the light design,
+   but 55% opacity was too low at night. */
+html[data-theme="dark"] .rating-empty {
+  color: color-mix(in srgb, var(--muted) 82%, transparent);
+}
+
+/* Emergency text always needs full-contrast copy. */
+html[data-theme="dark"] .emergency-explanation {
+  background: color-mix(in srgb, var(--soft-bad) 46%, var(--surface));
+  border-color: color-mix(in srgb, var(--bad) 34%, var(--line));
+}
+
+html[data-theme="dark"] .emergency-explanation strong,
+html[data-theme="dark"] .emergency-explanation p {
+  color: var(--ink) !important;
+}
+
+/* The Pass action inherits the same park palette instead of a low-contrast
+   generic color. */
+html[data-theme="dark"] .timeline-actions .pass-action,
+html[data-theme="dark"] .pass-action {
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+}
+
+/* Keep raster icon wrappers aligned with existing SVG sizing rules. */
+.app-mark .park-icon-raster { width: 31px; height: 31px; }
+.park-context-mark .park-icon-raster { width: 28px; height: 28px; }
+.themed-home-icon .park-icon-raster { width: 26px; height: 26px; }
+.report-group-icon .park-icon-raster { width: 27px; height: 27px; }
+
+@media (max-width: 520px) {
+  .app-mark .park-icon-raster { width: 26px; height: 26px; }
+  .park-context-mark .park-icon-raster { width: 24px; height: 24px; }
+}
+
+/* ============================================================
+   Orlando Flow v30 — Opportunity card + Live notification dot
+   ============================================================ */
+.opportunity-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 14px 0;
+  padding: 14px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--soft-good) 72%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--good) 48%, var(--line));
+  box-shadow: var(--shadow);
+}
+
+.opportunity-panel[hidden] {
+  display: none !important;
+}
+
+.opportunity-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--good);
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.opportunity-panel .kicker {
+  color: color-mix(in srgb, var(--good) 76%, var(--ink));
+}
+
+.opportunity-panel h3 {
+  margin: 2px 0 8px;
+  color: var(--good);
+}
+
+.opportunity-explanation {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 11px 12px;
+  border-radius: 14px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--soft-good) 42%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--good) 25%, var(--line));
+}
+
+.opportunity-explanation strong {
+  margin-top: 4px;
+  color: var(--ink);
+  font-size: .72rem;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.opportunity-explanation strong:first-child {
+  margin-top: 0;
+}
+
+.opportunity-explanation p {
+  margin: 0 0 5px;
+  color: var(--ink);
+  line-height: 1.4;
+  font-size: .84rem;
+}
+
+.opportunity-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 3px 0 7px;
+  padding: 0;
+  list-style: none;
+}
+
+.opportunity-reasons li {
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid color-mix(in srgb, var(--good) 25%, var(--line));
+  font-size: .68rem;
+  line-height: 1.2;
+}
+
+.opportunity-actions {
+  margin-top: 10px;
+}
+
+.opportunity-actions .primary-btn {
+  background: var(--good);
+  border-color: var(--good);
+}
+
+.nav-item[data-target="live"] .nav-icon {
+  position: relative;
+}
+
+.nav-item[data-target="live"].has-alert .nav-icon::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  border: 2px solid var(--surface);
+  box-sizing: content-box;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--line) 60%, transparent);
+  animation: live-alert-pulse 1.8s ease-in-out infinite;
+}
+
+.nav-item[data-target="live"].alert-emergency .nav-icon::after {
+  background: var(--bad);
+}
+
+.nav-item[data-target="live"].alert-opportunity .nav-icon::after {
+  background: var(--good);
+}
+
+@keyframes live-alert-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.18); opacity: .76; }
+}
+
+html[data-theme="dark"] .opportunity-panel {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--soft-good) 40%, var(--surface));
+  border-color: color-mix(in srgb, var(--good) 42%, var(--line));
+}
+
+html[data-theme="dark"] .opportunity-explanation {
+  background: color-mix(in srgb, var(--soft-good) 24%, var(--surface-2));
+  border-color: color-mix(in srgb, var(--good) 32%, var(--line));
+}
+
+html[data-theme="dark"] .opportunity-explanation strong,
+html[data-theme="dark"] .opportunity-explanation p,
+html[data-theme="dark"] .opportunity-reasons li {
+  color: var(--ink);
+}
+
+@media (max-width: 520px) {
+  .opportunity-panel {
+    padding: 12px;
+    border-radius: 18px;
+  }
+
+  .opportunity-icon {
+    flex-basis: 34px;
+    width: 34px;
+    height: 34px;
+  }
+
+  .opportunity-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-item[data-target="live"].has-alert .nav-icon::after {
+    animation: none;
+  }
+}
+
