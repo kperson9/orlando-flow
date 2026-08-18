@@ -6787,8 +6787,8 @@ fetchGlobalParkInsights=async function(parkKey=state.selectedPark,force=false){
    Orlando Flow v38 — Ciclo 6.5
    Estabilização, autotestes e diagnóstico do motor
    ============================================================ */
-const ENGINE_BUILD_V38='v38.6.4';
-const ENGINE_DIAGNOSTICS_VERSION_V38='6.5.6.4';
+const ENGINE_BUILD_V38='v38.6.4.1';
+const ENGINE_DIAGNOSTICS_VERSION_V38='6.5.6.4.1';
 const runtimeDiagnosticsV38=[];
 let diagnosticsEventsInstalledV38=false;
 
@@ -8714,8 +8714,10 @@ runEngineSelfTestsV38=function(){
   addSelfTestV38(additions,'Atração fora do roteiro entra no pool Park-wide',()=>{
     const now=getOrlandoParts();
     const day={date:now.date,park:'epcot',activities:[]};
+    const hours=parkHoursForDate('epcot',now.date);
+    const testMinute=Math.max(Number(hours.open||540)+60,Math.min(12*60,Number(hours.close||1320)-120));
     const live={liveData:[{name:'Teste Park Wide',status:'OPERATING',queue:{STANDBY:{waitTime:10}}}]};
-    const rows=parkWideBridgeRowsV3861(day,live,null,now.hour*60+now.minute);
+    const rows=parkWideBridgeRowsV3861(day,live,null,testMinute);
     const row=rows.find(r=>r.entry?.name==='Teste Park Wide');
     assertSelfTestV38(row?.isAdHocCandidate===true,'candidata externa não entrou no pool');
     assertSelfTestV38(day.activities.length===0,'consulta não deve alterar o roteiro');
@@ -8724,8 +8726,10 @@ runEngineSelfTestsV38=function(){
   addSelfTestV38(additions,'Recomendação Park-wide não adiciona atividade ao roteiro',()=>{
     const now=getOrlandoParts();
     const day={date:now.date,park:'epcot',activities:[]};
+    const hours=parkHoursForDate('epcot',now.date);
+    const testMinute=Math.max(Number(hours.open||540)+60,Math.min(12*60,Number(hours.close||1320)-120));
     const live={liveData:[{name:'Teste Sem Mutação',status:'OPERATING',queue:{STANDBY:{waitTime:5}}}]};
-    parkWideBridgeRowsV3861(day,live,null,now.hour*60+now.minute);
+    parkWideBridgeRowsV3861(day,live,null,testMinute);
     assertSelfTestV38(day.activities.length===0,`atividades=${day.activities.length}`);
     return 'somente leitura até Iniciar';
   });
