@@ -1956,9 +1956,68 @@ function renderRating() {
   const fill = $('#ratingFill');
   const value = $('#ratingValue');
   const slider = $('#ratingSlider');
+  const visual = document.querySelector('.rating-visual');
   if (fill) fill.style.width = `${rating / 5 * 100}%`;
   if (value) value.textContent = rating ? `${rating.toFixed(1).replace('.', ',')} / 5` : 'Sem nota';
   if (slider && Number(slider.value) !== rating) slider.value = String(rating);
+  if (visual) {
+    visual.setAttribute('aria-valuenow', String(rating));
+    visual.setAttribute('aria-valuetext', rating ? `${rating.toFixed(1).replace('.', ',')} de 5 estrelas` : 'Sem nota');
+  }
+}
+
+function ratingFromStarPointer(event, visual) {
+  const rect = visual.getBoundingClientRect();
+  if (!rect.width) return completionRating;
+  const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+  const position = Math.min(4.999999, (x / rect.width) * 5);
+  const starIndex = Math.floor(position);
+  const withinStar = position - starIndex;
+  return normalizeRating(starIndex + (withinStar < .5 ? .5 : 1));
+}
+
+function setupRatingInteractions() {
+  const visual = document.querySelector('.rating-visual');
+  const slider = $('#ratingSlider');
+  if (!visual || !slider || visual.dataset.interactive === 'true') return;
+
+  visual.dataset.interactive = 'true';
+  visual.removeAttribute('aria-hidden');
+  visual.setAttribute('role', 'slider');
+  visual.setAttribute('tabindex', '0');
+  visual.setAttribute('aria-label', 'Nota da experiência');
+  visual.setAttribute('aria-valuemin', '0');
+  visual.setAttribute('aria-valuemax', '5');
+  visual.setAttribute('aria-valuestep', '0.5');
+  visual.setAttribute('title', 'Toque nas estrelas ou arraste a barra para escolher a nota');
+  visual.querySelectorAll('.rating-empty, .rating-fill').forEach(el => el.setAttribute('aria-hidden', 'true'));
+
+  let hint = document.querySelector('.rating-hint');
+  if (!hint) {
+    hint = document.createElement('small');
+    hint.className = 'rating-hint';
+    hint.textContent = 'Toque nas estrelas ou arraste a barra.';
+    slider.insertAdjacentElement('beforebegin', hint);
+  }
+
+  visual.addEventListener('click', event => {
+    completionRating = ratingFromStarPointer(event, visual);
+    renderRating();
+  });
+
+  visual.addEventListener('keydown', event => {
+    let next = normalizeRating(completionRating);
+    if (event.key === 'ArrowRight' || event.key === 'ArrowUp') next = Math.min(5, (next || 0) + .5);
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') next = Math.max(0, (next || 0) - .5);
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = 5;
+    else return;
+    event.preventDefault();
+    completionRating = normalizeRating(next);
+    renderRating();
+  });
+
+  renderRating();
 }
 
 function toast(message) {
@@ -2131,6 +2190,7 @@ function bindEvents() {
   $('#applyReplanBtn').addEventListener('click',applyReplanProposal);
   document.addEventListener('click',e=>{ const start=e.target.closest('[data-start]'), complete=e.target.closest('[data-complete]'), skip=e.target.closest('[data-skip]'); if(start)startActivity(start.dataset.start); if(complete)openComplete(complete.dataset.complete); if(skip)skipActivity(skip.dataset.skip); });
   $('#ratingSlider').addEventListener('input',e=>{ completionRating=normalizeRating(e.target.value); renderRating(); });
+  setupRatingInteractions();
   $('#saveCompletionBtn').addEventListener('click',e=>{
     e.preventDefault();
     const id=$('#completeActivityId').value;
@@ -3013,7 +3073,7 @@ generateReplanProposal=function(day,livePayload,weatherPayload,force=false){
   function fillTo(blockEnd,nextAnchor=null){
     const result=optimizeSequenceBlock(flexible,cursor,blockEnd,nextAnchor,livePayload,weatherPayload,day,previous);
     for(const item of result.seq){
-      scheduled.push({id:item.activity.id,activity:item.activity,time:item.time,originalTime:originalMap.get(item.activity.id)?.time||item.activity.time,fixed:false,movedFixed:false,wait:item.liveWait,predictedWait:item.predictedWait,plannedWait:item.plannedWait,reasons:item.scoreMeta?.reasons||item.reasons,estimatedMinutes:item.estimatedMinutes,wasSkipped:item.wasSkipped,walkMinutes:item.walkMinutes,score:item.scoreMeta?.score,scoreBand:item.scoreMeta?.band});
+      scheduled.push({id:item.activity.id,activity:item.activity,time:item.time,originalTime:originalMap.get(item.activity.id)?.time||item.activity.time,fixed:false,movedFixed:false,wait:item.liveWait,predictedWait:item.predictedWait,plannedWait:item.plannedWait,reasons:item.scoreMeta?.reasons||item.reasons,estimatedMinutes:item.estimatedMinutes,wasSkipped:item.wasSkipped,walkMinutes:item.walkMinutes,score:item.scoreMeta?.score,scoreBand:item.scoreMeta?.band,totalExperienceMinutes:item.scoreMeta?.experienceCost?.totalMinutes??null});
       previous=item.activity;
     }
     if(result.seq.length){cursor=result.time;const ids=new Set(result.seq.map(x=>x.activity.id));flexible=flexible.filter(x=>!ids.has(x.activity.id));}
@@ -3034,7 +3094,7 @@ generateReplanProposal=function(day,livePayload,weatherPayload,force=false){
   const deferred=flexible.sort((a,b)=>b.score-a.score).map(meta=>({id:meta.activity.id,activity:meta.activity,originalTime:originalMap.get(meta.activity.id)?.time||meta.activity.time,wait:meta.liveWait,predictedWait:estimatedWaitAtMinute(meta,dayEnd,nowMin),plannedWait:meta.plannedWait,reasons:meta.reasons,wasSkipped:meta.wasSkipped,score:meta.score}));
   for(const item of scheduled.filter(x=>!x.fixed)){
     const originalMin=timeToMinutes(item.originalTime),newMin=timeToMinutes(item.time),delta=newMin-originalMin;
-    let detail=`score ${item.score??'--'} · fila prevista ${item.predictedWait??item.wait??'--'} min · caminhada ${item.walkMinutes??10} min.`;
+    let detail=`score ${item.score??'--'} · fila prevista ${item.predictedWait??item.wait??'--'} min · caminhada ${item.walkMinutes??10} min${item.totalExperienceMinutes?` · custo total ~${item.totalExperienceMinutes} min`:''}.`;
     if(item.wasSkipped) explanations.push({tone:'good',title:`${item.activity.title} recuperada`,detail:`reencaixada às ${item.time}; ${detail}`});
     else if(Math.abs(delta)>=15) explanations.push({tone:'good',title:`${item.activity.title} ${delta<0?'antecipada':'movida'}`,detail});
   }
@@ -3100,7 +3160,10 @@ renderLive=function(){
     const trendIcon=f.trend?.direction==='up'?'↗':f.trend?.direction==='down'?'↘':'→';
     const walk=meta.walk?.known?`${meta.walk.minutes} min`:'~10 min*';
     const waitText=meta.wait==null?'--':`${meta.wait} min`;
-    const costNow=meta.wait==null?'--':`${meta.effectiveWait+meta.walk.minutes} min`;
+    const costNow=meta.experienceCost?`~${meta.experienceCost.totalMinutes} min`:(meta.wait==null?'--':`${meta.effectiveWait+meta.walk.minutes} min`);
+    const costBreakdown=meta.experienceCost
+      ? `${meta.experienceCost.walkMinutes} caminhada + ${meta.experienceCost.queueMinutes} fila + ${meta.experienceCost.rideMinutes} experiência + ${meta.experienceCost.exitMinutes} saída${meta.experienceCost.continuationMinutes?` + ${meta.experienceCost.continuationMinutes} próximo deslocamento`:''}`
+      : 'fila + caminhada';
 
     const historyBase=f.historySource==='global'
       ? `histórico global · ${escapeHtml(f.historyConfidence||'insuficiente')}`
@@ -3144,7 +3207,7 @@ renderLive=function(){
           <div class="copilot-detail-item"><span>+30 min</span><b>${f.p30??'--'} min</b></div>
           <div class="copilot-detail-item"><span>+60 min</span><b>${f.p60??'--'} min</b></div>
           <div class="copilot-detail-item"><span>Caminhada</span><b>${walk}</b></div>
-          <div class="copilot-detail-item"><span>Custo agora</span><b>${costNow}</b></div>
+          <div class="copilot-detail-item"><span>Custo total</span><b>${costNow}</b><small>${escapeHtml(costBreakdown)}</small></div>
           <div class="copilot-detail-item copilot-detail-wide"><span>Base da previsão</span><b>${historyBase}</b></div>
           ${best}
         </div>
@@ -4393,16 +4456,4835 @@ loadDemo = async function(showMessage = true) {
 };
 
 
+
+/* ============================================================
+   Orlando Flow v33 — UX Inteligente / Próximo passo
+   A superfície principal responde "o que eu faço agora?".
+   A matemática continua disponível somente sob demanda.
+   ============================================================ */
+
+function nextStepConfidence(meta, livePayload, weatherPayload) {
+  if (!meta) return {score:38,label:'Baixa',level:'low',detail:'Poucos dados disponíveis para sustentar a recomendação.'};
+
+  let score=0;
+  const ageMin=livePayload?.fetchedAt ? Math.max(0,(Date.now()-Number(livePayload.fetchedAt))/60000) : Infinity;
+  score += ageMin<=5 ? 28 : ageMin<=12 ? 22 : ageMin<=20 ? 14 : 6;
+
+  const source=meta.forecast?.historySource;
+  const historyConfidence=String(meta.forecast?.historyConfidence||'').toLowerCase();
+  const historicalCount=Number(meta.forecast?.historicalCount||0);
+  if(source==='global'){
+    score += historyConfidence==='alta' ? 28 : historyConfidence==='média' ? 22 : historyConfidence==='baixa' ? 14 : 8;
+  } else if(historicalCount>=8) score+=20;
+  else if(historicalCount>=3) score+=14;
+  else score+=7;
+
+  score += meta.walk?.known ? 16 : 7;
+  score += weatherPayload ? 12 : 5;
+  score += Number.isFinite(Number(meta.forecast?.p30)) && Number.isFinite(Number(meta.forecast?.p60)) ? 12 : 5;
+  if(!meta.schedule?.blocked) score+=4;
+
+  score=Math.round(clamp(score,0,100));
+  if(score>=76) return {score,label:'Alta',level:'high',detail:'Fila, histórico e contexto do momento estão bem sustentados.'};
+  if(score>=52) return {score,label:'Média',level:'medium',detail:'A recomendação é útil, mas parte do contexto ainda é estimado.'};
+  return {score,label:'Baixa',level:'low',detail:'Há poucos dados ou estimativas importantes nesta decisão.'};
+}
+
+function nextStepWeatherRiskMinutes(weatherPayload) {
+  if(!weatherPayload) return null;
+  const rel=relevantWeather(weatherPayload);
+  if(!rel?.nextRisk) return null;
+  const now=getOrlandoParts();
+  const nowMin=now.hour*60+now.minute;
+  const riskMin=timeToMinutes(rel.nextRisk.time.slice(11,16));
+  if(!Number.isFinite(riskMin) || riskMin<nowMin) return null;
+  return {minutes:riskMin-nowMin,time:rel.nextRisk.time.slice(11,16),risk:weatherRiskForHour(rel.nextRisk)};
+}
+
+function nextStepFactors(meta, weatherPayload) {
+  const factors=[];
+  if(!meta) return factors;
+
+  const wait=Number(meta.wait);
+  const reference=Number(meta.forecast?.reference);
+  if(Number.isFinite(wait)&&Number.isFinite(reference)&&reference>0){
+    const pct=Math.round(Math.abs(reference-wait)/reference*100);
+    if(pct>=12){
+      if(wait<reference) factors.push({icon:'↓',text:`Fila ${pct}% abaixo do esperado para este horário.`});
+      else factors.push({icon:'↑',text:`Fila ${pct}% acima do esperado para este horário.`});
+    }
+  }
+
+  const p30=Number(meta.forecast?.p30);
+  if(Number.isFinite(wait)&&Number.isFinite(p30)){
+    if(p30>=wait+7) factors.push({icon:'↗',text:`Tendência de aumento nos próximos 30 min (~${Math.round(p30)} min).`});
+    else if(p30<=wait-7) factors.push({icon:'↘',text:`A fila pode cair nos próximos 30 min (~${Math.round(p30)} min).`});
+    else factors.push({icon:'→',text:'Fila prevista relativamente estável nos próximos 30 min.'});
+  }
+
+  if(meta.walk?.known){
+    factors.push({icon:'⌖',text:`A ${Math.max(1,Math.round(meta.walk.minutes))} min de caminhada da sua localização.`});
+  } else {
+    factors.push({icon:'⌖',text:`Caminhada estimada em ~${Math.max(1,Math.round(meta.walk?.minutes||10))} min; localização exata ainda não confirmada.`});
+  }
+
+  const weatherRisk=nextStepWeatherRiskMinutes(weatherPayload);
+  if(meta.climate?.impact==='high' && weatherRisk && weatherRisk.minutes<=90){
+    factors.push({icon:'☂',text:`Clima pode afetar esta atração em cerca de ${weatherRisk.minutes} min.`});
+  } else if(meta.climate?.score>=85){
+    factors.push({icon:'☀',text:'Janela climática favorável para esta atração.'});
+  }
+
+  if(meta.priority?.code==='must') factors.push({icon:'★',text:'Atração imperdível no seu roteiro.'});
+  else if(meta.priority?.code==='want') factors.push({icon:'★',text:'Alta prioridade no seu roteiro.'});
+
+  if(meta.schedule?.pass?.passType!=='none'){
+    factors.push({icon:'⚡',text:meta.schedule.pass.label||'Pass ativo considerado nesta decisão.'});
+  }
+
+  if(meta.schedule?.anchor && !meta.schedule?.blocked){
+    factors.push({icon:'◷',text:`A decisão preserva ${meta.schedule.anchor.title} às ${meta.schedule.anchor.time}.`});
+  }
+
+  if(meta.forecast?.best && meta.band!=='FAÇA AGORA'){
+    factors.push({icon:'◷',text:`Melhor janela estimada por volta de ${meta.forecast.best.time} (~${meta.forecast.best.wait} min).`});
+  }
+
+  return factors.slice(0,6);
+}
+
+function nextStepQuickReason(meta, weatherPayload) {
+  if(!meta) return 'Siga o próximo item planejado enquanto os dados ao vivo são atualizados.';
+  const wait=Number(meta.wait);
+  const reference=Number(meta.forecast?.reference);
+  const p30=Number(meta.forecast?.p30);
+  const below=Number.isFinite(wait)&&Number.isFinite(reference)&&reference>0&&(reference-wait)/reference>=.18;
+  const rising=Number.isFinite(wait)&&Number.isFinite(p30)&&p30>=wait+7;
+  const falling=Number.isFinite(wait)&&Number.isFinite(p30)&&p30<=wait-7;
+  const weatherRisk=nextStepWeatherRiskMinutes(weatherPayload);
+  const weatherUrgent=meta.climate?.impact==='high'&&weatherRisk&&weatherRisk.minutes<=60;
+  const near=meta.walk?.known&&Number(meta.walk.minutes)<=5;
+  const priority=['must','want'].includes(meta.priority?.code);
+
+  if(meta.band==='FAÇA AGORA'){
+    if(weatherUrgent) return 'Aproveite esta janela: o clima pode afetar a atração em breve.';
+    if(below&&rising) return 'A fila está abaixo do normal e deve aumentar.';
+    if(priority&&near) return 'É prioridade no seu roteiro e você já está bem perto.';
+    if(below) return 'A fila está bem abaixo do esperado para este horário.';
+    if(rising) return 'A fila deve aumentar; antecipar agora protege o restante do dia.';
+    if(near) return 'Você está perto e esta opção encaixa melhor no roteiro agora.';
+    if(priority) return 'É uma das suas prioridades e esta é uma boa janela para fazê-la.';
+    return 'É a melhor combinação entre fila, deslocamento e restante do roteiro agora.';
+  }
+
+  if(meta.band==='ESPERE'){
+    if(meta.forecast?.best) return `Há uma janela melhor por volta de ${meta.forecast.best.time}; não compensa ir agora.`;
+    if(falling) return 'A fila tende a cair; esperar deve melhorar o resultado.';
+    if(meta.walk?.known&&Number(meta.walk.minutes)>=12) return 'O deslocamento é alto para o benefício atual; vale esperar uma janela melhor.';
+    return 'Ainda não é a melhor janela; mantenha flexibilidade antes de seguir para esta atração.';
+  }
+
+  if(meta.forecast?.best) return `Existe uma janela bem melhor por volta de ${meta.forecast.best.time}.`;
+  if(falling) return 'A tendência é de melhora; não vale priorizar esta atração agora.';
+  return 'Neste momento há decisões mais eficientes para o restante do dia.';
+}
+
+function nextStepActionMeta(meta) {
+  if(!meta) return {label:'SIGA O ROTEIRO',className:'neutral',question:'Por que seguir este passo?'};
+  if(meta.band==='FAÇA AGORA') return {label:'FAZER AGORA',className:'good',question:'Por que fazer agora?'};
+  if(meta.band==='ESPERE') return {label:'ESPERE',className:'warn',question:'Por que esperar?'};
+  return {label:'EVITE AGORA',className:'bad',question:'Por que evitar agora?'};
+}
+
+function nextStepDueFixedActivity(day, nowMinute) {
+  const pending=(day?.activities||[]).filter(a=>!a.replanDeferred&&!isDone(a.id)&&!isSkipped(a.id)&&isFixedAnchor(a));
+  for(const a of pending){
+    const t=timeToMinutes(a.time);
+    if(!Number.isFinite(t)) continue;
+    const buffer=anchorBufferMinutes(a);
+    const leaveAt=t-buffer;
+    const end=t+Number(a.duration||20);
+    if(nowMinute>=leaveAt-5 && nowMinute<=end) return {activity:a,leaveAt,buffer,start:t};
+  }
+  return null;
+}
+
+function nextStepBestAttraction(day, livePayload, weatherPayload) {
+  if(!day||!livePayload?.liveData?.length) return null;
+  const now=getOrlandoParts();
+  const nowMinute=now.hour*60+now.minute;
+  const candidates=[];
+
+  for(const activity of (day.activities||[])){
+    if(activity.type!=='attraction'||activity.replanDeferred||isDone(activity.id)||isSkipped(activity.id)) continue;
+    const entry=findLiveMatch(activity,livePayload.liveData||[]);
+    if(!entry) continue;
+    const meta=copilotScoreForEntry(entry,day,weatherPayload,nowMinute);
+    if(!meta||meta.blocked||meta.wait==null) continue;
+    candidates.push({activity,entry,meta});
+  }
+
+  candidates.sort((a,b)=>b.meta.score-a.meta.score||a.meta.totalMinutes-b.meta.totalMinutes);
+  return candidates[0]||null;
+}
+
+function renderNextStepDetails(question, factors, confidence) {
+  const rows=factors.length
+    ? factors.map(f=>`<li><span class="next-step-factor-icon" aria-hidden="true">${escapeHtml(f.icon)}</span><span>${escapeHtml(f.text)}</span></li>`).join('')
+    : '<li><span class="next-step-factor-icon" aria-hidden="true">i</span><span>O roteiro atual é a melhor referência disponível neste momento.</span></li>';
+
+  return `<details class="next-step-details">
+    <summary><span>Por que essa recomendação?</span><span class="next-step-chevron" aria-hidden="true">⌄</span></summary>
+    <div class="next-step-expanded">
+      <strong class="next-step-question">${escapeHtml(question)}</strong>
+      <ul class="next-step-factors">${rows}</ul>
+      <div class="next-step-confidence-note"><span class="confidence-dot ${confidence.level}"></span><span><b>Confiança ${escapeHtml(confidence.label.toLowerCase())}.</b> ${escapeHtml(confidence.detail)}</span></div>
+    </div>
+  </details>`;
+}
+
+renderNext = function() {
+  ensureCopilotState();
+  const card=$('#nextCard');
+  if(!card) return;
+  const day=getSelectedDay();
+  const pending=(day?.activities||[]).filter(a=>!a.replanDeferred&&!isDone(a.id)&&!isSkipped(a.id));
+
+  if(!day||!pending.length){
+    card.className='next-card next-step-card empty';
+    card.textContent='Nenhuma atividade pendente neste dia.';
+    return;
+  }
+
+  const now=getOrlandoParts();
+  const isToday=day.date===now.date;
+  const started=pending.find(a=>isStarted(a.id));
+
+  if(started){
+    const confidence={score:100,label:'Alta',level:'high',detail:'A atividade já foi iniciada, portanto esta é a ação mais segura para manter o plano consistente.'};
+    card.className='next-card next-step-card next-step-good';
+    card.innerHTML=`
+      <div class="next-step-eyebrow">MELHOR AÇÃO AGORA</div>
+      <div class="next-step-title-row"><div><div class="next-step-title">${escapeHtml(started.title)}</div><div class="next-step-decision good"><span class="next-step-light"></span>CONTINUE AGORA</div></div><span class="next-step-confidence high">Confiança alta</span></div>
+      <p class="next-step-reason">Você já está nessa atividade. Concluir mantém o restante do roteiro atualizado.</p>
+      ${renderNextStepDetails('Por que continuar?', [{icon:'✓',text:'Atividade registrada como em andamento.'},{icon:'↻',text:'Ao concluir, o copiloto recalcula o restante do dia com o horário real.'}],confidence)}
+      <div class="next-step-actions"><button class="primary-btn" data-complete="${started.id}">Concluir</button></div>`;
+    return;
+  }
+
+  // Em dias futuros/passados, não fingimos que existe uma decisão "ao vivo".
+  if(!isToday){
+    const next=pending[0];
+    const confidence={score:45,label:'Planejada',level:'medium',detail:'A recomendação ao vivo será ativada no dia da visita, quando fila, clima e localização estiverem disponíveis.'};
+    card.className='next-card next-step-card next-step-neutral';
+    card.innerHTML=`
+      <div class="next-step-eyebrow">PRÓXIMO NO PLANO</div>
+      <div class="next-step-title-row"><div><div class="next-step-title">${escapeHtml(next.title)}</div><div class="next-step-decision neutral"><span class="next-step-light"></span>PLANEJADO</div></div><span class="next-step-confidence medium">Dia futuro</span></div>
+      <p class="next-step-reason">Este não é o dia atual. A decisão inteligente será recalculada no parque com os dados do momento.</p>
+      ${renderNextStepDetails('Por que este passo aparece?', [{icon:'◷',text:`Está na próxima posição do roteiro de ${day.date}.`},{icon:'⌁',text:'Fila, clima e localização não são usados como decisão ao vivo para outro dia.'}],confidence)}`;
+    return;
+  }
+
+  const live=state.liveCache[day.park];
+  const weather=state.weatherCache[day.park];
+  const nowMinute=now.hour*60+now.minute;
+  const fixed=nextStepDueFixedActivity(day,nowMinute);
+
+  if(fixed){
+    const a=fixed.activity;
+    const mins=Math.max(0,fixed.start-nowMinute);
+    const confidence={score:94,label:'Alta',level:'high',detail:'O horário fixo e a margem de chegada são informações fortes para esta decisão.'};
+    const detail=mins<=0 ? `${a.title} já está no horário previsto.` : `Faltam cerca de ${mins} min; a janela de chegada protegida já começou.`;
+    card.className='next-card next-step-card next-step-good';
+    card.innerHTML=`
+      <div class="next-step-eyebrow">MELHOR AÇÃO AGORA</div>
+      <div class="next-step-title-row"><div><div class="next-step-title">${escapeHtml(a.title)}</div><div class="next-step-decision good"><span class="next-step-light"></span>SIGA AGORA</div></div><span class="next-step-confidence high">Confiança alta</span></div>
+      <p class="next-step-reason">É hora de se deslocar para chegar sem pressa e preservar o restante do roteiro.</p>
+      ${renderNextStepDetails('Por que seguir agora?', [{icon:'◷',text:`Horário previsto: ${a.time}.`},{icon:'→',text:`${fixed.buffer} min foram reservados para chegada/deslocamento.`},{icon:'✓',text:detail}],confidence)}
+      <div class="next-step-actions"><button class="primary-btn" data-start="${a.id}">Iniciar</button></div>`;
+    return;
+  }
+
+  const best=nextStepBestAttraction(day,live,weather);
+  if(best){
+    const {activity,meta}=best;
+    const action=nextStepActionMeta(meta);
+    const confidence=nextStepConfidence(meta,live,weather);
+    const factors=nextStepFactors(meta,weather);
+    const reason=nextStepQuickReason(meta,weather);
+    const actionClass=action.className;
+    const pass=passMetaFor(activity);
+    const canStart=meta.band==='FAÇA AGORA';
+    card.className=`next-card next-step-card next-step-${actionClass}`;
+    card.innerHTML=`
+      <div class="next-step-eyebrow">MELHOR AÇÃO AGORA</div>
+      <div class="next-step-title-row">
+        <div class="next-step-main"><div class="next-step-title">${escapeHtml(activity.title)}</div><div class="next-step-decision ${actionClass}"><span class="next-step-light"></span>${escapeHtml(action.label)}</div></div>
+        <span class="next-step-confidence ${confidence.level}">Confiança ${escapeHtml(confidence.label.toLowerCase())}</span>
+      </div>
+      <p class="next-step-reason">${escapeHtml(reason)}</p>
+      ${renderNextStepDetails(action.question,factors,confidence)}
+      <div class="next-step-actions">
+        ${canStart?`<button class="primary-btn" data-start="${activity.id}">Iniciar</button>`:`<button class="secondary-btn" data-next-step-live>Ver alternativas</button>`}
+        ${activity.type==='attraction'?`<button class="secondary-btn pass-action ${pass.passType!=='none'?'active':''}" data-pass="${activity.id}">${escapeHtml(passButtonLabel(activity))}</button>`:''}
+      </div>`;
+    return;
+  }
+
+  // Fallback: sem dados ao vivo suficientes.
+  const next=pending[0];
+  const confidence={score:34,label:'Baixa',level:'low',detail:'Fila ou contexto ao vivo ainda não foram carregados; o card está usando apenas o roteiro salvo.'};
+  card.className='next-card next-step-card next-step-neutral';
+  card.innerHTML=`
+    <div class="next-step-eyebrow">MELHOR AÇÃO DISPONÍVEL</div>
+    <div class="next-step-title-row"><div><div class="next-step-title">${escapeHtml(next.title)}</div><div class="next-step-decision neutral"><span class="next-step-light"></span>SIGA O ROTEIRO</div></div><span class="next-step-confidence low">Confiança baixa</span></div>
+    <p class="next-step-reason">Ainda não há dados ao vivo suficientes. Siga o plano e atualize quando puder.</p>
+    ${renderNextStepDetails('Por que seguir o roteiro?', [{icon:'⌁',text:'Fila ao vivo ainda indisponível para esta decisão.'},{icon:'↻',text:'Ao atualizar, o copiloto pode trocar esta recomendação automaticamente.'}],confidence)}
+    <div class="next-step-actions"><button class="secondary-btn" data-next-step-live>Atualizar no Ao vivo</button>${next.type==='attraction'?`<button class="secondary-btn pass-action ${passMetaFor(next).passType!=='none'?'active':''}" data-pass="${next.id}">${escapeHtml(passButtonLabel(next))}</button>`:''}</div>`;
+};
+
+const v32BindEventsV33=bindEvents;
+bindEvents=function(){
+  v32BindEventsV33();
+  document.addEventListener('click',e=>{
+    const liveBtn=e.target.closest('[data-next-step-live]');
+    if(!liveBtn) return;
+    e.preventDefault();
+    switchView('live');
+    setTimeout(()=>$('#liveRefreshBtn')?.focus(),50);
+  });
+};
+
+
+/* ============================================================
+   Orlando Flow v34 — Ciclo 2
+   Custo Total da Experiência + Oportunidades contextuais
+   ============================================================ */
+
+const EXPERIENCE_COST_RULES = Object.freeze({
+  costCenter: 58,
+  modeFactor: { max:.18, experience:.11, relax:.09 },
+  maxPositiveAdjustment: 8,
+  maxNegativeAdjustment: -10
+});
+
+function experienceExitMinutes(activity) {
+  if (!activity || String(activity.type || '').toLowerCase() !== 'attraction') return 0;
+  const ride = Math.max(3, Number(activity.duration || 8));
+  // Representa desembarque, caminhada interna de saída e retomada do fluxo.
+  if (ride <= 5) return 3;
+  if (ride <= 10) return 4;
+  if (ride <= 16) return 5;
+  return 6;
+}
+
+function routeWalkBetweenActivities(fromActivity, toActivity, day=getSelectedDay()) {
+  if (!fromActivity || !toActivity) return {minutes:0,meters:null,known:false,source:'none'};
+  const parkKey=day?.park || state.selectedPark;
+  const from=activityCoordinatesCopilot(fromActivity,parkKey,liveEntryForActivity(fromActivity,state.liveCache?.[parkKey]?.liveData||[]));
+  const to=activityCoordinatesCopilot(toActivity,parkKey,liveEntryForActivity(toActivity,state.liveCache?.[parkKey]?.liveData||[]));
+  const speed=Math.max(45,Math.min(100,Number(state.settings.walkingMetersPerMinute||75)));
+  if(from&&to){
+    const meters=Math.round(haversineMeters(from,to)*1.22);
+    return {minutes:Math.max(1,Math.ceil(meters/speed)),meters,known:true,source:'route'};
+  }
+  const fromArea=normalizeName(fromActivity.area||'');
+  const toArea=normalizeName(toActivity.area||'');
+  if(fromArea&&toArea&&fromArea===toArea) return {minutes:4,meters:null,known:false,source:'same-area'};
+  return {minutes:0,meters:null,known:false,source:'unknown'};
+}
+
+function experienceContinuationTarget(day, activity) {
+  const items=(day?.activities||[]).filter(a=>!a.replanDeferred&&!isDone(a.id)&&!isSkipped(a.id));
+  const index=items.findIndex(a=>a.id===activity?.id);
+  if(index<0) return null;
+  return items.slice(index+1).find(a=>a.id!==activity.id) || null;
+}
+
+function totalExperienceCostMeta(activity, entry, day, currentWait, startMinute, walkMeta) {
+  const minute=Number(startMinute);
+  const walk=walkMeta || walkingMeta(activity,entry,day,null);
+  const queue=Math.max(0,Math.round(effectiveQueueMinutes(activity,currentWait,minute)));
+  const ride=Math.max(1,Math.round(Number(activity?.duration||8)));
+  const exit=experienceExitMinutes(activity);
+  const operational=Math.max(1,Math.round(Number(walk?.minutes||0)+queue+ride+exit));
+  const next=experienceContinuationTarget(day,activity);
+  const continuation=next ? routeWalkBetweenActivities(activity,next,day) : {minutes:0,known:false,source:'none'};
+  const continuationMinutes=Math.max(0,Math.round(Number(continuation.minutes||0)));
+  const total=Math.max(1,operational+continuationMinutes);
+  const score=Math.round(clamp(105-operational*.85,5,100));
+  return {
+    walkMinutes:Math.max(0,Math.round(Number(walk?.minutes||0))),
+    queueMinutes:queue,
+    rideMinutes:ride,
+    exitMinutes:exit,
+    continuationMinutes,
+    continuationKnown:Boolean(continuation.known),
+    continuationSource:continuation.source,
+    nextActivityId:next?.id||null,
+    nextActivityTitle:next?.title||null,
+    operationalMinutes:operational,
+    totalMinutes:total,
+    score
+  };
+}
+
+function experienceCostAdjustment(cost, priorityCode) {
+  if (!cost) return 0;
+  const mode=state.settings?.optimizationMode || 'experience';
+  const factor=EXPERIENCE_COST_RULES.modeFactor[mode] ?? EXPERIENCE_COST_RULES.modeFactor.experience;
+  let adjustment=(Number(cost.score||50)-EXPERIENCE_COST_RULES.costCenter)*factor;
+  // Imperdíveis continuam protegidas: custo alto informa a decisão, mas não apaga valor pessoal.
+  if(adjustment<0 && priorityCode==='must') adjustment*=.45;
+  else if(adjustment<0 && priorityCode==='want') adjustment*=.70;
+  return clamp(adjustment,EXPERIENCE_COST_RULES.maxNegativeAdjustment,EXPERIENCE_COST_RULES.maxPositiveAdjustment);
+}
+
+const v33CopilotScoreForEntryV34=copilotScoreForEntry;
+copilotScoreForEntry=function(entry,day=getSelectedDay(),weatherPayload=state.weatherCache[state.selectedPark],startMinute=null,previousActivity=null){
+  const result=v33CopilotScoreForEntryV34(entry,day,weatherPayload,startMinute,previousActivity);
+  if(!result || result.wait==null || result.blocked || !result.activity) return result;
+
+  const now=getOrlandoParts();
+  const minute=startMinute==null?now.hour*60+now.minute:Number(startMinute);
+  const cost=totalExperienceCostMeta(result.activity,entry,day,result.wait,minute,result.walk);
+  const oldScheduleScore=Number(result.schedule?.score??65);
+  const schedule=scheduleScoreMeta(result.activity,minute,cost.operationalMinutes,day);
+  const profile=copilotProfile();
+  const scheduleWeight=Number(profile.weights?.schedule||0)/100;
+  const scheduleDelta=(Number(schedule.score||0)-oldScheduleScore)*scheduleWeight;
+  const costDelta=experienceCostAdjustment(cost,result.priority?.code);
+
+  let score=Number(result.score||0)+scheduleDelta+costDelta;
+  if(schedule.blocked) score=0;
+  score=Math.round(clamp(score));
+
+  result.experienceCost=cost;
+  result.costAdjustment=Math.round(costDelta*10)/10;
+  result.totalMinutes=cost.operationalMinutes; // usado pelo beam search e pelo relógio do replanejamento
+  result.schedule=schedule;
+  if(result.components) result.components.schedule=schedule.score;
+  result.blocked=Boolean(schedule.blocked);
+  result.score=score;
+  result.band=score>=72?'FAÇA AGORA':score>=45?'ESPERE':'EVITE AGORA';
+  result.bandClass=score>=72?'good':score>=45?'warn':'bad';
+
+  if(cost.score>=78) result.reasons=[...(result.reasons||[]),`custo total eficiente (~${cost.totalMinutes} min)`];
+  else if(cost.score<=35) result.reasons=[...(result.reasons||[]),`custo total alto (~${cost.totalMinutes} min)`];
+  result.reasons=[...new Set(result.reasons||[])];
+  return result;
+};
+
+const v33NextStepFactorsV34=nextStepFactors;
+nextStepFactors=function(meta,weatherPayload){
+  const factors=v33NextStepFactorsV34(meta,weatherPayload);
+  const cost=meta?.experienceCost;
+  if(cost){
+    const transition=cost.continuationMinutes
+      ? `, incluindo ${cost.continuationMinutes} min para o próximo deslocamento`
+      : '';
+    const item={icon:'⏱',text:`A experiência completa consome cerca de ${cost.totalMinutes} min${transition}.`};
+    // Mantém a explicação curta: custo total entra antes de detalhes menos essenciais.
+    factors.splice(Math.min(3,factors.length),0,item);
+  }
+  return factors.slice(0,6);
+};
+
+const v33NextStepQuickReasonV34=nextStepQuickReason;
+nextStepQuickReason=function(meta,weatherPayload){
+  const original=v33NextStepQuickReasonV34(meta,weatherPayload);
+  const cost=meta?.experienceCost;
+  if(!cost) return original;
+  if(meta.band==='FAÇA AGORA' && cost.score>=82 && !['must','want'].includes(meta.priority?.code)){
+    return 'É uma janela eficiente: pouco tempo total para avançar bem no roteiro.';
+  }
+  if(meta.band!=='FAÇA AGORA' && cost.score<=30){
+    return 'O custo total agora é alto para o benefício; há decisões mais eficientes.';
+  }
+  return original;
+};
+
+const OPPORTUNITY_V2_RULES=Object.freeze({
+  reopenMaxWait:65,
+  proximityMaxWalk:5,
+  proximityMinScore:78,
+  proximityMaxCost:62,
+  climateLeadMinutes:75,
+  passLeadMinutes:30,
+  historicalDropRatio:.22,
+  historicalDropMinutes:12,
+  contextualMinScore:76
+});
+
+function priorStatusObservation(parkKey,entry,payloadFetchedAt=Date.now()){
+  const samples=queueSamples(parkKey,entry?.name||'',false)
+    .filter(x=>Number(x.t||0)<Number(payloadFetchedAt||Date.now())-30_000)
+    .sort((a,b)=>Number(b.t||0)-Number(a.t||0));
+  return samples[0]||null;
+}
+
+function opportunityContextActivity(day){
+  const started=(day?.activities||[]).find(a=>isStarted(a.id));
+  if(started) return started;
+  const done=[...(state.history||[])]
+    .filter(r=>r.date===day?.date&&r.status==='done')
+    .sort((a,b)=>String(b.actualEnd||'').localeCompare(String(a.actualEnd||'')))[0];
+  return done ? activityForRecord(done) : null;
+}
+
+function opportunityWeatherLeadMinutes(weatherPayload){
+  if(!weatherPayload) return null;
+  const rel=relevantWeather(weatherPayload);
+  if(!rel?.nextRisk?.time) return null;
+  const now=getOrlandoParts();
+  const risk=timeToMinutes(rel.nextRisk.time.slice(11,16));
+  const current=now.hour*60+now.minute;
+  return Number.isFinite(risk)&&risk>=current ? risk-current : null;
+}
+
+function opportunityPassLead(activity,nowMinute){
+  const pass=passMetaFor(activity);
+  if(pass.passType==='none') return null;
+  if(!pass.passTime) return {lead:null,active:false,label:`${pass.passType==='single'?'Single Pass':'Multi Pass'} disponível`};
+  const start=timeToMinutes(pass.passTime);
+  const end=start+Number(pass.passWindowMinutes||60);
+  if(nowMinute>=start&&nowMinute<=end) return {lead:0,active:true,label:`janela ativa até ${minutesToTime(end)}`};
+  if(start>nowMinute&&start-nowMinute<=OPPORTUNITY_V2_RULES.passLeadMinutes) return {lead:start-nowMinute,active:false,label:`janela começa em ${start-nowMinute} min`};
+  return null;
+}
+
+function opportunityTriggerFor(activity,entry,meta,day,livePayload,weatherPayload,contextActivity){
+  const parkKey=day.park;
+  const now=getOrlandoParts();
+  const nowMinute=now.hour*60+now.minute;
+  const currentWait=Number(meta.wait);
+  const priorityCode=meta.priority?.code||priorityCodeFromActivity(activity);
+  const important=['must','want'].includes(priorityCode)||meta.score>=88;
+
+  // 1) Reabertura: alta relevância porque a janela pós-reabertura pode ser curta.
+  const priorStatus=priorStatusObservation(parkKey,entry,livePayload.fetchedAt);
+  const priorStatusText=String(priorStatus?.status||'').toUpperCase();
+  if(['DOWN','CLOSED','REFURBISHMENT'].includes(priorStatusText) && String(entry.status||'').toUpperCase()==='OPERATING' && important && currentWait<=OPPORTUNITY_V2_RULES.reopenMaxWait){
+    return {type:'reopen',rank:6,triggerReason:'A atração acabou de reabrir.',detail:`${activity.title} voltou a operar com ${currentWait} min de fila.`,gainText:'O motor verificou se vale antecipá-la antes que a demanda se reorganize.'};
+  }
+
+  // 2) Pass chegando/ativo.
+  const passLead=opportunityPassLead(activity,nowMinute);
+  if(passLead && meta.score>=72){
+    return {type:'pass-window',rank:5.5,triggerReason:passLead.active?'Seu Pass está ativo agora.':`Seu Pass começa em ${passLead.lead} min.`,detail:`${activity.title}: ${passLead.label}.`,gainText:'A sequência sugerida aproveita o Pass e preserva os demais compromissos.'};
+  }
+
+  // 3) Janela climática antes de risco para atração sensível.
+  const weatherLead=opportunityWeatherLeadMinutes(weatherPayload);
+  if(meta.climate?.impact==='high' && important && Number(meta.climate?.score||0)>=90 && weatherLead!=null && weatherLead<=OPPORTUNITY_V2_RULES.climateLeadMinutes){
+    return {type:'climate-window',rank:5,triggerReason:`Há uma boa janela antes do risco climático em ~${weatherLead} min.`,detail:`Antecipar ${activity.title} agora pode evitar perder a atração mais tarde.`,gainText:'A nova sequência protege uma prioridade antes da mudança de clima.'};
+  }
+
+  // 4) Queda real de fila desde a observação anterior (regra original, preservada).
+  const prior=priorWaitObservation(parkKey,entry,livePayload.fetchedAt);
+  if(prior&&prior.wait>0){
+    const drop=prior.wait-currentWait;
+    const dropRatio=drop/Math.max(1,prior.wait);
+    if(drop>=OPPORTUNITY_RULES.minDropMinutes&&dropRatio>=OPPORTUNITY_RULES.minDropRatio){
+      const previousMeta=copilotScoreForEntry(syntheticEntryWithWait(entry,prior.wait),day,weatherPayload,nowMinute,contextActivity);
+      const scoreGain=meta.score-Number(previousMeta?.score||0);
+      if(important && (scoreGain>=OPPORTUNITY_RULES.minScoreGain||meta.score>=84)){
+        return {type:'queue-drop',rank:4.5,triggerReason:`A fila caiu ${Math.round(drop)} min desde a última leitura.`,detail:`${activity.title} caiu de ${Math.round(prior.wait)} para ${currentWait} min.`,gainText:`Economia potencial de ~${Math.round(drop)} min de fila nesta janela.`,priorWait:Math.round(prior.wait),drop:Math.round(drop),dropRatio,scoreGain:Math.round(scoreGain),priorSource:prior.source};
+      }
+    }
+  }
+
+  // 5) Janela historicamente boa, inclusive quando o app acabou de ser aberto e não há queda local observada.
+  const reference=Number(meta.forecast?.reference);
+  if(Number.isFinite(reference)&&reference>0){
+    const saving=reference-currentWait;
+    const ratio=saving/reference;
+    if(meta.score>=OPPORTUNITY_V2_RULES.contextualMinScore&&important&&saving>=OPPORTUNITY_V2_RULES.historicalDropMinutes&&ratio>=OPPORTUNITY_V2_RULES.historicalDropRatio){
+      return {type:'historical-window',rank:4,triggerReason:'A fila está muito abaixo do padrão deste horário.',detail:`Agora são ${currentWait} min; o padrão de referência é ~${Math.round(reference)} min.`,gainText:`Janela favorável de ~${Math.round(saving)} min abaixo do esperado.`};
+    }
+  }
+
+  // 6) Proximidade real: uma boa decisão ficou praticamente no caminho.
+  const cost=meta.experienceCost;
+  if(meta.walk?.known&&Number(meta.walk.minutes)<=OPPORTUNITY_V2_RULES.proximityMaxWalk&&meta.score>=OPPORTUNITY_V2_RULES.proximityMinScore&&Number(cost?.totalMinutes||999)<=OPPORTUNITY_V2_RULES.proximityMaxCost){
+    return {type:'proximity',rank:3.5,triggerReason:`Você está a apenas ${Math.max(1,Math.round(meta.walk.minutes))} min.`,detail:`${activity.title} ficou muito acessível sem comprometer o restante do dia.`,gainText:'A nova sequência aproveita sua posição atual e reduz deslocamento desperdiçado.'};
+  }
+
+  // 7) Cluster de mesma região, útil mesmo quando o GPS não tem precisão suficiente.
+  const sameArea=contextActivity&&normalizeName(contextActivity.area||'')&&normalizeName(contextActivity.area||'')===normalizeName(activity.area||'');
+  if(sameArea&&meta.score>=80&&Number(cost?.totalMinutes||999)<=68){
+    return {type:'area-cluster',rank:3,triggerReason:`Você já está na região de ${activity.area||'esta atração'}.`,detail:`Aproveitar ${activity.title} agora evita uma ida e volta desnecessária.`,gainText:'A sequência fica mais compacta e reduz deslocamentos entre áreas.'};
+  }
+
+  return null;
+}
+
+// v34 substitui a detecção v30 por um motor de gatilhos contextuais.
+detectOpportunity=function(day,livePayload,weatherPayload){
+  ensureCopilotState();
+  if(!day||day.date!==getOrlandoParts().date||!livePayload?.liveData?.length) return null;
+  if(activeEmergencyFor(day)) return null;
+  if((day.activities||[]).some(a=>isStarted(a.id))) return null; // não interrompe uma atividade em andamento
+
+  const now=getOrlandoParts();
+  const nowMinute=now.hour*60+now.minute;
+  const contextActivity=opportunityContextActivity(day);
+  const pending=(day.activities||[]).filter(a=>a.type==='attraction'&&!a.replanDeferred&&!isDone(a.id)&&!isSkipped(a.id));
+  const candidates=[];
+
+  for(const activity of pending){
+    const entry=findLiveMatch(activity,livePayload.liveData||[]);
+    if(!entry||String(entry.status||'').toUpperCase()!=='OPERATING') continue;
+    const currentWait=extractStandby(entry);
+    if(!Number.isFinite(Number(currentWait))) continue;
+
+    const currentIndex=opportunityCurrentOrderIndex(day,activity);
+    if(currentIndex<=0) continue; // se já é o próximo passo, não há motivo para alertar/replanejar
+
+    const cooldownKey=`${day.date}|${activity.id}`;
+    const cooldownAt=Number(state.opportunityCooldowns[cooldownKey]||0);
+    if(Date.now()-cooldownAt<OPPORTUNITY_RULES.cooldownMinutes*60_000) continue;
+
+    const meta=copilotScoreForEntry(entry,day,weatherPayload,nowMinute,contextActivity);
+    if(!meta||meta.blocked||meta.score<70) continue;
+    if(meta.climate?.impact==='high'&&Number(meta.climate?.score||0)<30) continue;
+
+    const trigger=opportunityTriggerFor(activity,entry,meta,day,livePayload,weatherPayload,contextActivity);
+    if(!trigger) continue;
+
+    const walkMinutes=Number(meta.walk?.minutes||10);
+    if(walkMinutes>OPPORTUNITY_RULES.maxWalkMinutes&&!['reopen','pass-window','climate-window'].includes(trigger.type)) continue;
+
+    candidates.push({activity,entry,meta,currentWait:Number(currentWait),currentIndex,walkMinutes,trigger,signal:trigger.rank*20+meta.score-walkMinutes*.3});
+  }
+
+  if(!candidates.length) return null;
+
+  // O replanejamento é calculado uma única vez por scan, evitando o custo repetido da v30.
+  const proposal=generateReplanProposal(day,livePayload,weatherPayload,true);
+  if(!proposal) return null;
+  const flexible=(proposal.scheduled||[]).filter(x=>!x.fixed);
+
+  const valid=candidates.map(c=>({...c,proposedIndex:flexible.findIndex(x=>x.activity?.id===c.activity.id)}))
+    .filter(c=>c.proposedIndex>=0&&c.proposedIndex<=1&&c.currentIndex>c.proposedIndex)
+    .sort((a,b)=>b.signal-a.signal||b.meta.score-a.meta.score);
+
+  const candidate=valid[0];
+  if(!candidate) return null;
+  const t=candidate.trigger;
+  const nextAnchor=candidate.meta.schedule?.anchor;
+  const cost=candidate.meta.experienceCost;
+
+  return {
+    type:t.type,
+    severity:'positive',
+    activityId:candidate.activity.id,
+    activityTitle:candidate.activity.title,
+    label:`${candidate.activity.title} virou oportunidade`,
+    title:t.type==='reopen'?`${candidate.activity.title} reabriu`
+      :t.type==='pass-window'?`Boa hora para usar seu Pass`
+      :t.type==='climate-window'?`Aproveite antes do clima mudar`
+      :t.type==='proximity'?`${candidate.activity.title} está logo ali`
+      :t.type==='area-cluster'?`Boa sequência nesta região`
+      :t.type==='historical-window'?`${candidate.activity.title} entrou numa boa janela`
+      :`${candidate.activity.title} caiu para ${candidate.currentWait} min`,
+    detail:t.detail,
+    triggerReason:t.triggerReason,
+    gainText:t.gainText,
+    currentWait:candidate.currentWait,
+    priorWait:t.priorWait??null,
+    priorSource:t.priorSource??null,
+    drop:t.drop??0,
+    dropRatio:t.dropRatio??0,
+    score:candidate.meta.score,
+    scoreGain:t.scoreGain??0,
+    priorityLabel:candidate.meta.priority?.label||'Prioritária',
+    walkMinutes:candidate.walkMinutes,
+    walkKnown:Boolean(candidate.meta.walk?.known),
+    totalExperienceMinutes:cost?.totalMinutes??null,
+    climateReason:candidate.meta.climate?.reason||'clima compatível',
+    scheduleReason:candidate.meta.schedule?.reason||'compatível com o roteiro',
+    trendLabel:candidate.meta.forecast?.trend?.label||'Estável',
+    p30:candidate.meta.forecast?.p30??null,
+    p60:candidate.meta.forecast?.p60??null,
+    nextAnchorTitle:nextAnchor?.title||null,
+    nextAnchorTime:nextAnchor?.time||null,
+    estimatedQueueSaving:t.drop||0
+  };
+};
+
+updateOpportunityState=function(day,livePayload,weatherPayload){
+  ensureCopilotState();
+  if(!day||!livePayload) return;
+  const scanKey=`${day.date}|${day.park}`;
+  const historyStamp=Number(globalHistoryEntry?.(day.park)?.fetchedAt||0);
+  const scanStamp=`${Number(livePayload.fetchedAt||0)}|${historyStamp}`;
+  if(state.opportunityLastScan[scanKey]===scanStamp) return;
+  state.opportunityLastScan[scanKey]=scanStamp;
+
+  const opportunity=detectOpportunity(day,livePayload,weatherPayload);
+  if(!opportunity){
+    if(state.opportunityState&&!state.opportunityState.dismissed){state.opportunityState=null;saveState();}
+    return;
+  }
+
+  const fingerprint=`${day.date}|${opportunity.type}|${opportunity.activityId}|${Math.round(Number(opportunity.currentWait||0)/5)}|${opportunity.triggerReason}`;
+  const existing=state.opportunityState;
+  if(existing?.key===fingerprint&&Date.now()-Number(existing.createdAt||0)<OPPORTUNITY_RULES.activeMinutes*60_000) return;
+
+  state.opportunityState={...opportunity,key:fingerprint,dayDate:day.date,createdAt:Date.now(),dismissed:false};
+  state.opportunityLog.push({...state.opportunityState});
+  state.opportunityLog=state.opportunityLog.slice(-50);
+  saveState();
+  notifyOnce(`opportunity-${day.date}-${opportunity.type}-${opportunity.activityId}-${Math.round(Number(opportunity.currentWait||0)/5)}`,'Orlando Flow · Oportunidade',`${opportunity.triggerReason} ${opportunity.activityTitle} pode melhorar a sequência agora.`);
+};
+
+opportunityReasons=function(o){
+  if(!o) return [];
+  return [...new Set([
+    o.triggerReason,
+    o.priorityLabel,
+    `${o.walkKnown?o.walkMinutes:`~${o.walkMinutes}`} min de caminhada`,
+    o.totalExperienceMinutes?`~${o.totalExperienceMinutes} min de custo total`:null,
+    o.nextAnchorTitle?`preserva ${o.nextAnchorTitle}`:o.scheduleReason,
+    o.type==='climate-window'?o.climateReason:null
+  ].filter(Boolean))].slice(0,5);
+};
+
+renderOpportunityPanel=function(day,livePayload,weatherPayload){
+  const el=$('#opportunityPanel');
+  if(!el) return;
+  el.hidden=true;
+  currentOpportunityProposal=null;
+  const o=activeOpportunityFor(day);
+  if(!o) return;
+
+  let proposal=null;
+  try{proposal=generateReplanProposal(day,livePayload,weatherPayload,true);}catch(error){console.warn('Opportunity replan unavailable:',error);}
+  if(!proposal) return;
+  const flexible=(proposal.scheduled||[]).filter(x=>!x.fixed);
+  const proposedIndex=flexible.findIndex(x=>x.activity?.id===o.activityId);
+  if(proposedIndex<0||proposedIndex>1) return;
+  currentOpportunityProposal=proposal;
+
+  $('#opportunityTitle').textContent=o.title||`${o.activityTitle} virou oportunidade`;
+  $('#opportunityDetail').textContent=o.detail||o.triggerReason||'Uma nova condição melhorou a sequência do dia.';
+  $('#opportunityReasons').innerHTML=opportunityReasons(o).map(r=>`<li>${escapeHtml(r)}</li>`).join('');
+  const sequence=flexible.slice(0,4).map(x=>x.activity?.title).filter(Boolean);
+  $('#opportunityRouteSummary').textContent=sequence.length?sequence.join(' → '):'A sequência foi reorganizada para aproveitar a janela atual.';
+  $('#opportunityGain').textContent=o.gainText||'O motor encontrou uma sequência com melhor equilíbrio para o restante do dia.';
+  $('#applyOpportunityBtn').disabled=false;
+  el.hidden=false;
+};
+
+
+/* ============================================================
+   Orlando Flow v35 — Ciclos 3 e 4
+   Ritmo humano: fadiga + pausa inteligente
+   Robustez: qualidade dos dados + pesos adaptativos
+   ============================================================ */
+
+const FATIGUE_RULES = Object.freeze({
+  breakThreshold: { max:76, experience:62, relax:48 },
+  veryHigh:82,
+  high:64,
+  moderate:42,
+  defaultBreakMinutes:{ max:15, experience:20, relax:25 }
+});
+
+const FATIGUE_INTENSE_ATTRACTIONS = new Set([
+  'guardians of the galaxy cosmic rewind','test track','mission space','space mountain','tron lightcycle run',
+  'seven dwarfs mine train','big thunder mountain railroad','the twilight zone tower of terror',
+  'rock n roller coaster starring aerosmith','slinky dog dash','star wars rise of the resistance',
+  'expedition everest','avatar flight of passage','hagrids magical creatures motorbike adventure',
+  'jurassic world velocicoaster','revenge of the mummy','stardust racers','mine cart madness',
+  'monsters unchained the frankenstein experiment','harry potter and the battle at the ministry'
+]);
+
+const RESTORATIVE_TYPES = new Set(['break','meal','restaurant','food','coffee','restroom','bathroom']);
+
+function isRestorativeActivityV35(activity){
+  const type=String(activity?.type||'').toLowerCase();
+  return RESTORATIVE_TYPES.has(type);
+}
+
+function isIntenseActivityV35(activity){
+  if(!activity || String(activity.type||'').toLowerCase()!=='attraction') return false;
+  if(activity.intensity==='high'||activity.intense===true) return true;
+  return FATIGUE_INTENSE_ATTRACTIONS.has(preferenceKey(activity));
+}
+
+function recordActivityV35(record,day=getSelectedDay()){
+  return (day?.activities||[]).find(a=>a.id===record?.activityId) || activityForRecord(record);
+}
+
+function fatigueMetaForDay(day=getSelectedDay(),weatherPayload=state.weatherCache[day?.park||state.selectedPark]){
+  const nowParts=getOrlandoParts();
+  const currentDay=day?.date===nowParts.date;
+  const nowMs=Date.now();
+  const records=getDayHistory(day?.date).filter(r=>r.actualEnd).sort((a,b)=>new Date(a.actualEnd)-new Date(b.actualEnd));
+  const firstStamp=records.length ? new Date(records[0].actualStart||records[0].actualEnd).getTime() : null;
+  const activeMinutes=currentDay&&Number.isFinite(firstStamp) ? Math.max(0,(nowMs-firstStamp)/60000) : 0;
+
+  const restorative=[...records].reverse().find(r=>isRestorativeActivityV35(recordActivityV35(r,day)));
+  const restStamp=restorative ? new Date(restorative.actualEnd).getTime() : firstStamp;
+  const sinceRestMinutes=currentDay&&Number.isFinite(restStamp) ? Math.max(0,(nowMs-restStamp)/60000) : 0;
+
+  const movement=movementMetricsForDate(day?.date||nowParts.date);
+  const km=Math.max(0,Number(movement.distanceKm||0));
+  const recent=records.filter(r=>nowMs-new Date(r.actualEnd).getTime()<=120*60_000).length;
+
+  let intenseStreak=0;
+  for(const record of [...records].reverse()){
+    const a=recordActivityV35(record,day);
+    if(isRestorativeActivityV35(a)) break;
+    if(String(a?.type||'').toLowerCase()==='attraction'){
+      if(isIntenseActivityV35(a)) intenseStreak++;
+      else break;
+    }
+  }
+
+  const rel=relevantWeather(weatherPayload);
+  const temp=Number(weatherPayload?.current?.temperature_2m ?? rel.current?.temperature_2m);
+
+  let fatigue=0;
+  fatigue += Math.min(25,Math.max(0,activeMinutes-180)*.12);
+  fatigue += Math.min(26,Math.max(0,sinceRestMinutes-105)*.16);
+  fatigue += Math.min(22,Math.max(0,km-5)*4.2);
+  fatigue += Math.min(16,Math.max(0,recent-2)*5.3);
+  fatigue += Math.min(18,Math.max(0,intenseStreak-1)*7);
+  if(Number.isFinite(temp)) fatigue += Math.min(15,Math.max(0,temp-29)*3);
+  if(currentDay&&nowParts.hour>=19) fatigue+=4;
+  fatigue=Math.round(clamp(fatigue,0,92));
+
+  const score=Math.round(clamp(100-fatigue,15,100));
+  const level=fatigue>=FATIGUE_RULES.veryHigh?'very-high':fatigue>=FATIGUE_RULES.high?'high':fatigue>=FATIGUE_RULES.moderate?'moderate':'low';
+  const label=level==='very-high'?'Muito alto':level==='high'?'Alto':level==='moderate'?'Moderado':'Leve';
+
+  const movementRecord=movement.record||{};
+  let quality=25;
+  quality+=Math.min(30,records.length*5);
+  if(Number(movementRecord.acceptedPoints||0)>=3||km>0) quality+=25;
+  if(weatherPayload) quality+=10;
+  if(records.some(r=>r.actualStart&&r.actualEnd)) quality+=10;
+  quality=Math.round(clamp(quality,25,100));
+
+  const reasons=[];
+  if(sinceRestMinutes>=135) reasons.push(`${Math.round(sinceRestMinutes)} min desde a última pausa/refeição registrada`);
+  if(km>=6.5) reasons.push(`${km.toFixed(1)} km caminhados hoje`);
+  if(intenseStreak>=2) reasons.push(`${intenseStreak} atrações intensas em sequência`);
+  if(recent>=4) reasons.push(`${recent} atividades concluídas nas últimas 2h`);
+  if(Number.isFinite(temp)&&temp>=31) reasons.push(`${Math.round(temp)}°C aumentam o esforço físico`);
+  if(activeMinutes>=240) reasons.push(`${Math.floor(activeMinutes/60)}h${String(Math.round(activeMinutes%60)).padStart(2,'0')} de dia ativo registrado`);
+
+  return {score,fatigue,level,label,quality,km,recent,intenseStreak,activeMinutes,sinceRestMinutes,temp:Number.isFinite(temp)?temp:null,reasons};
+}
+
+// Substitui o indicador simples anterior. Todas as decisões que já usam "energy"
+// passam automaticamente a considerar desgaste acumulado, calor, ritmo e descanso.
+recentEnergyMeta=function(day=getSelectedDay()){
+  return fatigueMetaForDay(day,state.weatherCache[day?.park||state.selectedPark]);
+};
+
+function qualityLabelV35(score){
+  const n=Number(score||0);
+  return n>=78?'Alta':n>=56?'Média':'Baixa';
+}
+
+function qualityFactorLabelV35(key){
+  return ({wait:'fila atual',forecast:'previsão/histórico',distance:'localização',priority:'preferência',climate:'clima',schedule:'horários/compromissos',energy:'ritmo do dia'})[key]||key;
+}
+
+function liveQualityV35(day,entry){
+  const payload=state.liveCache?.[day?.park||state.selectedPark];
+  if(!payload||!Number.isFinite(Number(extractStandby(entry)))) return 25;
+  const age=(Date.now()-Number(payload.fetchedAt||0))/60000;
+  const fresh=age<=5?100:age<=10?88:age<=20?64:age<=35?45:30;
+  const status=String(entry?.status||'').toUpperCase();
+  return Math.round(clamp(fresh-(status&&status!=='OPERATING'?15:0),20,100));
+}
+
+function historyQualityV35(result){
+  const f=result?.forecast||{};
+  const confidence=String(f.historyConfidence||'').toLowerCase();
+  let score=confidence==='alta'?96:confidence==='média'?78:confidence==='baixa'?55:35;
+  if(f.historySource==='global') score+=4;
+  else if(f.historySource==='heuristic') score-=15;
+  const count=Number(f.historicalCount||0);
+  if(count>=12) score+=4;
+  else if(count<2) score-=10;
+  return Math.round(clamp(score,20,100));
+}
+
+function forecastQualityV35(result,liveScore){
+  const f=result?.forecast||{};
+  const hist=historyQualityV35(result);
+  const hasPrediction=Number.isFinite(Number(f.p30))&&Number.isFinite(Number(f.p60));
+  const trendConfidence=String(f.trend?.confidence||'').toLowerCase();
+  const trend=trendConfidence==='alta'?95:trendConfidence==='média'?78:trendConfidence==='baixa'?55:40;
+  return Math.round(clamp(hist*.48+liveScore*.27+trend*.15+(hasPrediction?10:2),20,100));
+}
+
+function distanceQualityV35(result){
+  const walk=result?.walk||{};
+  if(walk.source==='gps'){
+    if(!gpsLastPoint) return 70;
+    const age=(Date.now()-Number(gpsLastPoint.ts||0))/60000;
+    const accuracy=Number(gpsLastPoint.accuracy||999);
+    if(age<=2&&accuracy<=30) return 100;
+    if(age<=5&&accuracy<=60) return 88;
+    return 68;
+  }
+  if(walk.source==='route') return 84;
+  if(walk.source==='area'||walk.source==='same-area') return 58;
+  return walk.known?70:30;
+}
+
+function priorityQualityV35(activity){
+  const pref=getAttractionPreference(activity);
+  if(pref&&COPILOT_PRIORITY_LEVELS[pref.priority]) return 100;
+  if(Number.isFinite(Number(activity?.priority))) return 86;
+  return 68;
+}
+
+function weatherQualityV35(weatherPayload){
+  if(!weatherPayload) return 25;
+  const age=(Date.now()-Number(weatherPayload.fetchedAt||0))/60000;
+  return age<=15?100:age<=30?82:age<=60?58:38;
+}
+
+function scheduleQualityV35(result,day){
+  const hours=result?.schedule?.hours||parkHoursForDate(day?.park||state.selectedPark,day?.date||getOrlandoParts().date);
+  let q=hours?.source==='schedule'?94:55;
+  if(result?.schedule?.anchor) q=Math.max(q,96);
+  if(result?.schedule?.pass?.passType&&result.schedule.pass.passType!=='none') q=Math.max(q,98);
+  return q;
+}
+
+function adaptiveWeightsV35(baseWeights,qualities){
+  const raw={};
+  let total=0;
+  for(const [key,weight] of Object.entries(baseWeights||{})){
+    const q=clamp(qualities[key]??60,0,100);
+    // Nenhum fator some completamente: até uma estimativa fraca mantém 35% do peso-base.
+    const reliability=.35+.65*(q/100);
+    raw[key]=Number(weight||0)*reliability;
+    total+=raw[key];
+  }
+  const adjusted={};
+  for(const [key,value] of Object.entries(raw)) adjusted[key]=total?value/total*100:Number(baseWeights?.[key]||0);
+  return adjusted;
+}
+
+function dataQualityMetaV35(result,entry,day,weatherPayload){
+  const live=liveQualityV35(day,entry);
+  const fatigue=result?.energy?.quality!=null?result.energy:fatigueMetaForDay(day,weatherPayload);
+  const factors={
+    wait:live,
+    forecast:forecastQualityV35(result,live),
+    distance:distanceQualityV35(result),
+    priority:priorityQualityV35(result?.activity),
+    climate:weatherQualityV35(weatherPayload),
+    schedule:scheduleQualityV35(result,day),
+    energy:Number(fatigue?.quality||35)
+  };
+  const base=copilotProfile().weights;
+  const weightedQuality=Object.entries(base).reduce((sum,[key,w])=>sum+(factors[key]??50)*Number(w||0)/100,0);
+  const overall=Math.round(clamp(weightedQuality,0,100));
+  const adaptiveWeights=adaptiveWeightsV35(base,factors);
+  const weakFactors=Object.entries(factors).filter(([,q])=>q<56).sort((a,b)=>a[1]-b[1]).map(([key,q])=>({key,label:qualityFactorLabelV35(key),score:q}));
+  return {overall,label:qualityLabelV35(overall),factors,adaptiveWeights,weakFactors};
+}
+
+function applyAdaptiveDataQualityV35(result,entry,day,weatherPayload){
+  if(!result?.components||result.blocked) return result;
+  const dq=dataQualityMetaV35(result,entry,day,weatherPayload);
+  const base=copilotProfile().weights;
+  const fixed=Object.entries(base).reduce((sum,[key,w])=>sum+Number(result.components[key]??50)*Number(w||0)/100,0);
+  const adaptive=Object.entries(dq.adaptiveWeights).reduce((sum,[key,w])=>sum+Number(result.components[key]??50)*Number(w||0)/100,0);
+  let score=Number(result.score||0)+(adaptive-fixed);
+
+  // Quando quase tudo é estimado, aproxima uma decisão extrema do neutro sem
+  // apagar prioridades/âncoras. Isso reduz "falsa precisão".
+  const certainty=dq.overall>=75?1:dq.overall>=58?.94:dq.overall>=42?.87:.80;
+  score=50+(score-50)*certainty;
+  score=Math.round(clamp(score,0,100));
+
+  result.dataQuality=dq;
+  result.score=score;
+  result.band=score>=72?'FAÇA AGORA':score>=45?'ESPERE':'EVITE AGORA';
+  result.bandClass=score>=72?'good':score>=45?'warn':'bad';
+  result.adaptiveWeightDelta=Math.round((adaptive-fixed)*10)/10;
+  return result;
+}
+
+const v34CopilotScoreForEntryV35=copilotScoreForEntry;
+copilotScoreForEntry=function(entry,day=getSelectedDay(),weatherPayload=state.weatherCache[state.selectedPark],startMinute=null,previousActivity=null){
+  const result=v34CopilotScoreForEntryV35(entry,day,weatherPayload,startMinute,previousActivity);
+  return applyAdaptiveDataQualityV35(result,entry,day,weatherPayload);
+};
+
+const v34ScoreNonAttractionAtMinuteV35=scoreNonAttractionAtMinute;
+scoreNonAttractionAtMinute=function(activity,weatherPayload,minute,previousActivity=null,day=getSelectedDay()){
+  const result=v34ScoreNonAttractionAtMinuteV35(activity,weatherPayload,minute,previousActivity,day);
+  if(!result) return result;
+  const fatigue=fatigueMetaForDay(day,weatherPayload);
+  if(isRestorativeActivityV35(activity)){
+    const oldEnergy=Number(result.components?.energy??50);
+    const restEnergy=Math.round(clamp(35+fatigue.fatigue*.9,35,100));
+    if(result.components) result.components.energy=restEnergy;
+    const energyWeight=Number(copilotProfile().weights?.energy||0)/100;
+    result.score=Math.round(clamp(Number(result.score||0)+(restEnergy-oldEnergy)*energyWeight,0,100));
+    if(fatigue.fatigue>=FATIGUE_RULES.moderate){
+      result.reasons=[`ajuda a recuperar o ritmo (${fatigue.label.toLowerCase()})`,...(result.reasons||[])];
+    }
+  }
+  result.energy=fatigue;
+  result.band=result.score>=72?'FAÇA AGORA':result.score>=45?'ESPERE':'EVITE AGORA';
+  result.bandClass=result.score>=72?'good':result.score>=45?'warn':'bad';
+  return applyAdaptiveDataQualityV35(result,null,day,weatherPayload);
+};
+
+function breakConfidenceV35(fatigue){
+  const score=Math.round(clamp(fatigue?.quality||35,0,100));
+  if(score>=76) return {score,label:'Alta',level:'high',detail:'O ritmo do dia está bem sustentado por atividades, movimento e contexto registrados.'};
+  if(score>=52) return {score,label:'Média',level:'medium',detail:'Há sinais suficientes de desgaste, mas parte do ritmo ainda é estimada.'};
+  return {score,label:'Baixa',level:'low',detail:'Poucos sinais de movimento ou atividades foram registrados; trate a pausa como uma sugestão.'};
+}
+
+function nextGoodWindowV35(day,livePayload,weatherPayload,nowMinute){
+  if(!livePayload) return null;
+  const windows=[];
+  for(const activity of day?.activities||[]){
+    if(activity.type!=='attraction'||activity.replanDeferred||isDone(activity.id)||isSkipped(activity.id)) continue;
+    const entry=findLiveMatch(activity,livePayload.liveData||[]);
+    const wait=extractStandby(entry);
+    if(!entry||wait==null) continue;
+    const best=bestQueueWindow(entry.name,wait,day.park,activity,weatherPayload);
+    if(!best||Number(best.saving||0)<10) continue;
+    const delta=Number(best.minute)-nowMinute;
+    if(delta>=15&&delta<=75) windows.push({activity,best,delta});
+  }
+  return windows.sort((a,b)=>a.delta-b.delta||b.best.saving-a.best.saving)[0]||null;
+}
+
+function smartBreakRecommendationV35(day,livePayload,weatherPayload){
+  if(!day||day.date!==getOrlandoParts().date) return null;
+  if((day.activities||[]).some(a=>isStarted(a.id))) return null;
+  if(typeof activeEmergencyFor==='function'&&activeEmergencyFor(day)) return null;
+
+  const fatigue=fatigueMetaForDay(day,weatherPayload);
+  const mode=state.settings?.optimizationMode||'experience';
+  const threshold=FATIGUE_RULES.breakThreshold[mode]??FATIGUE_RULES.breakThreshold.experience;
+  if(fatigue.fatigue<threshold) return null;
+  if(typeof activeOpportunityFor==='function'&&activeOpportunityFor(day)&&fatigue.fatigue<80) return null;
+
+  const now=getOrlandoParts();
+  const nowMinute=now.hour*60+now.minute;
+  const anchor=nextAnchorFor(day,nowMinute);
+  const anchorDeadline=anchor?timeToMinutes(anchor.time)-anchorBufferMinutes(anchor):Infinity;
+  const freeBeforeAnchor=anchorDeadline-nowMinute;
+  if(freeBeforeAnchor<18) return null;
+
+  const pending=(day.activities||[]).filter(a=>!a.replanDeferred&&!isDone(a.id)&&!isSkipped(a.id));
+  for(const a of pending.filter(a=>a.type==='attraction')){
+    const pass=opportunityPassLead(a,nowMinute);
+    if(pass&&(pass.active||Number(pass.lead)<=20)&&fatigue.fatigue<82) return null;
+  }
+
+  let bestMeta=null;
+  if(livePayload?.liveData?.length){
+    const lastDone=[...getDayHistory(day.date)].sort((a,b)=>(b.actualEnd||'').localeCompare(a.actualEnd||''))[0];
+    const context=day.activities.find(a=>a.id===lastDone?.activityId)||null;
+    for(const activity of pending.filter(a=>a.type==='attraction')){
+      const entry=findLiveMatch(activity,livePayload.liveData||[]);
+      if(!entry||extractStandby(entry)==null) continue;
+      const meta=copilotScoreForEntry(entry,day,weatherPayload,nowMinute,context);
+      if(!meta||meta.blocked) continue;
+      if(!bestMeta||meta.score>bestMeta.score) bestMeta=meta;
+    }
+  }
+  const bestExceptional=bestMeta&&bestMeta.score>=88&&['must','want'].includes(bestMeta.priority?.code);
+  if(bestExceptional&&fatigue.fatigue<75) return null;
+  if(mode==='max'&&bestMeta?.score>=82&&fatigue.fatigue<84) return null;
+
+  let duration=FATIGUE_RULES.defaultBreakMinutes[mode]??20;
+  if(fatigue.fatigue>=82) duration=Math.max(duration,30);
+  duration=Math.min(duration,Math.max(0,Math.floor(freeBeforeAnchor-10)));
+  duration=Math.max(10,Math.round(duration/5)*5);
+  if(duration<10) return null;
+
+  const nextWindow=nextGoodWindowV35(day,livePayload,weatherPayload,nowMinute);
+  let reason='Uma pausa curta agora protege seu ritmo sem comprometer as melhores decisões do roteiro.';
+  if(fatigue.sinceRestMinutes>=150) reason=`Você está há cerca de ${Math.round(fatigue.sinceRestMinutes/15)*15} min sem uma pausa registrada; esta é uma boa hora para recuperar energia.`;
+  else if(fatigue.temp!=null&&fatigue.temp>=31&&fatigue.km>=5) reason='Calor e caminhada aumentaram o desgaste; uma pausa curta agora melhora o ritmo do restante do dia.';
+  else if(fatigue.intenseStreak>=2) reason='Você vem de uma sequência intensa; uma pausa curta ajuda a manter o restante do dia confortável.';
+  if(nextWindow) reason=`${reason} Há uma janela melhor chegando para ${nextWindow.activity.title}.`;
+
+  const factors=[];
+  if(fatigue.sinceRestMinutes>=90) factors.push({icon:'◷',text:`~${Math.round(fatigue.sinceRestMinutes)} min desde a última pausa/refeição registrada.`});
+  if(fatigue.km>=3) factors.push({icon:'🚶',text:`${fatigue.km.toFixed(1)} km caminhados hoje.`});
+  if(fatigue.intenseStreak>=2) factors.push({icon:'⚡',text:`${fatigue.intenseStreak} atrações intensas em sequência.`});
+  if(fatigue.temp!=null&&fatigue.temp>=30) factors.push({icon:'☀',text:`Temperatura em torno de ${Math.round(fatigue.temp)}°C aumenta o esforço.`});
+  if(nextWindow) factors.push({icon:'↘',text:`${nextWindow.activity.title} tem janela melhor por volta de ${nextWindow.best.time}.`});
+  if(anchor) factors.push({icon:'⚓',text:`A pausa de ${duration} min ainda preserva ${anchor.title} às ${anchor.time}.`});
+  else factors.push({icon:'✓',text:`Uma pausa de ${duration} min cabe no roteiro atual.`});
+
+  return {duration,reason,factors:factors.slice(0,6),fatigue,confidence:breakConfidenceV35(fatigue),nextWindow};
+}
+
+function startSmartBreakV35(duration){
+  const day=getSelectedDay();
+  if(!day||day.date!==getOrlandoParts().date) return;
+  const now=getOrlandoParts();
+  const id=`smart-break-${day.date}-${Date.now()}`;
+  const activity={
+    id,time:now.time,title:'Pausa inteligente',type:'break',duration:Math.max(10,Number(duration||20)),priority:3,
+    flexible:true,indoor:true,weatherSensitive:false,area:'',generatedSmartBreak:true,replanDeferred:false
+  };
+  const firstPending=(day.activities||[]).findIndex(a=>!isDone(a.id)&&!isSkipped(a.id)&&!a.replanDeferred);
+  if(firstPending>=0) day.activities.splice(firstPending,0,activity); else day.activities.push(activity);
+  saveState();
+  startActivity(id);
+  toast(`Pausa de ${activity.duration} min iniciada. O roteiro será recalculado depois.`);
+}
+
+const v34RenderNextV35=renderNext;
+renderNext=function(){
+  v34RenderNextV35();
+  const day=getSelectedDay();
+  const card=$('#nextCard');
+  if(!card||!day) return;
+  const live=state.liveCache?.[day.park];
+  const weather=state.weatherCache?.[day.park];
+  const pause=smartBreakRecommendationV35(day,live,weather);
+  if(!pause) return;
+
+  const confidence=pause.confidence;
+  card.className='next-card next-step-card next-step-good';
+  card.innerHTML=`
+    <div class="next-step-eyebrow">RITMO DO DIA</div>
+    <div class="next-step-title-row">
+      <div class="next-step-main"><div class="next-step-title">Pausa curta · ${pause.duration} min</div><div class="next-step-decision neutral"><span class="next-step-light"></span>PAUSA SUGERIDA</div></div>
+      <span class="next-step-confidence ${confidence.level}">Confiança ${escapeHtml(confidence.label.toLowerCase())}</span>
+    </div>
+    <p class="next-step-reason">${escapeHtml(pause.reason)}</p>
+    ${renderNextStepDetails('Por que o motor sugeriu uma pausa?',pause.factors,confidence)}
+    <p class="muted next-step-choice-note">Você decide: se preferir continuar, o motor recalcula imediatamente as melhores ações sem considerar pausa.</p>
+    <div class="next-step-actions"><button class="primary-btn" data-smart-break="${pause.duration}">Fazer pausa</button><button class="secondary-btn" data-decline-smart-break="${pause.duration}">Quero continuar</button></div>`;
+};
+
+const v34NextStepFactorsV35=nextStepFactors;
+nextStepFactors=function(meta,weatherPayload){
+  const factors=v34NextStepFactorsV35(meta,weatherPayload);
+  const fatigue=meta?.energy;
+  if(fatigue?.fatigue>=FATIGUE_RULES.high){
+    const text=fatigue.sinceRestMinutes>=120
+      ? `Ritmo alto: ~${Math.round(fatigue.sinceRestMinutes)} min desde a última pausa/refeição registrada.`
+      : `Ritmo do dia está ${String(fatigue.label||'alto').toLowerCase()}; o motor está evitando sobrecarregar a sequência.`;
+    factors.splice(Math.min(4,factors.length),0,{icon:'♥',text});
+  }
+  return factors.slice(0,6);
+};
+
+const v34NextStepConfidenceV35=nextStepConfidence;
+nextStepConfidence=function(meta,livePayload,weatherPayload){
+  if(!meta?.dataQuality) return v34NextStepConfidenceV35(meta,livePayload,weatherPayload);
+  const dq=meta.dataQuality;
+  const weak=dq.weakFactors?.slice(0,2).map(x=>x.label)||[];
+  const detail=weak.length
+    ? `A decisão usa pesos adaptativos. Dados mais frágeis agora: ${weak.join(' e ')}.`
+    : 'Os principais dados desta decisão estão consistentes e os pesos foram ajustados à qualidade disponível.';
+  if(dq.overall>=78) return {score:dq.overall,label:'Alta',level:'high',detail};
+  if(dq.overall>=56) return {score:dq.overall,label:'Média',level:'medium',detail};
+  return {score:dq.overall,label:'Baixa',level:'low',detail};
+};
+
+// Torna a robustez visível apenas quando o usuário abre os detalhes do Ao vivo.
+const v34RenderLiveV35=renderLive;
+renderLive=function(){
+  v34RenderLiveV35();
+  const day=getSelectedDay();
+  const payload=state.liveCache?.[state.selectedPark];
+  const weather=state.weatherCache?.[state.selectedPark];
+  if(!day||day.park!==state.selectedPark||!payload?.liveData?.length) return;
+  document.querySelectorAll('#recommendations details.rec-card').forEach(card=>{
+    const strong=card.querySelector('.copilot-rec-main strong');
+    const text=strong?.textContent||'';
+    const entry=(payload.liveData||[]).find(e=>text.startsWith(e.name));
+    if(!entry) return;
+    const meta=copilotScoreForEntry(entry,day,weather);
+    const dq=meta?.dataQuality;
+    const grid=card.querySelector('.copilot-detail-grid');
+    if(!dq||!grid||grid.querySelector('[data-quality-detail]')) return;
+    const weak=dq.weakFactors?.slice(0,2).map(x=>x.label).join(' · ');
+    grid.insertAdjacentHTML('beforeend',`<div class="copilot-detail-item copilot-detail-wide" data-quality-detail><span>Qualidade dos dados</span><b>${escapeHtml(dq.label)}</b><small>${weak?`mais estimado: ${escapeHtml(weak)}`:'principais fontes consistentes'}</small></div>`);
+  });
+};
+
+// O replanejamento continua usando o mesmo beam search, mas agora os scores que
+// entram nele já carregam energia realista e pesos adaptativos.
+const v34GenerateReplanProposalV35=generateReplanProposal;
+generateReplanProposal=function(day,livePayload,weatherPayload,force=false){
+  const proposal=v34GenerateReplanProposalV35(day,livePayload,weatherPayload,force);
+  if(!proposal) return proposal;
+  const fatigue=fatigueMetaForDay(day,weatherPayload);
+  if(fatigue.fatigue>=FATIGUE_RULES.moderate){
+    proposal.explanations=[{tone:'info',title:'Ritmo do dia considerado',detail:`Desgaste ${fatigue.label.toLowerCase()}: o motor reduziu pressão por atrações e valorizou respiros compatíveis com os compromissos.`},...(proposal.explanations||[])].slice(0,14);
+  }
+  proposal.summary=`${proposal.summary} A qualidade de cada fonte ajusta dinamicamente os pesos; sinais estimados influenciam menos a decisão.`;
+  return proposal;
+};
+
+// Evita que uma oportunidade baseada em dados fracos ou em um momento de
+// desgaste muito alto interrompa o usuário sem benefício claro.
+const v34DetectOpportunityV35=detectOpportunity;
+detectOpportunity=function(day,livePayload,weatherPayload){
+  const opportunity=v34DetectOpportunityV35(day,livePayload,weatherPayload);
+  if(!opportunity) return opportunity;
+  const activity=(day?.activities||[]).find(a=>a.id===opportunity.activityId);
+  const entry=activity?findLiveMatch(activity,livePayload?.liveData||[]):null;
+  const meta=entry?copilotScoreForEntry(entry,day,weatherPayload):null;
+  const fatigue=fatigueMetaForDay(day,weatherPayload);
+  if(meta?.dataQuality?.overall<50&&!['pass-window','reopen'].includes(opportunity.type)) return null;
+  if(fatigue.fatigue>=82&&!['pass-window','reopen','climate-window'].includes(opportunity.type)&&priorityCodeFromActivity(activity)!=='must') return null;
+  return opportunity;
+};
+
+const v34BindEventsV35=bindEvents;
+bindEvents=function(){
+  v34BindEventsV35();
+  document.addEventListener('click',event=>{
+    const button=event.target.closest('[data-smart-break]');
+    if(!button) return;
+    event.preventDefault();
+    startSmartBreakV35(Number(button.dataset.smartBreak||20));
+  });
+};
+
+/* ============================================================
+   Orlando Flow v36 — Decision Orchestrator v2
+   Prioridade estratégica + ação tática + atividade ponte
+   + janela protegida + hierarquia de decisões no Ao vivo
+   ============================================================ */
+
+const DECISION_ORCHESTRATOR_RULES = Object.freeze({
+  strategicTrackMin: 72,
+  strategicNowTolerance: 8,
+  bridgeMinUtility: 53,
+  bridgeStrongUtility: 67,
+  bridgeMaxOperationalMinutes: 88,
+  protectedBufferMinutes: 8,
+  protectedSoonMinutes: 18,
+  passiveBreakHorizonMinutes: 75,
+  liveBestNowCount: 2,
+  livePriorityCount: 4,
+  liveOtherCount: 8
+});
+
+function pendingActivitiesV36(day) {
+  return (day?.activities || []).filter(a => !a.replanDeferred && !isDone(a.id) && !isSkipped(a.id));
+}
+
+function lastContextActivityV36(day) {
+  const records = getDayHistory(day?.date)
+    .filter(r => r.status === 'done' && r.actualEnd)
+    .sort((a,b) => String(b.actualEnd).localeCompare(String(a.actualEnd)));
+  const record = records[0];
+  return record ? (day?.activities || []).find(a => a.id === record.activityId) || null : null;
+}
+
+function liveDecisionRowsV36(day, livePayload, weatherPayload, nowMinute = null) {
+  if (!day || !livePayload?.liveData?.length) return [];
+  const now = getOrlandoParts();
+  const minute = nowMinute == null ? now.hour * 60 + now.minute : Number(nowMinute);
+  const previous = lastContextActivityV36(day);
+  const rows = [];
+  for (const activity of pendingActivitiesV36(day)) {
+    if (activity.type !== 'attraction') continue;
+    const entry = findLiveMatch(activity, livePayload.liveData || []);
+    if (!entry) continue;
+    const meta = copilotScoreForEntry(entry, day, weatherPayload, minute, previous);
+    if (!meta || meta.wait == null || meta.blocked) continue;
+    rows.push({ activity, entry, meta });
+  }
+  return rows;
+}
+
+function strategicPriorityValueV36(activity, meta, day, nowMinute, weatherPayload) {
+  const priority = meta?.priority || personalPriorityMeta(activity, meta?.wait ?? 0);
+  const code = priority?.code || priorityCodeFromActivity(activity);
+  const basePriority = Number(priority?.score ?? COPILOT_PRIORITY_LEVELS[code]?.value ?? 60);
+  const pass = passScheduleScore(activity, nowMinute);
+  const passMeta = passMetaFor(activity);
+  const hours = parkHoursForDate(day?.park || state.selectedPark, day?.date || getOrlandoParts().date);
+  const minutesToClose = Math.max(0, Number(hours.close || 1440) - Number(nowMinute));
+  const closeUrgency = minutesToClose <= 120 ? 100 : minutesToClose <= 240 ? 82 : minutesToClose <= 360 ? 68 : 52;
+  const best = meta?.forecast?.best;
+  const saving = Math.max(0, Number(best?.saving || 0));
+  const futureWindowValue = best && Number(best.minute) > nowMinute + 10
+    ? clamp(58 + saving * 1.4, 58, 96)
+    : (meta?.band === 'FAÇA AGORA' ? 82 : 52);
+  const climate = meta?.climate;
+  const climateUrgency = climate?.impact === 'high' && Number(climate?.score || 0) >= 85 ? 92 : 55;
+  const passValue = passMeta.passType !== 'none'
+    ? (pass.active ? 100 : passMeta.passTime ? clamp(92 - Math.max(0, timeToMinutes(passMeta.passTime) - nowMinute) * .12, 58, 96) : 76)
+    : 50;
+
+  let score = basePriority * .56 + closeUrgency * .12 + futureWindowValue * .12 + passValue * .14 + climateUrgency * .06;
+  if (code === 'must') score += 8;
+  if (code === 'want') score += 3;
+  if (repeatWantedFor(activity) && getDayHistory(day?.date).some(r => r.status === 'done' && r.activityId === activity.id)) score -= 8;
+  return Math.round(clamp(score, 0, 100));
+}
+
+function strategicWindowV36(row, day, nowMinute) {
+  if (!row) return null;
+  const {activity, meta} = row;
+  const pass = passMetaFor(activity);
+  let type = null;
+  let targetMinute = null;
+  let label = null;
+  let expectedWait = null;
+
+  if (pass.passType !== 'none' && pass.passTime) {
+    const passStart = timeToMinutes(pass.passTime);
+    const passEnd = passStart + Number(pass.passWindowMinutes || 60);
+    if (nowMinute >= passStart && nowMinute <= passEnd) {
+      type = 'pass'; targetMinute = nowMinute; label = 'Pass ativo agora';
+    } else if (passStart > nowMinute) {
+      type = 'pass'; targetMinute = passStart; label = `Pass às ${pass.passTime}`;
+    }
+  }
+
+  const best = meta?.forecast?.best;
+  if (targetMinute == null && best && Number(best.minute) > nowMinute + 10 && Number(best.saving || 0) >= 8) {
+    type = 'queue';
+    targetMinute = Number(best.minute);
+    expectedWait = Number(best.wait);
+    label = `Melhor janela ~${best.time}`;
+  }
+
+  if (targetMinute == null && meta?.band === 'FAÇA AGORA') {
+    type = 'now'; targetMinute = nowMinute; label = 'Boa janela agora';
+  }
+
+  if (targetMinute == null) return {type:'monitor',targetMinute:null,leaveAt:null,label:'Monitorando uma janela melhor',expectedWait:null};
+
+  const walk = Math.max(1, Number(meta?.walk?.minutes || 10));
+  const leaveAt = Math.max(nowMinute, Math.round(targetMinute - walk - DECISION_ORCHESTRATOR_RULES.protectedBufferMinutes));
+  return {type,targetMinute,leaveAt,label,expectedWait};
+}
+
+function strategicPrioritiesV36(day, livePayload, weatherPayload, nowMinute = null) {
+  const now = getOrlandoParts();
+  const minute = nowMinute == null ? now.hour * 60 + now.minute : Number(nowMinute);
+  const rows = liveDecisionRowsV36(day, livePayload, weatherPayload, minute);
+  const list = rows.map(row => {
+    const code = row.meta?.priority?.code || priorityCodeFromActivity(row.activity);
+    const pass = passMetaFor(row.activity);
+    const strategicScore = strategicPriorityValueV36(row.activity, row.meta, day, minute, weatherPayload);
+    const tracked = ['must','want'].includes(code) || pass.passType !== 'none' || strategicScore >= DECISION_ORCHESTRATOR_RULES.strategicTrackMin;
+    return {...row, code, strategicScore, window:strategicWindowV36(row,day,minute), tracked};
+  }).filter(x => x.tracked)
+    .sort((a,b) => b.strategicScore - a.strategicScore || b.meta.score - a.meta.score);
+  return list;
+}
+
+function protectedPriorityV36(day, livePayload, weatherPayload, nowMinute = null) {
+  return strategicPrioritiesV36(day, livePayload, weatherPayload, nowMinute)[0] || null;
+}
+
+function nextHardDeadlineV36(day, protectedPriority, nowMinute) {
+  let deadline = Infinity;
+  let reason = null;
+  const anchor = nextAnchorFor(day, nowMinute);
+  if (anchor) {
+    const anchorLeave = timeToMinutes(anchor.time) - anchorBufferMinutes(anchor);
+    if (anchorLeave > nowMinute && anchorLeave < deadline) {
+      deadline = anchorLeave;
+      reason = {type:'anchor',activity:anchor,label:anchor.title,time:anchor.time};
+    }
+  }
+  if (protectedPriority?.window?.leaveAt != null && protectedPriority.window.leaveAt > nowMinute && protectedPriority.window.leaveAt < deadline) {
+    deadline = protectedPriority.window.leaveAt;
+    reason = {type:'priority',activity:protectedPriority.activity,label:protectedPriority.activity.title,time:protectedPriority.window.label};
+  }
+  return {minute:deadline, reason};
+}
+
+function tacticalUtilityV36(row, protectedPriority, day, nowMinute) {
+  const meta = row?.meta;
+  if (!meta) return -Infinity;
+  const costScore = Number(meta.experienceCost?.score ?? clamp(105 - Number(meta.totalMinutes || 60) * .85, 5, 100));
+  const distance = Number(meta.components?.distance ?? 55);
+  const priority = Number(meta.priority?.score ?? 60);
+  const quality = Number(meta.dataQuality?.overall ?? 62);
+  let fit = 82;
+  const deadline = nextHardDeadlineV36(day, protectedPriority, nowMinute);
+  const transitionToPriority = protectedPriority && protectedPriority.activity.id !== row.activity.id
+    ? routeWalkBetweenActivities(row.activity, protectedPriority.activity, day)
+    : {minutes:0,known:false};
+  const finish = nowMinute + Number(meta.experienceCost?.operationalMinutes ?? meta.totalMinutes ?? 60) + Number(transitionToPriority.minutes || 0) + 4;
+  if (Number.isFinite(deadline.minute)) {
+    const slack = deadline.minute - finish;
+    if (slack < 0) return -Infinity;
+    fit = clamp(62 + Math.min(35, slack * .35), 62, 97);
+  }
+
+  let utility = Number(meta.score || 0) * .39 + costScore * .24 + distance * .12 + priority * .10 + fit * .10 + quality * .05;
+  if (protectedPriority && normalizeName(row.activity.area || '') && normalizeName(row.activity.area || '') === normalizeName(protectedPriority.activity.area || '')) utility += 5;
+  if (meta.band === 'EVITE AGORA') utility -= 12;
+  if (Number(meta.experienceCost?.operationalMinutes ?? meta.totalMinutes ?? 0) > DECISION_ORCHESTRATOR_RULES.bridgeMaxOperationalMinutes) utility -= 8;
+  return Math.round(clamp(utility,0,100));
+}
+
+function bridgeCandidatesV36(day, livePayload, weatherPayload, protectedPriority, nowMinute = null) {
+  const now = getOrlandoParts();
+  const minute = nowMinute == null ? now.hour * 60 + now.minute : Number(nowMinute);
+  const rows = liveDecisionRowsV36(day,livePayload,weatherPayload,minute);
+  return rows.filter(row => row.activity.id !== protectedPriority?.activity?.id)
+    .map(row => {
+      const pass = passMetaFor(row.activity);
+      if (pass.passType !== 'none' && pass.passTime && timeToMinutes(pass.passTime) > minute + 10 && !repeatWantedFor(row.activity)) return {...row,utility:-Infinity};
+      return {...row,utility:tacticalUtilityV36(row,protectedPriority,day,minute)};
+    })
+    .filter(row => Number.isFinite(row.utility) && row.utility >= DECISION_ORCHESTRATOR_RULES.bridgeMinUtility)
+    .sort((a,b) => b.utility - a.utility || b.meta.score - a.meta.score || Number(a.meta.totalMinutes||999)-Number(b.meta.totalMinutes||999));
+}
+
+function priorityWatchTextV36(priority, nowMinute = null) {
+  if (!priority) return '';
+  const now = getOrlandoParts();
+  const minute = nowMinute == null ? now.hour * 60 + now.minute : Number(nowMinute);
+  const pass = passMetaFor(priority.activity);
+  if (pass.passType !== 'none') {
+    const ps = pass.passTime ? timeToMinutes(pass.passTime) : null;
+    if (ps != null && ps <= minute && minute <= ps + Number(pass.passWindowMinutes || 60)) return 'Pass ativo · sendo protegido';
+    if (pass.passTime && ps > minute) return `Pass ${pass.passTime} · sendo protegido`;
+  }
+  if (priority.window?.type === 'queue' && priority.window?.targetMinute != null) return `${priority.window.label} · monitorando`;
+  if (priority.meta?.band === 'FAÇA AGORA') return 'Boa janela agora';
+  if (priority.meta?.band === 'ESPERE') return 'Melhor depois · monitorando';
+  return 'Prioridade do roteiro · monitorando';
+}
+
+function priorityWatchBlockV36(priority, nowMinute = null) {
+  if (!priority) return '';
+  const icon = priority.code === 'must' ? '★' : priority.code === 'want' ? '♥' : '◎';
+  return `<div class="next-step-priority-watch">
+    <span>PRÓXIMA PRIORIDADE</span>
+    <div><b aria-hidden="true">${icon}</b><strong>${escapeHtml(priority.activity.title)}</strong></div>
+    <small>${escapeHtml(priorityWatchTextV36(priority,nowMinute))}</small>
+  </div>`;
+}
+
+function bridgeReasonV36(bridge, protectedPriority) {
+  if (protectedPriority) return `É a melhor forma de usar este intervalo sem perder ${protectedPriority.activity.title}.`;
+  if (bridge.meta?.experienceCost?.score >= 75) return 'É uma opção eficiente para avançar no roteiro sem gastar tempo demais agora.';
+  return 'É a melhor ação executável disponível neste momento.';
+}
+
+function bridgeFactorsV36(bridge, protectedPriority, day, nowMinute, weatherPayload) {
+  const factors = [];
+  const meta = bridge.meta;
+  if (meta.walk?.minutes != null) factors.push({icon:'⌖',text:`${meta.walk.known?'Apenas':'Cerca de'} ${meta.walk.minutes} min de caminhada.`});
+  if (meta.experienceCost) factors.push({icon:'⏱',text:`Custo total de cerca de ${meta.experienceCost.totalMinutes} min.`});
+  if (protectedPriority?.window?.leaveAt != null) {
+    const transition = routeWalkBetweenActivities(bridge.activity,protectedPriority.activity,day);
+    const finish = nowMinute + Number(meta.experienceCost?.operationalMinutes ?? meta.totalMinutes ?? 0) + Number(transition.minutes||0) + 4;
+    const slack = Math.max(0, protectedPriority.window.leaveAt - finish);
+    factors.push({icon:'✓',text:`Cabe com ${Math.round(slack)} min de folga antes de proteger ${protectedPriority.activity.title}.`});
+  } else if (protectedPriority) {
+    factors.push({icon:'★',text:`${protectedPriority.activity.title} continua sendo monitorada como prioridade do dia.`});
+  }
+  if (meta.priority?.score >= 82) factors.push({icon:'♥',text:`${meta.priority.label} no seu roteiro.`});
+  const extra = nextStepFactors(meta,weatherPayload).filter(f => !factors.some(x => x.text === f.text));
+  factors.push(...extra);
+  return factors.slice(0,6);
+}
+
+function passiveWaitingBreakV36(day, protectedPriority, nowMinute) {
+  if (!protectedPriority?.window?.leaveAt) return null;
+  const lead = protectedPriority.window.leaveAt - nowMinute;
+  if (lead < 20 || lead > DECISION_ORCHESTRATOR_RULES.passiveBreakHorizonMinutes) return null;
+  const duration = Math.max(10, Math.min(20, Math.floor((lead - 10) / 5) * 5));
+  if (duration < 10) return null;
+  return {
+    duration,
+    reason:`Nenhuma atração relevante compensa tanto quanto preservar a próxima janela de ${protectedPriority.activity.title}.`,
+    factors:[
+      {icon:'★',text:`${protectedPriority.activity.title} continua como prioridade do roteiro.`},
+      {icon:'◷',text:`${protectedPriority.window.label}.`},
+      {icon:'✓',text:`Uma pausa de ${duration} min mantém margem para chegar sem pressa.`}
+    ]
+  };
+}
+
+function decisionOrchestratorV36(day, livePayload, weatherPayload) {
+  if (!day) return {kind:'none'};
+  const now = getOrlandoParts();
+  const nowMinute = now.hour * 60 + now.minute;
+  const pending = pendingActivitiesV36(day);
+  const started = pending.find(a => isStarted(a.id));
+  if (started) return {kind:'started',activity:started,nowMinute};
+  if (day.date !== now.date) return {kind:'future',activity:pending[0]||null,nowMinute};
+
+  const fixed = nextStepDueFixedActivity(day,nowMinute);
+  if (fixed) return {kind:'fixed',...fixed,nowMinute};
+
+  const emergency = typeof activeEmergencyFor === 'function' ? activeEmergencyFor(day) : null;
+  if (emergency) return {kind:'emergency',emergency,nowMinute};
+
+  const opportunity = typeof activeOpportunityFor === 'function' ? activeOpportunityFor(day) : null;
+  if (opportunity) {
+    const activity = pending.find(a => a.id === opportunity.activityId);
+    const entry = activity ? findLiveMatch(activity,livePayload?.liveData||[]) : null;
+    const meta = entry ? copilotScoreForEntry(entry,day,weatherPayload,nowMinute,lastContextActivityV36(day)) : null;
+    if (activity && meta && !meta.blocked) return {kind:'opportunity',activity,entry,meta,opportunity,nowMinute};
+  }
+
+  if (!livePayload?.liveData?.length) return {kind:'fallback',activity:pending[0]||null,nowMinute};
+
+  const priorities = strategicPrioritiesV36(day,livePayload,weatherPayload,nowMinute);
+  const protectedPriority = priorities[0] || null;
+  const rows = liveDecisionRowsV36(day,livePayload,weatherPayload,nowMinute);
+  const green = rows.filter(r => r.meta.band === 'FAÇA AGORA')
+    .sort((a,b) => b.meta.score-a.meta.score || tacticalUtilityV36(b,protectedPriority,day,nowMinute)-tacticalUtilityV36(a,protectedPriority,day,nowMinute));
+
+  if (protectedPriority?.window?.leaveAt != null && protectedPriority.window.leaveAt <= nowMinute + DECISION_ORCHESTRATOR_RULES.protectedSoonMinutes) {
+    return {kind:'priority-window',activity:protectedPriority.activity,entry:protectedPriority.entry,meta:protectedPriority.meta,priority:protectedPriority,priorities,nowMinute};
+  }
+
+  if (green.length) {
+    let selected = green[0];
+    const strategicGreen = priorities.find(p => p.meta.band === 'FAÇA AGORA');
+    if (strategicGreen && strategicGreen.meta.score >= selected.meta.score - DECISION_ORCHESTRATOR_RULES.strategicNowTolerance) selected = strategicGreen;
+    const nextPriority = priorities.find(p => p.activity.id !== selected.activity.id) || null;
+    return {kind:'direct',activity:selected.activity,entry:selected.entry,meta:selected.meta,priority:priorities.find(p=>p.activity.id===selected.activity.id)||null,nextPriority,priorities,nowMinute};
+  }
+
+  const bridges = bridgeCandidatesV36(day,livePayload,weatherPayload,protectedPriority,nowMinute);
+  const pause = smartBreakRecommendationV35(day,livePayload,weatherPayload);
+  if (pause && (!bridges[0] || bridges[0].utility < DECISION_ORCHESTRATOR_RULES.bridgeStrongUtility)) {
+    return {kind:'pause',pause,priority:protectedPriority,priorities,nowMinute};
+  }
+  if (bridges[0]) return {kind:'bridge',...bridges[0],priority:protectedPriority,bridges,priorities,nowMinute};
+  if (pause) return {kind:'pause',pause,priority:protectedPriority,priorities,nowMinute};
+
+  const passiveBreak = passiveWaitingBreakV36(day,protectedPriority,nowMinute);
+  if (passiveBreak) return {kind:'passive-break',pause:passiveBreak,priority:protectedPriority,priorities,nowMinute};
+
+  const best = rows.sort((a,b)=>b.meta.score-a.meta.score)[0] || null;
+  if (best) return {kind:'tactical-fallback',...best,priority:protectedPriority,priorities,nowMinute};
+  return {kind:'fallback',activity:pending[0]||null,priority:protectedPriority,priorities,nowMinute};
+}
+
+function renderNextV36Decision(decision, day, livePayload, weatherPayload) {
+  const card = $('#nextCard');
+  if (!card) return;
+  const nowMinute = decision.nowMinute ?? (getOrlandoParts().hour*60+getOrlandoParts().minute);
+
+  if (decision.kind === 'started') {
+    const a=decision.activity;
+    const confidence={score:100,label:'Alta',level:'high',detail:'A atividade já foi iniciada; concluir é a ação mais consistente antes de uma nova decisão.'};
+    card.className='next-card next-step-card next-step-good';
+    card.innerHTML=`<div class="next-step-eyebrow">MELHOR AÇÃO AGORA</div><div class="next-step-title-row"><div><div class="next-step-title">${escapeHtml(a.title)}</div><div class="next-step-decision good"><span class="next-step-light"></span>CONTINUE AGORA</div></div><span class="next-step-confidence high">Confiança alta</span></div><p class="next-step-reason">Você já está nessa atividade. Concluir mantém o restante do roteiro atualizado.</p>${renderNextStepDetails('Por que continuar?',[{icon:'✓',text:'Atividade registrada como em andamento.'},{icon:'↻',text:'Ao concluir, o motor escolhe novamente a melhor ação executável.'}],confidence)}<div class="next-step-actions"><button class="primary-btn" data-complete="${a.id}">Concluir</button></div>`;
+    return;
+  }
+
+  if (decision.kind === 'future') {
+    const a=decision.activity;
+    if (!a) { card.className='next-card next-step-card empty'; card.textContent='Nenhuma atividade pendente neste dia.'; return; }
+    const confidence={score:45,label:'Planejada',level:'medium',detail:'A decisão ao vivo será ativada no dia da visita.'};
+    card.className='next-card next-step-card next-step-neutral';
+    card.innerHTML=`<div class="next-step-eyebrow">PRÓXIMO NO PLANO</div><div class="next-step-title-row"><div><div class="next-step-title">${escapeHtml(a.title)}</div><div class="next-step-decision neutral"><span class="next-step-light"></span>PLANEJADO</div></div><span class="next-step-confidence medium">Dia futuro</span></div><p class="next-step-reason">No dia da visita, fila, clima, localização e prioridades definirão a melhor ação do momento.</p>${renderNextStepDetails('Por que este passo aparece?',[{icon:'◷',text:`É a próxima atividade planejada para ${day.date}.`},{icon:'↻',text:'O motor ainda não usa dados ao vivo de outro dia como ordem de execução.'}],confidence)}`;
+    return;
+  }
+
+  if (decision.kind === 'fixed') {
+    const a=decision.activity;
+    const mins=Math.max(0,decision.start-nowMinute);
+    const confidence={score:96,label:'Alta',level:'high',detail:'Horário fixo e margem de chegada têm prioridade sobre otimizações de fila.'};
+    card.className='next-card next-step-card next-step-good';
+    card.innerHTML=`<div class="next-step-eyebrow">MELHOR AÇÃO AGORA</div><div class="next-step-title-row"><div><div class="next-step-title">${escapeHtml(a.title)}</div><div class="next-step-decision good"><span class="next-step-light"></span>SIGA AGORA</div></div><span class="next-step-confidence high">Confiança alta</span></div><p class="next-step-reason">É hora de proteger este compromisso antes de qualquer outra otimização.</p>${renderNextStepDetails('Por que seguir agora?',[{icon:'◷',text:`Horário: ${a.time}.`},{icon:'→',text:`${decision.buffer} min reservados para chegada.`},{icon:'✓',text:mins<=0?'A janela protegida já começou.':`Faltam cerca de ${mins} min para o compromisso.`}],confidence)}<div class="next-step-actions"><button class="primary-btn" data-start="${a.id}">Iniciar</button></div>`;
+    return;
+  }
+
+  if (decision.kind === 'emergency') {
+    const e=decision.emergency;
+    const confidence={score:94,label:'Alta',level:'high',detail:'Uma condição crítica mudou e o roteiro precisa ser revisto antes da próxima atividade.'};
+    card.className='next-card next-step-card next-step-bad';
+    card.innerHTML=`<div class="next-step-eyebrow">MELHOR AÇÃO AGORA</div><div class="next-step-title-row"><div><div class="next-step-title">Revisar o roteiro</div><div class="next-step-decision bad"><span class="next-step-light"></span>REPLANEJE AGORA</div></div><span class="next-step-confidence high">Confiança alta</span></div><p class="next-step-reason">${escapeHtml(e.label)}. Veja a alternativa antes de seguir para outra atividade.</p>${renderNextStepDetails('O que mudou?',[{icon:'!',text:e.detail||'Uma condição importante mudou.'},{icon:'↻',text:'O motor já pode recalcular a sequência restante.'}],confidence)}<div class="next-step-actions"><button class="primary-btn" data-next-step-live>Ver alerta</button></div>`;
+    return;
+  }
+
+  if (decision.kind === 'opportunity') {
+    const confidence=nextStepConfidence(decision.meta,livePayload,weatherPayload);
+    const factors=opportunityReasons(decision.opportunity).map((text,i)=>({icon:i===0?'★':'✓',text}));
+    card.className='next-card next-step-card next-step-good';
+    card.innerHTML=`<div class="next-step-eyebrow">MELHOR AÇÃO AGORA</div><div class="next-step-title-row"><div><div class="next-step-title">${escapeHtml(decision.activity.title)}</div><div class="next-step-decision good"><span class="next-step-light"></span>APROVEITE A OPORTUNIDADE</div></div><span class="next-step-confidence ${confidence.level}">Confiança ${escapeHtml(confidence.label.toLowerCase())}</span></div><p class="next-step-reason">${escapeHtml(decision.opportunity.triggerReason||'Uma condição melhorou e pode valer a pena antecipar esta atração.')}</p>${renderNextStepDetails('Por que aproveitar agora?',factors.slice(0,6),confidence)}${priorityWatchBlockV36((decision.priorities||[]).find(p=>p.activity.id!==decision.activity.id),nowMinute)}<div class="next-step-actions"><button class="primary-btn" data-next-step-live>Revisar e aplicar</button></div>`;
+    return;
+  }
+
+  if (decision.kind === 'direct' || decision.kind === 'priority-window') {
+    const meta=decision.meta, a=decision.activity;
+    const confidence=nextStepConfidence(meta,livePayload,weatherPayload);
+    const isPriorityWindow=decision.kind==='priority-window';
+    const label=isPriorityWindow && meta.band!=='FAÇA AGORA' ? 'SIGA PARA A PRIORIDADE' : 'FAÇA AGORA';
+    const reason=isPriorityWindow && decision.priority?.window?.label
+      ? `${decision.priority.window.label}. É hora de se posicionar para não perder essa janela.`
+      : nextStepQuickReason(meta,weatherPayload);
+    const factors=nextStepFactors(meta,weatherPayload);
+    if(isPriorityWindow) factors.unshift({icon:'★',text:'Esta é uma das prioridades estratégicas protegidas do seu dia.'});
+    const nextPriority=decision.nextPriority || (decision.priorities||[]).find(p=>p.activity.id!==a.id) || null;
+    card.className='next-card next-step-card next-step-good';
+    card.innerHTML=`<div class="next-step-eyebrow">MELHOR AÇÃO AGORA</div><div class="next-step-title-row"><div class="next-step-main"><div class="next-step-title">${escapeHtml(a.title)}</div><div class="next-step-decision good"><span class="next-step-light"></span>${escapeHtml(label)}</div></div><span class="next-step-confidence ${confidence.level}">Confiança ${escapeHtml(confidence.label.toLowerCase())}</span></div><p class="next-step-reason">${escapeHtml(reason)}</p>${renderNextStepDetails(isPriorityWindow?'Por que seguir agora?':'Por que fazer agora?',factors.slice(0,6),confidence)}${priorityWatchBlockV36(nextPriority,nowMinute)}<div class="next-step-actions"><button class="primary-btn" data-start="${a.id}">Iniciar</button><button class="secondary-btn pass-action ${passMetaFor(a).passType!=='none'?'active':''}" data-pass="${a.id}">${escapeHtml(passButtonLabel(a))}</button></div>`;
+    return;
+  }
+
+  if (decision.kind === 'bridge') {
+    const a=decision.activity, meta=decision.meta, priority=decision.priority;
+    const confidence=nextStepConfidence(meta,livePayload,weatherPayload);
+    const reason=bridgeReasonV36(decision,priority);
+    const factors=bridgeFactorsV36(decision,priority,day,nowMinute,weatherPayload);
+    card.className='next-card next-step-card next-step-good';
+    card.innerHTML=`<div class="next-step-eyebrow">MELHOR AÇÃO AGORA</div><div class="next-step-title-row"><div class="next-step-main"><div class="next-step-title">${escapeHtml(a.title)}</div><div class="next-step-decision good"><span class="next-step-light"></span>APROVEITE AGORA</div></div><span class="next-step-confidence ${confidence.level}">Confiança ${escapeHtml(confidence.label.toLowerCase())}</span></div><p class="next-step-reason">${escapeHtml(reason)}</p>${renderNextStepDetails('Por que esta é a melhor ação agora?',factors,confidence)}${priorityWatchBlockV36(priority,nowMinute)}<div class="next-step-actions"><button class="primary-btn" data-start="${a.id}">Iniciar</button><button class="secondary-btn pass-action ${passMetaFor(a).passType!=='none'?'active':''}" data-pass="${a.id}">${escapeHtml(passButtonLabel(a))}</button></div>`;
+    return;
+  }
+
+  if (decision.kind === 'pause' || decision.kind === 'passive-break') {
+    const pause=decision.pause;
+    const confidence=pause.confidence || {score:64,label:'Média',level:'medium',detail:'A pausa é uma recomendação tática para preservar uma janela melhor do roteiro.'};
+    card.className='next-card next-step-card next-step-neutral';
+    card.innerHTML=`<div class="next-step-eyebrow">RITMO DO DIA</div><div class="next-step-title-row"><div class="next-step-main"><div class="next-step-title">Pausa curta · ${pause.duration} min</div><div class="next-step-decision neutral"><span class="next-step-light"></span>PAUSA SUGERIDA</div></div><span class="next-step-confidence ${confidence.level}">Confiança ${escapeHtml(confidence.label.toLowerCase())}</span></div><p class="next-step-reason">${escapeHtml(pause.reason)}</p>${renderNextStepDetails('Por que o motor sugeriu uma pausa?',pause.factors||[],confidence)}${priorityWatchBlockV36(decision.priority,nowMinute)}<p class="muted next-step-choice-note">Se quiser continuar, o Orlando Flow recalcula agora a melhor ação executável e deixa de sugerir pausa temporariamente.</p><div class="next-step-actions"><button class="primary-btn" data-smart-break="${pause.duration}">Fazer pausa</button><button class="secondary-btn" data-decline-smart-break="${pause.duration}">Quero continuar</button></div>`;
+    return;
+  }
+
+  if (decision.kind === 'tactical-fallback') {
+    const a=decision.activity, meta=decision.meta;
+    const confidence=nextStepConfidence(meta,livePayload,weatherPayload);
+    card.className='next-card next-step-card next-step-neutral';
+    card.innerHTML=`<div class="next-step-eyebrow">MELHOR AÇÃO EXECUTÁVEL</div><div class="next-step-title-row"><div class="next-step-main"><div class="next-step-title">${escapeHtml(a.title)}</div><div class="next-step-decision neutral"><span class="next-step-light"></span>MELHOR OPÇÃO AGORA</div></div><span class="next-step-confidence ${confidence.level}">Confiança ${escapeHtml(confidence.label.toLowerCase())}</span></div><p class="next-step-reason">Nenhuma atração está em uma janela ideal, mas esta é a opção que melhor preserva o restante do seu dia.</p>${renderNextStepDetails('Por que esta opção?',nextStepFactors(meta,weatherPayload).slice(0,6),confidence)}${priorityWatchBlockV36(decision.priority,nowMinute)}<div class="next-step-actions"><button class="primary-btn" data-start="${a.id}">Iniciar</button><button class="secondary-btn" data-next-step-live>Ver alternativas</button></div>`;
+    return;
+  }
+
+  const a=decision.activity;
+  if(!a){ card.className='next-card next-step-card empty'; card.textContent='Nenhuma atividade pendente neste dia.'; return; }
+  const confidence={score:34,label:'Baixa',level:'low',detail:'Fila ou contexto ao vivo ainda não foram carregados.'};
+  card.className='next-card next-step-card next-step-neutral';
+  card.innerHTML=`<div class="next-step-eyebrow">MELHOR AÇÃO DISPONÍVEL</div><div class="next-step-title-row"><div><div class="next-step-title">${escapeHtml(a.title)}</div><div class="next-step-decision neutral"><span class="next-step-light"></span>SIGA O ROTEIRO</div></div><span class="next-step-confidence low">Confiança baixa</span></div><p class="next-step-reason">Ainda não há dados suficientes para trocar a ordem com segurança.</p>${renderNextStepDetails('Por que seguir o roteiro?',[{icon:'⌁',text:'O motor ainda está aguardando fila ou contexto ao vivo.'},{icon:'↻',text:'Assim que os dados chegarem, a ação pode mudar automaticamente.'}],confidence)}${priorityWatchBlockV36(decision.priority,nowMinute)}<div class="next-step-actions"><button class="secondary-btn" data-next-step-live>Atualizar no Ao vivo</button></div>`;
+}
+
+const v35RenderNextV36 = renderNext;
+renderNext = function() {
+  ensureCopilotState();
+  const day=getSelectedDay();
+  const card=$('#nextCard');
+  if(!card||!day){ v35RenderNextV36(); return; }
+  try {
+    const live=state.liveCache?.[day.park];
+    const weather=state.weatherCache?.[day.park];
+    const decision=decisionOrchestratorV36(day,live,weather);
+    renderNextV36Decision(decision,day,live,weather);
+  } catch(error) {
+    console.warn('Decision Orchestrator v2 fallback:',error);
+    v35RenderNextV36();
+  }
+};
+
+function displayBandV36(meta) {
+  if(meta?.band==='FAÇA AGORA') return {label:'FAÇA AGORA',className:'good'};
+  if(meta?.band==='ESPERE') return {label:'MELHOR DEPOIS',className:'warn'};
+  return {label:'EVITE AGORA',className:'bad'};
+}
+
+function renderLiveDecisionCardV36(row, options={}) {
+  const {entry,meta}=row;
+  const f=meta.forecast||{};
+  const display=options.display || displayBandV36(meta);
+  const trendIcon=f.trend?.direction==='up'?'↗':f.trend?.direction==='down'?'↘':'→';
+  const walk=meta.walk?.known?`${meta.walk.minutes} min`:`~${meta.walk?.minutes??10} min*`;
+  const waitText=meta.wait==null?'--':`${meta.wait} min`;
+  const costNow=meta.experienceCost?`~${meta.experienceCost.totalMinutes} min`:(meta.wait==null?'--':`${meta.effectiveWait+meta.walk.minutes} min`);
+  const costBreakdown=meta.experienceCost?`${meta.experienceCost.walkMinutes} caminhada + ${meta.experienceCost.queueMinutes} fila + ${meta.experienceCost.rideMinutes} experiência + ${meta.experienceCost.exitMinutes} saída${meta.experienceCost.continuationMinutes?` + ${meta.experienceCost.continuationMinutes} próximo deslocamento`:''}`:'fila + caminhada';
+  const historyBase=f.historySource==='global'?`histórico global · ${escapeHtml(f.historyConfidence||'insuficiente')}`:Number(f.historicalCount||0)>=2?'histórico local':'heurística';
+  const best=f.best?`<div class="copilot-detail-item copilot-detail-wide"><span>Melhor janela</span><b>${escapeHtml(f.best.time)} · ~${f.best.wait} min</b><small>economia estimada de ${Math.max(0,Math.round(f.best.saving||0))} min</small></div>`:'';
+  const dq=meta.dataQuality;
+  const weak=dq?.weakFactors?.slice(0,2).map(x=>x.label).join(' · ');
+  const quality=dq?`<div class="copilot-detail-item copilot-detail-wide" data-quality-detail><span>Qualidade dos dados</span><b>${escapeHtml(dq.label)}</b><small>${weak?`mais estimado: ${escapeHtml(weak)}`:'principais fontes consistentes'}</small></div>`:'';
+  const compactReason=options.reason || meta.reasons.filter(Boolean).slice(0,3).join(' · ') || 'melhor equilíbrio para o restante do roteiro';
+  return `<details class="rec-card copilot-rec-expandable ${display.className}">
+    <summary class="copilot-rec-summary"><span class="decision-light ${display.className}" aria-hidden="true"></span><span class="copilot-rec-main"><span class="kicker">${escapeHtml(display.label)}</span><strong>${escapeHtml(entry.name)} · ${waitText}</strong><span class="rec-reason">${escapeHtml(compactReason)}</span></span><span class="copilot-expand-cue" aria-hidden="true"><span>Detalhes</span><svg viewBox="0 0 20 20"><path d="m5 7 5 5 5-5"/></svg></span></summary>
+    <div class="copilot-rec-details"><div class="copilot-detail-score"><span>Score interno</span><b>${meta.score}<small>/100</small></b><em>O score fica no detalhe; a ação do momento é a orientação principal.</em></div><div class="copilot-detail-grid"><div class="copilot-detail-item"><span>Fila agora</span><b>${waitText}</b></div><div class="copilot-detail-item"><span>Tendência</span><b>${trendIcon} ${escapeHtml(f.trend?.label||'--')}</b></div><div class="copilot-detail-item"><span>+30 min</span><b>${f.p30??'--'} min</b></div><div class="copilot-detail-item"><span>+60 min</span><b>${f.p60??'--'} min</b></div><div class="copilot-detail-item"><span>Caminhada</span><b>${walk}</b></div><div class="copilot-detail-item"><span>Custo total</span><b>${costNow}</b><small>${escapeHtml(costBreakdown)}</small></div><div class="copilot-detail-item copilot-detail-wide"><span>Base da previsão</span><b>${historyBase}</b></div>${best}${quality}</div><div class="copilot-detail-reasons"><span class="copilot-detail-label">Por que esta recomendação?</span><div class="score-reasons">${meta.reasons.slice(0,5).map(r=>`<span>${escapeHtml(r)}</span>`).join('')}</div></div></div>
+  </details>`;
+}
+
+function renderLivePriorityItemV36(priority, nowMinute) {
+  const meta=priority.meta;
+  const confidence=nextStepConfidence(meta,state.liveCache?.[getSelectedDay()?.park],state.weatherCache?.[getSelectedDay()?.park]);
+  const icon=priority.code==='must'?'★':priority.code==='want'?'♥':'◎';
+  const status=priorityWatchTextV36(priority,nowMinute);
+  const tone=meta.band==='FAÇA AGORA'?'good':meta.band==='EVITE AGORA'?'bad':'warn';
+  const reason=meta.band==='FAÇA AGORA'?nextStepQuickReason(meta,state.weatherCache?.[getSelectedDay()?.park]):priority.window?.label||'O motor está protegendo uma janela melhor para esta atração.';
+  return `<details class="live-priority-item ${tone}"><summary><span class="live-priority-icon" aria-hidden="true">${icon}</span><span class="live-priority-main"><strong>${escapeHtml(priority.activity.title)}</strong><small>${escapeHtml(status)}</small></span><span class="live-priority-wait">${meta.wait??'--'} min</span><span class="live-priority-chevron" aria-hidden="true">⌄</span></summary><div class="live-priority-detail"><p>${escapeHtml(reason)}</p><span>Confiança ${escapeHtml(confidence.label.toLowerCase())}</span>${priority.window?.type==='queue'&&priority.window.expectedWait!=null?`<span>Fila esperada na janela: ~${Math.round(priority.window.expectedWait)} min</span>`:''}</div></details>`;
+}
+
+function renderLiveHierarchyV36(day,payload,weather) {
+  const root=$('#recommendations');
+  if(!root||!day||day.park!==state.selectedPark||!payload?.liveData?.length) return;
+  const limit=$('#waitFilter')?.value==='all'?Infinity:Number($('#waitFilter')?.value||Infinity);
+  const query=normalizeName($('#liveAttractionSearch')?.value||'');
+  const now=getOrlandoParts();
+  const nowMinute=now.hour*60+now.minute;
+  const doneNames=new Set((state.history||[]).filter(r=>r.status==='done'&&isAttractionRecord(r)).map(r=>normalizeName(activityForRecord(r)?.title||r.title||'')));
+  let rows=(payload.liveData||[]).map(entry=>({entry,meta:copilotScoreForEntry(entry,day,weather,nowMinute,lastContextActivityV36(day))}))
+    .filter(x=>x.meta&&x.meta.wait!=null&&!x.meta.blocked)
+    .filter(x=>x.meta.wait<=limit)
+    .filter(x=>!query||normalizeName(x.entry.name).includes(query))
+    .filter(x=>!doneNames.has(normalizeName(x.entry.name))||repeatWantedFor(x.meta.activity));
+
+  if(query){
+    rows.sort((a,b)=>b.meta.score-a.meta.score||a.meta.totalMinutes-b.meta.totalMinutes);
+    root.innerHTML=`<div class="live-decision-group"><div class="live-decision-group-head"><span class="kicker">RESULTADOS</span><h3>Atrações encontradas</h3></div>${rows.slice(0,10).map(r=>renderLiveDecisionCardV36(r)).join('')||'<p class="muted">Nenhuma atração encontrada.</p>'}</div>`;
+    return;
+  }
+
+  const decision=decisionOrchestratorV36(day,payload,weather);
+  const priorities=strategicPrioritiesV36(day,payload,weather,nowMinute);
+  const protectedPriority=priorities[0]||null;
+  const rowById=new Map(rows.map(r=>[r.meta.activity.id,r]));
+  const bestNow=[];
+  const used=new Set();
+
+  if(['direct','bridge','priority-window','opportunity','tactical-fallback'].includes(decision.kind)&&decision.activity?.id){
+    const row=rowById.get(decision.activity.id) || (decision.entry&&decision.meta?{entry:decision.entry,meta:decision.meta}:null);
+    if(row){
+      const display=decision.kind==='bridge'?{label:'APROVEITE AGORA',className:'good'}:decision.kind==='priority-window'?{label:'SIGA AGORA',className:'good'}:decision.kind==='opportunity'?{label:'OPORTUNIDADE',className:'good'}:displayBandV36(row.meta);
+      const reason=decision.kind==='bridge'?bridgeReasonV36(decision,decision.priority):decision.kind==='priority-window'?`${decision.priority?.window?.label||'A janela protegida começou'}; é hora de se posicionar.`:decision.kind==='opportunity'?(decision.opportunity?.triggerReason||'Uma nova oportunidade melhorou a sequência.'):nextStepQuickReason(row.meta,weather);
+      bestNow.push({row,display,reason}); used.add(row.meta.activity.id);
+    }
+  }
+
+  const bridgePool=bridgeCandidatesV36(day,payload,weather,protectedPriority,nowMinute);
+  for(const bridge of bridgePool){
+    if(bestNow.length>=DECISION_ORCHESTRATOR_RULES.liveBestNowCount) break;
+    if(used.has(bridge.activity.id)) continue;
+    const row=rowById.get(bridge.activity.id)||bridge;
+    bestNow.push({row,display:{label:'ENCAIXA AGORA',className:'good'},reason:protectedPriority?`Cabe bem neste intervalo sem perder ${protectedPriority.activity.title}.`:'Boa opção tática para usar o tempo agora.'});
+    used.add(bridge.activity.id);
+  }
+
+  if(bestNow.length<DECISION_ORCHESTRATOR_RULES.liveBestNowCount){
+    const fallbackRows=rows.slice().sort((a,b)=>b.meta.score-a.meta.score);
+    for(const row of fallbackRows){
+      if(bestNow.length>=DECISION_ORCHESTRATOR_RULES.liveBestNowCount) break;
+      if(used.has(row.meta.activity.id)||!liveFallbackEligibleV384(row.meta)) continue;
+      bestNow.push({row,display:displayBandV36(row.meta),reason:nextStepQuickReason(row.meta,weather)}); used.add(row.meta.activity.id);
+    }
+  }
+
+  const priorityItems=priorities.filter(p=>!used.has(p.activity.id)).slice(0,DECISION_ORCHESTRATOR_RULES.livePriorityCount);
+  const otherRows=rows.filter(r=>!used.has(r.meta.activity.id)&&!priorityItems.some(p=>p.activity.id===r.meta.activity.id)).sort((a,b)=>b.meta.score-a.meta.score||a.meta.totalMinutes-b.meta.totalMinutes).slice(0,DECISION_ORCHESTRATOR_RULES.liveOtherCount);
+
+  let actionCallout='';
+  if(['pause','passive-break'].includes(decision.kind)) actionCallout=`<div class="live-action-callout"><span class="live-action-callout-icon">☕</span><div><span class="kicker">RITMO DO DIA</span><strong>Pausa sugerida · ${decision.pause.duration} min</strong><p>${escapeHtml(decision.pause.reason)}</p><div class="live-action-callout-actions"><button class="secondary-btn" type="button" data-smart-break="${decision.pause.duration}">Fazer pausa</button><button class="ghost-btn" type="button" data-decline-smart-break="${decision.pause.duration}">Quero continuar</button></div></div></div>`;
+  else if(decision.kind==='emergency') actionCallout=`<div class="live-action-callout emergency"><span class="live-action-callout-icon">!</span><div><span class="kicker">AÇÃO PRIORITÁRIA</span><strong>Revise o roteiro antes de seguir</strong><p>${escapeHtml(decision.emergency.label)}</p></div></div>`;
+  else if(decision.kind==='fixed') actionCallout=`<div class="live-action-callout"><span class="live-action-callout-icon">◷</span><div><span class="kicker">MELHOR AÇÃO AGORA</span><strong>${escapeHtml(decision.activity.title)}</strong><p>É hora de proteger este compromisso.</p></div></div>`;
+  else if(decision.kind==='strategic-hold') actionCallout=`<div class="live-action-callout"><span class="live-action-callout-icon">◎</span><div><span class="kicker">MELHOR ESTRATÉGIA AGORA</span><strong>Não force uma atração</strong><p>${escapeHtml(decision.reason||'Nenhuma atração precisa ser forçada agora.')}</p></div></div>`;
+
+  const bestHtml=bestNow.length?bestNow.map(x=>renderLiveDecisionCardV36(x.row,{display:x.display,reason:x.reason})).join(''):'<p class="muted">Nenhuma atração precisa ser forçada agora. O motor continua monitorando suas prioridades.</p>';
+  const priorityHtml=priorityItems.length?priorityItems.map(p=>renderLivePriorityItemV36(p,nowMinute)).join(''):'<p class="muted">Nenhuma prioridade adicional aguardando uma janela melhor.</p>';
+  const otherHtml=otherRows.length?`<details class="live-other-options"><summary><span>Outras opções</span><b>${otherRows.length}</b><span aria-hidden="true">⌄</span></summary><div class="live-other-options-body">${otherRows.map(r=>renderLiveDecisionCardV36(r)).join('')}</div></details>`:'';
+
+  root.innerHTML=`${actionCallout}<section class="live-decision-group live-best-now"><div class="live-decision-group-head"><span class="kicker">MELHOR AGORA</span><h3>O que vale fazer neste momento</h3><p>Ações táticas que usam bem o tempo sem comprometer o que é mais importante.</p></div>${bestHtml}</section><section class="live-decision-group live-priorities"><div class="live-decision-group-head"><span class="kicker">SUAS PRIORIDADES</span><h3>O que o Orlando Flow está protegendo</h3><p>As atrações mais importantes continuam sendo monitoradas mesmo quando a melhor hora é depois.</p></div>${priorityHtml}</section>${otherHtml}`;
+}
+
+const v35RenderLiveV36=renderLive;
+renderLive=function(){
+  v35RenderLiveV36();
+  const day=getSelectedDay();
+  const payload=state.liveCache?.[state.selectedPark];
+  const weather=state.weatherCache?.[state.selectedPark];
+  if(day?.park===state.selectedPark&&payload?.liveData?.length){
+    try{ renderLiveHierarchyV36(day,payload,weather); }catch(error){ console.warn('Live hierarchy v36 fallback:',error); }
+  }
+  const summary=$('#copilotSummary');
+  if(summary) summary.innerHTML=`<strong>Decisão do momento</strong><span><i class="decision-light good"></i> aproveite agora · <i class="decision-light warn"></i> melhor depois · <i class="decision-light bad"></i> evite agora</span><span>O motor separa a melhor ação tática das prioridades estratégicas que está protegendo para mais tarde.</span>`;
+};
+
+const v35GenerateReplanProposalV36=generateReplanProposal;
+generateReplanProposal=function(day,livePayload,weatherPayload,force=false){
+  const proposal=v35GenerateReplanProposalV36(day,livePayload,weatherPayload,force);
+  if(!proposal) return proposal;
+  const now=getOrlandoParts();
+  const priority=protectedPriorityV36(day,livePayload,weatherPayload,now.hour*60+now.minute);
+  if(priority?.window?.targetMinute!=null&&priority.window.targetMinute>now.hour*60+now.minute){
+    proposal.explanations=[{tone:'good',title:`Janela protegida · ${priority.activity.title}`,detail:`${priority.window.label}. O motor evita preencher o intervalo com atividades que comprometam a chegada a essa prioridade.`},...(proposal.explanations||[])].slice(0,14);
+  }
+  return proposal;
+};
+
+
+
+/* ============================================================
+   Orlando Flow v37 — Ciclos 5 e 6
+   Inteligência histórica v2 + logística por zonas do parque
+   ============================================================ */
+const HISTORICAL_V2_RULES = Object.freeze({
+  crowdMinAttractions: 4,
+  crowdRatioMin: .68,
+  crowdRatioMax: 1.48,
+  crowdStrongPct: 14,
+  crowdConfidenceHigh: 10,
+  crowdConfidenceMedium: 6,
+  intervalBase: 6,
+  intervalHorizonFactor: .055,
+  intervalLowConfidenceExtra: 8,
+  bestWindowStep: 15,
+  bestWindowMinLead: 20,
+  bestWindowMinNetGain: 7,
+  bestWindowMaxHours: 6,
+  returnWalkFactor: .52,
+  uncertaintyPenaltyFactor: .18
+});
+
+const ZONE_LOGISTICS_RULES = Object.freeze({
+  sameZoneMinutes: 4,
+  unknownCrossZoneMinutes: 10,
+  gpsZoneMaxMeters: 480,
+  routeFactor: 1.28,
+  graphFloorFactor: .78
+});
+
+// Grafo macro de zonas. Ele representa logística entre lands/áreas, não navegação curva-a-curva.
+// Os tempos são buffers conservadores para decisão e serão substituídos gradualmente por um grafo fino.
+const PARK_ZONE_GRAPHS_V37 = Object.freeze({
+  'magic-kingdom': {
+    zones:['main-street','hub','adventureland','frontierland','liberty-square','fantasyland','tomorrowland'],
+    labels:{'main-street':'Main Street, U.S.A.','hub':'Central Plaza','adventureland':'Adventureland','frontierland':'Frontierland','liberty-square':'Liberty Square','fantasyland':'Fantasyland','tomorrowland':'Tomorrowland'},
+    edges:[['main-street','hub',5],['hub','adventureland',5],['hub','liberty-square',5],['hub','fantasyland',6],['hub','tomorrowland',6],['adventureland','frontierland',5],['frontierland','liberty-square',4],['liberty-square','fantasyland',4],['fantasyland','tomorrowland',5]]
+  },
+  'epcot': {
+    zones:['entrance','world-celebration','world-discovery','world-nature','showcase-gateway','mexico','norway','china','germany','italy','american-adventure','japan','morocco','france','united-kingdom','canada'],
+    labels:{'entrance':'Entrada','world-celebration':'World Celebration','world-discovery':'World Discovery','world-nature':'World Nature','showcase-gateway':'World Showcase','mexico':'México','norway':'Noruega','china':'China','germany':'Alemanha','italy':'Itália','american-adventure':'The American Adventure','japan':'Japão','morocco':'Marrocos','france':'França','united-kingdom':'Reino Unido','canada':'Canadá'},
+    edges:[['entrance','world-celebration',4],['world-celebration','world-discovery',6],['world-celebration','world-nature',6],['world-celebration','showcase-gateway',7],['showcase-gateway','mexico',5],['mexico','norway',3],['norway','china',4],['china','germany',4],['germany','italy',3],['italy','american-adventure',4],['american-adventure','japan',4],['japan','morocco',3],['morocco','france',3],['france','united-kingdom',4],['united-kingdom','canada',3],['canada','showcase-gateway',4]]
+  },
+  'hollywood-studios': {
+    zones:['hollywood-boulevard','echo-lake','commissary-lane','grand-avenue','galaxys-edge','toy-story-land','animation-courtyard','sunset-boulevard'],
+    labels:{'hollywood-boulevard':'Hollywood Boulevard','echo-lake':'Echo Lake','commissary-lane':'Commissary Lane','grand-avenue':'Grand Avenue','galaxys-edge':"Star Wars: Galaxy's Edge",'toy-story-land':'Toy Story Land','animation-courtyard':'Animation Courtyard','sunset-boulevard':'Sunset Boulevard'},
+    edges:[['hollywood-boulevard','echo-lake',4],['hollywood-boulevard','sunset-boulevard',4],['hollywood-boulevard','animation-courtyard',5],['echo-lake','commissary-lane',4],['commissary-lane','grand-avenue',4],['grand-avenue','galaxys-edge',4],['galaxys-edge','toy-story-land',5],['toy-story-land','animation-courtyard',5],['animation-courtyard','sunset-boulevard',5]]
+  },
+  'animal-kingdom': {
+    zones:['oasis','discovery-island','pandora','africa','asia','dino-area','rafikis-planet-watch'],
+    labels:{'oasis':'The Oasis','discovery-island':'Discovery Island','pandora':'Pandora — The World of Avatar','africa':'Africa','asia':'Asia','dino-area':'Área sul / antiga DinoLand','rafikis-planet-watch':"Rafiki's Planet Watch"},
+    edges:[['oasis','discovery-island',5],['discovery-island','pandora',6],['discovery-island','africa',6],['discovery-island','asia',7],['discovery-island','dino-area',7],['africa','asia',8],['africa','rafikis-planet-watch',12],['asia','dino-area',5]]
+  },
+  'universal-studios-florida': {
+    zones:['entrance','minion-land','new-york','san-francisco','diagon-alley','world-expo','springfield','dreamworks-land','hollywood'],
+    labels:{'entrance':'Entrada','minion-land':"Illumination's Minion Land",'new-york':'New York','san-francisco':'San Francisco','diagon-alley':'Diagon Alley','world-expo':'World Expo','springfield':'Springfield, U.S.A.','dreamworks-land':'DreamWorks Land','hollywood':'Hollywood'},
+    edges:[['entrance','minion-land',3],['minion-land','new-york',5],['new-york','san-francisco',5],['san-francisco','diagon-alley',4],['diagon-alley','world-expo',5],['world-expo','springfield',4],['springfield','dreamworks-land',5],['dreamworks-land','hollywood',5],['hollywood','entrance',4],['new-york','hollywood',6]]
+  },
+  'islands-of-adventure': {
+    zones:['port-of-entry','marvel','toon-lagoon','skull-island','jurassic-park','hogsmeade','lost-continent','seuss-landing'],
+    labels:{'port-of-entry':'Port of Entry','marvel':'Marvel Super Hero Island','toon-lagoon':'Toon Lagoon','skull-island':'Skull Island','jurassic-park':'Jurassic Park','hogsmeade':'Hogsmeade','lost-continent':'The Lost Continent','seuss-landing':'Seuss Landing'},
+    edges:[['port-of-entry','marvel',5],['marvel','toon-lagoon',5],['toon-lagoon','skull-island',4],['skull-island','jurassic-park',4],['jurassic-park','hogsmeade',5],['hogsmeade','lost-continent',4],['lost-continent','seuss-landing',4],['seuss-landing','port-of-entry',5]]
+  },
+  'epic-universe': {
+    zones:['celestial-park','super-nintendo-world','dark-universe','isle-of-berk','ministry-of-magic'],
+    labels:{'celestial-park':'Celestial Park','super-nintendo-world':'SUPER NINTENDO WORLD','dark-universe':'Dark Universe','isle-of-berk':'How to Train Your Dragon — Isle of Berk','ministry-of-magic':'The Wizarding World of Harry Potter — Ministry of Magic'},
+    edges:[['celestial-park','super-nintendo-world',7],['celestial-park','dark-universe',7],['celestial-park','isle-of-berk',7],['celestial-park','ministry-of-magic',7],['super-nintendo-world','dark-universe',13],['dark-universe','isle-of-berk',13],['isle-of-berk','ministry-of-magic',13],['ministry-of-magic','super-nintendo-world',13]]
+  }
+});
+
+const ATTRACTION_ZONE_PATTERNS_V37 = Object.freeze({
+  'magic-kingdom': [
+    ['adventureland',/(pirates|jungle cruise|enchanted tiki|magic carpets)/],
+    ['frontierland',/(big thunder|tiana|country bear)/],
+    ['liberty-square',/(haunted mansion|hall of presidents|liberty square)/],
+    ['fantasyland',/(seven dwarfs|peter pan|small world|winnie|pooh|under the sea|little mermaid|dumbo|barnstormer|philharmagic|carousel)/],
+    ['tomorrowland',/(tron|space mountain|buzz lightyear|peoplemover|carousel of progress|monsters.*laugh)/],
+    ['main-street',/(main street|town square)/]
+  ],
+  'epcot': [
+    ['world-discovery',/(guardians|cosmic rewind|test track|mission.? space|space 220)/],
+    ['world-nature',/(soarin|living with the land|nemo|the seas|journey into imagination|figment)/],
+    ['world-celebration',/(spaceship earth|communicore|dreamers point)/],
+    ['mexico',/(gran fiesta|mexico)/],['norway',/(frozen ever after|norway)/],['china',/(reflections of china|china)/],['germany',/(germany)/],['italy',/(italy|via napoli)/],['american-adventure',/(american adventure)/],['japan',/(japan)/],['morocco',/(morocco)/],['france',/(ratatouille|remy|impressions de france|beauty and the beast sing)/],['united-kingdom',/(united kingdom|uk pavilion)/],['canada',/(canada far and wide|canada)/]
+  ],
+  'hollywood-studios': [
+    ['galaxys-edge',/(rise of the resistance|millennium falcon|smugglers run|galaxy.?s edge)/],
+    ['toy-story-land',/(slinky dog|toy story mania|alien swirling)/],
+    ['sunset-boulevard',/(tower of terror|rock .n. roller|beauty and the beast live)/],
+    ['echo-lake',/(star tours|indiana jones|frozen sing)/],
+    ['hollywood-boulevard',/(runaway railway|mickey.*minnie)/]
+  ],
+  'animal-kingdom': [
+    ['pandora',/(flight of passage|na.?vi river|pandora)/],
+    ['africa',/(kilimanjaro|festival of the lion king|gorilla falls|harambe)/],
+    ['asia',/(expedition everest|kali river|maharajah)/],
+    ['dino-area',/(dinosaur|finding nemo|triceratop|dinoland)/],
+    ['discovery-island',/(tree of life|zootopia|discovery island)/]
+  ],
+  'universal-studios-florida': [
+    ['minion-land',/(minion mayhem|villain-con|minion blast|minion cafe)/],
+    ['new-york',/(revenge of the mummy|jimmy fallon|race through new york)/],
+    ['san-francisco',/(fast.*furious|supercharged|san francisco)/],
+    ['diagon-alley',/(escape from gringotts|diagon alley|ollivanders.*diagon)/],
+    ['world-expo',/(men in black|alien attack)/],
+    ['springfield',/(simpsons ride|kang.*kodos|springfield)/],
+    ['dreamworks-land',/(trolls trollercoaster|dreamworks|po live|shrek)/],
+    ['hollywood',/(bourne|horror make-up|hollywood)/]
+  ],
+  'islands-of-adventure': [
+    ['marvel',/(spider-man|incredible hulk|doctor doom|storm force)/],
+    ['toon-lagoon',/(popeye|dudley do-right|toon lagoon)/],
+    ['skull-island',/(reign of kong|skull island)/],
+    ['jurassic-park',/(velocicoaster|jurassic park|pteranodon)/],
+    ['hogsmeade',/(hagrid|forbidden journey|flight of the hippogriff|hogsmeade)/],
+    ['seuss-landing',/(cat in the hat|seuss|one fish|caro-seuss)/],
+    ['lost-continent',/(lost continent)/]
+  ],
+  'epic-universe': [
+    ['celestial-park',/(stardust racers|constellation carousel|astronomica|celestial park)/],
+    ['super-nintendo-world',/(mario kart|bowser|yoshi|mine-cart madness|mine cart madness|donkey kong)/],
+    ['dark-universe',/(monsters unchained|frankenstein|curse of the werewolf|dark universe)/],
+    ['isle-of-berk',/(hiccup|wing gliders|dragon racer|fyre drill|isle of berk)/],
+    ['ministry-of-magic',/(battle at the ministry|ministry of magic|cirque arcanus)/]
+  ]
+});
+
+const AREA_ZONE_ALIASES_V37 = Object.freeze({
+  'magic-kingdom': {'main street usa':'main-street','main street':'main-street','central plaza':'hub','adventureland':'adventureland','frontierland':'frontierland','liberty square':'liberty-square','fantasyland':'fantasyland','tomorrowland':'tomorrowland'},
+  'epcot': {'world celebration':'world-celebration','world discovery':'world-discovery','world nature':'world-nature','world showcase':'showcase-gateway','world showcase mexico':'mexico','mexico':'mexico','world showcase norway':'norway','norway':'norway','world showcase china':'china','china':'china','world showcase germany':'germany','germany':'germany','world showcase italy':'italy','italy':'italy','world showcase american adventure':'american-adventure','american adventure':'american-adventure','world showcase japan':'japan','japan':'japan','world showcase morocco':'morocco','morocco':'morocco','world showcase france':'france','france':'france','world showcase united kingdom':'united-kingdom','united kingdom':'united-kingdom','world showcase canada':'canada','canada':'canada'},
+  'hollywood-studios': {'hollywood boulevard':'hollywood-boulevard','echo lake':'echo-lake','commissary lane':'commissary-lane','grand avenue':'grand-avenue','star wars galaxys edge':'galaxys-edge','galaxys edge':'galaxys-edge','toy story land':'toy-story-land','animation courtyard':'animation-courtyard','sunset boulevard':'sunset-boulevard'},
+  'animal-kingdom': {'the oasis':'oasis','oasis':'oasis','discovery island':'discovery-island','pandora the world of avatar':'pandora','pandora':'pandora','africa':'africa','asia':'asia','dinoland usa':'dino-area','dinoland':'dino-area','rafikis planet watch':'rafikis-planet-watch'},
+  'universal-studios-florida': {'illuminations minion land':'minion-land','minion land':'minion-land','new york':'new-york','san francisco':'san-francisco','diagon alley':'diagon-alley','world expo':'world-expo','springfield usa':'springfield','springfield':'springfield','dreamworks land':'dreamworks-land','hollywood':'hollywood'},
+  'islands-of-adventure': {'port of entry':'port-of-entry','marvel super hero island':'marvel','marvel':'marvel','toon lagoon':'toon-lagoon','skull island':'skull-island','jurassic park':'jurassic-park','hogsmeade':'hogsmeade','the lost continent':'lost-continent','lost continent':'lost-continent','seuss landing':'seuss-landing'},
+  'epic-universe': {'celestial park':'celestial-park','super nintendo world':'super-nintendo-world','dark universe':'dark-universe','how to train your dragon isle of berk':'isle-of-berk','isle of berk':'isle-of-berk','the wizarding world of harry potter ministry of magic':'ministry-of-magic','ministry of magic':'ministry-of-magic'}
+});
+
+function medianV37(values){
+  const a=(values||[]).map(Number).filter(Number.isFinite).sort((x,y)=>x-y);
+  if(!a.length) return null;
+  const m=Math.floor(a.length/2);
+  return a.length%2?a[m]:(a[m-1]+a[m])/2;
+}
+
+function quantileV37(values,q){
+  const a=(values||[]).map(Number).filter(Number.isFinite).sort((x,y)=>x-y);
+  if(!a.length) return null;
+  const pos=(a.length-1)*clamp(q,0,1), lo=Math.floor(pos), hi=Math.ceil(pos);
+  if(lo===hi) return a[lo];
+  return a[lo]+(a[hi]-a[lo])*(pos-lo);
+}
+
+function normalizeZoneTextV37(value){ return normalizeName(value||'').replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim(); }
+
+function zoneForActivityV37(activity,parkKey=state.selectedPark,liveEntry=null){
+  if(!activity&&!liveEntry) return null;
+  const graph=PARK_ZONE_GRAPHS_V37[parkKey];
+  if(!graph) return null;
+  const explicit=String(activity?.zone||'').trim();
+  if(explicit&&graph.zones.includes(explicit)) return explicit;
+  const area=normalizeZoneTextV37(activity?.area||'');
+  const aliases=AREA_ZONE_ALIASES_V37[parkKey]||{};
+  if(area&&aliases[area]) return aliases[area];
+  if(area){
+    const exact=graph.zones.find(z=>normalizeZoneTextV37(graph.labels?.[z]||z)===area);
+    if(exact) return exact;
+  }
+  const name=normalizeZoneTextV37(liveEntry?.name||activity?.entityName||activity?.title||activity?.name||'');
+  for(const [zone,pattern] of ATTRACTION_ZONE_PATTERNS_V37[parkKey]||[]) if(pattern.test(name)) return zone;
+  return null;
+}
+
+function zoneLabelV37(parkKey,zone){ return PARK_ZONE_GRAPHS_V37[parkKey]?.labels?.[zone]||zone||'área desconhecida'; }
+
+function zoneShortestPathV37(parkKey,fromZone,toZone){
+  if(!fromZone||!toZone) return null;
+  if(fromZone===toZone) return {minutes:ZONE_LOGISTICS_RULES.sameZoneMinutes,path:[fromZone],sameZone:true};
+  const graph=PARK_ZONE_GRAPHS_V37[parkKey];
+  if(!graph) return null;
+  const adj=new Map(graph.zones.map(z=>[z,[]]));
+  for(const [a,b,m] of graph.edges||[]){ if(adj.has(a)&&adj.has(b)){ adj.get(a).push([b,Number(m)]); adj.get(b).push([a,Number(m)]); } }
+  const dist=new Map(graph.zones.map(z=>[z,Infinity]));
+  const prev=new Map(); dist.set(fromZone,0);
+  const pending=new Set(graph.zones);
+  while(pending.size){
+    let u=null,best=Infinity;
+    for(const z of pending){ const d=dist.get(z); if(d<best){best=d;u=z;} }
+    if(u==null||!Number.isFinite(best)) break;
+    pending.delete(u); if(u===toZone) break;
+    for(const [v,w] of adj.get(u)||[]){ const alt=best+w; if(alt<dist.get(v)){dist.set(v,alt);prev.set(v,u);} }
+  }
+  const minutes=dist.get(toZone);
+  if(!Number.isFinite(minutes)) return null;
+  const path=[]; let cur=toZone; path.unshift(cur);
+  while(prev.has(cur)){cur=prev.get(cur);path.unshift(cur); if(path.length>30) break;}
+  return {minutes:Math.max(1,Math.round(minutes)),path,sameZone:false};
+}
+
+function lastCompletedActivityV37(day=getSelectedDay()){
+  const rows=getDayHistory(day?.date).filter(r=>r.status==='done'&&r.actualEnd).sort((a,b)=>new Date(b.actualEnd)-new Date(a.actualEnd));
+  for(const r of rows){ const a=activityForRecord(r); if(a) return a; }
+  return null;
+}
+
+function zoneFromGpsV37(parkKey=state.selectedPark){
+  if(!gpsLastPoint) return null;
+  let best=null;
+  const store=state.attractionGeo?.[parkKey]||{};
+  for(const [name,geo] of Object.entries(store)){
+    if(!Number.isFinite(Number(geo?.lat))||!Number.isFinite(Number(geo?.lon))) continue;
+    const zone=zoneForActivityV37({title:name},parkKey,{name});
+    if(!zone) continue;
+    const meters=haversineMeters(gpsLastPoint,{lat:Number(geo.lat),lon:Number(geo.lon)});
+    if(meters<=ZONE_LOGISTICS_RULES.gpsZoneMaxMeters&&(!best||meters<best.meters)) best={zone,meters,source:'gps-nearest-attraction'};
+  }
+  return best;
+}
+
+function locationContextV37(day=getSelectedDay(),previousActivity=null){
+  const parkKey=day?.park||state.selectedPark;
+  if(previousActivity){
+    const zone=zoneForActivityV37(previousActivity,parkKey);
+    if(zone) return {zone,activity:previousActivity,source:'previous-activity',confidence:82};
+  }
+  const gpsZone=zoneFromGpsV37(parkKey);
+  if(gpsZone) return {...gpsZone,confidence:90};
+  const last=lastCompletedActivityV37(day);
+  if(last){ const zone=zoneForActivityV37(last,parkKey); if(zone) return {zone,activity:last,source:'last-activity',confidence:76}; }
+  return {zone:null,activity:null,source:'unknown',confidence:30};
+}
+
+const v36WalkingMetaV37=walkingMeta;
+walkingMeta=function(activity,liveEntry=null,day=getSelectedDay(),previousActivity=null){
+  const parkKey=day?.park||state.selectedPark;
+  const targetZone=zoneForActivityV37(activity,parkKey,liveEntry);
+  const context=locationContextV37(day,previousActivity);
+  const zoneRoute=targetZone&&context.zone?zoneShortestPathV37(parkKey,context.zone,targetZone):null;
+  const base=v36WalkingMetaV37(activity,liveEntry,day,previousActivity);
+  if(base?.source==='gps'&&base.known){
+    let minutes=Math.max(1,Math.round(Number(base.minutes||1)*ZONE_LOGISTICS_RULES.routeFactor/1.22));
+    if(zoneRoute&&!zoneRoute.sameZone) minutes=Math.max(minutes,Math.round(zoneRoute.minutes*ZONE_LOGISTICS_RULES.graphFloorFactor));
+    return {...base,minutes,source:zoneRoute?'gps-zone':'gps',zone:targetZone,originZone:context.zone,zonePath:zoneRoute?.path||null,logisticsKnown:Boolean(zoneRoute)||Boolean(base.known)};
+  }
+  if(zoneRoute){
+    return {minutes:zoneRoute.minutes,meters:null,source:context.source==='last-activity'?'last-activity-zone':'zone-graph',known:true,zone:targetZone,originZone:context.zone,zonePath:zoneRoute.path,logisticsKnown:true};
+  }
+  if(base) return {...base,zone:targetZone,originZone:context.zone,logisticsKnown:Boolean(base.known)};
+  return {minutes:ZONE_LOGISTICS_RULES.unknownCrossZoneMinutes,meters:null,source:'fallback',known:false,zone:targetZone,originZone:context.zone,logisticsKnown:false};
+};
+
+const v36RouteWalkBetweenActivitiesV37=routeWalkBetweenActivities;
+routeWalkBetweenActivities=function(fromActivity,toActivity,day=getSelectedDay()){
+  if(!fromActivity||!toActivity) return {minutes:0,meters:null,known:false,source:'none'};
+  const parkKey=day?.park||state.selectedPark;
+  const fromZone=zoneForActivityV37(fromActivity,parkKey,liveEntryForActivity(fromActivity,state.liveCache?.[parkKey]?.liveData||[]));
+  const toZone=zoneForActivityV37(toActivity,parkKey,liveEntryForActivity(toActivity,state.liveCache?.[parkKey]?.liveData||[]));
+  const zr=fromZone&&toZone?zoneShortestPathV37(parkKey,fromZone,toZone):null;
+  const base=v36RouteWalkBetweenActivitiesV37(fromActivity,toActivity,day);
+  if(zr){
+    const minutes=base?.known?Math.max(Number(base.minutes||0),Math.round(zr.minutes*ZONE_LOGISTICS_RULES.graphFloorFactor)):zr.minutes;
+    return {...base,minutes:Math.max(1,Math.round(minutes)),known:true,source:base?.known?'route-zone':'zone-graph',fromZone,toZone,zonePath:zr.path};
+  }
+  return base;
+};
+
+const v35DistanceQualityV37=distanceQualityV35;
+distanceQualityV35=function(result){
+  const source=result?.walk?.source;
+  if(source==='gps-zone') return 98;
+  if(source==='route-zone') return 90;
+  if(source==='zone-graph') return 80;
+  if(source==='last-activity-zone') return 76;
+  return v35DistanceQualityV37(result);
+};
+
+const crowdCacheV37=new Map();
+function crowdIndexV37(parkKey=state.selectedPark,livePayload=state.liveCache?.[parkKey],minute=null,date=null){
+  const now=getOrlandoParts();
+  const targetMinute=minute==null?now.hour*60+now.minute:Number(minute);
+  const targetDate=date||now.date;
+  const cacheKey=`${parkKey}|${Number(livePayload?.fetchedAt||0)}|${Math.round(targetMinute/10)}`;
+  if(crowdCacheV37.has(cacheKey)) return crowdCacheV37.get(cacheKey);
+  const ratios=[];
+  const deviations=[];
+  for(const entry of livePayload?.liveData||[]){
+    const wait=extractStandby(entry);
+    if(!Number.isFinite(Number(wait))||Number(wait)<0||String(entry.status||'OPERATING').toUpperCase()!=='OPERATING') continue;
+    const hist=historicalWaitAtMinute(parkKey,entry.name,targetMinute,targetDate);
+    const ref=Number(hist?.median??hist?.wait);
+    if(!Number.isFinite(ref)||ref<8||Number(hist?.count||0)<2) continue;
+    const ratio=clamp(Number(wait)/ref,HISTORICAL_V2_RULES.crowdRatioMin,HISTORICAL_V2_RULES.crowdRatioMax);
+    ratios.push(ratio); deviations.push(Number(wait)-ref);
+  }
+  const raw=medianV37(ratios);
+  const factor=raw==null?1:clamp(raw,HISTORICAL_V2_RULES.crowdRatioMin,HISTORICAL_V2_RULES.crowdRatioMax);
+  const percent=Math.round((factor-1)*100);
+  const sampleCount=ratios.length;
+  const spread=ratios.length?Math.round(((quantileV37(ratios,.75)-quantileV37(ratios,.25))*100)):99;
+  const confidence=sampleCount>=HISTORICAL_V2_RULES.crowdConfidenceHigh&&spread<=24?'alta':sampleCount>=HISTORICAL_V2_RULES.crowdConfidenceMedium?'média':'baixa';
+  const label=Math.abs(percent)<6?'próximo do padrão':percent>0?`${percent}% acima do padrão`:`${Math.abs(percent)}% abaixo do padrão`;
+  const result={factor,percent,label,confidence,sampleCount,spread,medianDeviation:medianV37(deviations)};
+  crowdCacheV37.set(cacheKey,result);
+  if(crowdCacheV37.size>30){ const first=crowdCacheV37.keys().next().value; crowdCacheV37.delete(first); }
+  return result;
+}
+
+function parkTrendV37(parkKey=state.selectedPark,livePayload=state.liveCache?.[parkKey]){
+  const values=[];
+  for(const entry of livePayload?.liveData||[]){
+    const wait=extractStandby(entry); if(!Number.isFinite(Number(wait))||Number(wait)<8) continue;
+    const t=queueTrendMeta(parkKey,entry.name);
+    if(Number.isFinite(Number(t?.slopePerHour))) values.push(Number(t.slopePerHour)/Math.max(20,Number(wait))*100);
+  }
+  const pctPerHour=clamp(medianV37(values)??0,-35,35);
+  return {pctPerHour,label:pctPerHour>=6?'parque acelerando':pctPerHour<=-6?'parque aliviando':'parque estável',sampleCount:values.length};
+}
+
+const predictionCacheV37=new Map();
+function predictedWaitMetaV37(name,currentWait,targetMinute,parkKey=state.selectedPark,activity=null,weatherPayload=null,day=getSelectedDay()){
+  if(!Number.isFinite(Number(currentWait))) return null;
+  const now=getOrlandoParts();
+  const nowMinute=now.hour*60+now.minute;
+  const horizon=Math.max(0,Number(targetMinute)-nowMinute);
+  const live=state.liveCache?.[parkKey];
+  const key=`${parkKey}|${normalizeName(name)}|${Math.round(Number(targetMinute)/5)}|${Math.round(Number(currentWait))}|${Number(live?.fetchedAt||0)}`;
+  if(predictionCacheV37.has(key)) return predictionCacheV37.get(key);
+  const histTarget=historicalWaitAtMinute(parkKey,name,targetMinute,day?.date||now.date);
+  const histNow=historicalWaitAtMinute(parkKey,name,nowMinute,day?.date||now.date);
+  const crowd=crowdIndexV37(parkKey,live,nowMinute,day?.date||now.date);
+  const parkTrend=parkTrendV37(parkKey,live);
+  const attractionTrend=queueTrendMeta(parkKey,name);
+  const histTargetMedian=Number(histTarget?.median??histTarget?.wait);
+  const histNowMedian=Number(histNow?.median??histNow?.wait);
+  const crowdPersistence=.62+.38*Math.exp(-horizon/150);
+  const crowdFactor=1+(crowd.factor-1)*crowdPersistence;
+  let expected;
+  let source='contextual';
+  if(Number.isFinite(histTargetMedian)) expected=histTargetMedian*crowdFactor;
+  else {
+    source='heuristic';
+    const demandRatio=demandFactorAt(targetMinute,parkKey,day?.date||now.date)/Math.max(.45,demandFactorAt(nowMinute,parkKey,day?.date||now.date));
+    expected=Number(currentWait)*demandRatio;
+  }
+  const currentContextRef=Number.isFinite(histNowMedian)?histNowMedian*crowd.factor:Number(currentWait);
+  const residual=Number(currentWait)-currentContextRef;
+  expected += residual*Math.exp(-horizon/70)*.65;
+  const trendMinutes=Math.min(horizon,90);
+  expected += Number(attractionTrend?.slopePerHour||0)*(trendMinutes/60)*(horizon<=60?.42:.24);
+  expected += expected*(Number(parkTrend.pctPerHour||0)/100)*(Math.min(horizon,90)/60)*.16;
+  const impact=weatherImpactForActivity(activity||{title:name});
+  const futureRisk=weatherRiskForHour(weatherAtMinute(weatherPayload,targetMinute,day?.date||now.date));
+  if(impact==='low'&&futureRisk.score>0) expected*=1.04;
+  expected=Math.round(clamp(expected,5,180));
+
+  const histP25=Number(histTarget?.p25), histP75=Number(histTarget?.p75);
+  const histSpread=Number.isFinite(histP25)&&Number.isFinite(histP75)?Math.max(4,(histP75-histP25)*crowdFactor):12;
+  const sampleCount=Number(histTarget?.count||0);
+  const confText=String(histTarget?.confidence||'').toLowerCase();
+  const historyScore=confText==='alta'?92:confText==='média'?76:confText==='baixa'?54:34;
+  const crowdScore=crowd.confidence==='alta'?92:crowd.confidence==='média'?74:48;
+  const trendScore=String(attractionTrend?.confidence||'').toLowerCase()==='alta'?90:String(attractionTrend?.confidence||'').toLowerCase()==='média'?74:52;
+  const confidenceScore=Math.round(clamp(historyScore*.48+crowdScore*.30+trendScore*.12+Math.min(10,sampleCount),25,98));
+  const uncertainty=HISTORICAL_V2_RULES.intervalBase+histSpread*.42+horizon*HISTORICAL_V2_RULES.intervalHorizonFactor+(confidenceScore<55?HISTORICAL_V2_RULES.intervalLowConfidenceExtra:0)+Math.abs(residual)*.10;
+  const low=Math.max(5,Math.round(expected-uncertainty*.55));
+  const high=Math.min(180,Math.round(expected+uncertainty*.55));
+  const confidence=confidenceScore>=78?'alta':confidenceScore>=56?'média':'baixa';
+  const result={expected,low,high,confidence,confidenceScore,source,horizon,crowd,parkTrend,attractionTrend,histTarget,histNow,currentContextRef:Math.round(currentContextRef)};
+  predictionCacheV37.set(key,result);
+  if(predictionCacheV37.size>240){ const first=predictionCacheV37.keys().next().value; predictionCacheV37.delete(first); }
+  return result;
+}
+
+const v36PredictedWaitForV37=predictedWaitFor;
+predictedWaitFor=function(name,currentWait,targetMinute,parkKey=state.selectedPark,activity=null){
+  const meta=predictedWaitMetaV37(name,currentWait,targetMinute,parkKey,activity,state.weatherCache?.[parkKey],getSelectedDay());
+  return meta?.expected??v36PredictedWaitForV37(name,currentWait,targetMinute,parkKey,activity);
+};
+
+function futureReturnPenaltyV37(activity,day,nowMinute){
+  const context=lastContextActivityV36(day)||lastCompletedActivityV37(day);
+  const walk=walkingMeta(activity,liveEntryForActivity(activity,state.liveCache?.[day?.park]?.liveData||[]),day,context);
+  const base=Math.max(0,Number(walk?.minutes||0));
+  return {minutes:Math.round(base*HISTORICAL_V2_RULES.returnWalkFactor),walk};
+}
+
+const v36BestQueueWindowV37=bestQueueWindow;
+bestQueueWindow=function(name,currentWait,parkKey=state.selectedPark,activity=null,weatherPayload=null){
+  if(!Number.isFinite(Number(currentWait))) return null;
+  const day=getSelectedDay();
+  const now=getOrlandoParts();
+  const nowMinute=now.hour*60+now.minute;
+  const hours=parkHoursForDate(parkKey,day?.date||now.date);
+  const maxEnd=Math.min(hours.close-15,nowMinute+HISTORICAL_V2_RULES.bestWindowMaxHours*60);
+  const candidates=[];
+  const returnPenalty=futureReturnPenaltyV37(activity||{title:name},day,nowMinute);
+  for(let minute=Math.ceil((nowMinute+HISTORICAL_V2_RULES.bestWindowMinLead)/HISTORICAL_V2_RULES.bestWindowStep)*HISTORICAL_V2_RULES.bestWindowStep;minute<=maxEnd;minute+=HISTORICAL_V2_RULES.bestWindowStep){
+    const pm=predictedWaitMetaV37(name,currentWait,minute,parkKey,activity,weatherPayload,day);
+    if(!pm) continue;
+    const risk=weatherRiskForHour(weatherAtMinute(weatherPayload,minute,day?.date||now.date));
+    const impact=weatherImpactForActivity(activity||{title:name});
+    const weatherPenalty=impact==='high'?(risk.level==='high'?60:risk.level==='medium'?24:0):0;
+    const uncertaintyPenalty=(pm.high-pm.low)*HISTORICAL_V2_RULES.uncertaintyPenaltyFactor;
+    const closeUrgency=Math.max(0,minute-(hours.close-75))*.10;
+    const adjusted=pm.expected+returnPenalty.minutes+uncertaintyPenalty+weatherPenalty+closeUrgency;
+    const netGain=Number(currentWait)-pm.expected-returnPenalty.minutes-uncertaintyPenalty*.55;
+    candidates.push({minute,pm,risk,adjusted,netGain});
+  }
+  if(!candidates.length) return v36BestQueueWindowV37(name,currentWait,parkKey,activity,weatherPayload);
+  candidates.sort((a,b)=>a.adjusted-b.adjusted||b.netGain-a.netGain);
+  const best=candidates[0];
+  if(best.netGain<Math.max(HISTORICAL_V2_RULES.bestWindowMinNetGain,Number(currentWait)*.10)) return null;
+  const neighborhood=candidates.filter(c=>Math.abs(c.minute-best.minute)<=45&&c.adjusted<=best.adjusted+4&&c.pm.expected<=best.pm.expected+6).sort((a,b)=>a.minute-b.minute);
+  const start=neighborhood[0]?.minute??best.minute;
+  const end=neighborhood.at(-1)?.minute??best.minute;
+  const timeRange=start===end?minutesToTime(start):`${minutesToTime(start)}–${minutesToTime(end)}`;
+  return {
+    minute:best.minute,time:timeRange,timeRange,windowStart:start,windowEnd:end,
+    wait:best.pm.expected,low:best.pm.low,high:best.pm.high,adjusted:Math.round(best.adjusted),
+    saving:Math.max(0,Math.round(Number(currentWait)-best.pm.expected)),waitValue:Math.round(best.netGain),
+    risk:best.risk,source:'historical-v2',confidence:best.pm.confidence,returnPenaltyMinutes:returnPenalty.minutes
+  };
+};
+
+const v35CopilotScoreForEntryV37=copilotScoreForEntry;
+copilotScoreForEntry=function(entry,day=getSelectedDay(),weatherPayload=state.weatherCache[state.selectedPark],startMinute=null,previousActivity=null){
+  const result=v35CopilotScoreForEntryV37(entry,day,weatherPayload,startMinute,previousActivity);
+  if(!result||result.wait==null||!result.activity||result.blocked) return result;
+  const parkKey=day?.park||state.selectedPark;
+  const now=getOrlandoParts();
+  const minute=startMinute==null?now.hour*60+now.minute:Number(startMinute);
+  const crowd=crowdIndexV37(parkKey,state.liveCache?.[parkKey],minute,day?.date||now.date);
+  const referenceHist=historicalWaitAtMinute(parkKey,entry?.name||result.activity.title,minute,day?.date||now.date);
+  const rawReference=Number(referenceHist?.median??referenceHist?.wait??result.forecast?.reference??result.wait);
+  const contextualReference=Math.round(clamp(rawReference*crowd.factor,5,180));
+  const p30m=predictedWaitMetaV37(entry?.name||result.activity.title,result.wait,minute+30,parkKey,result.activity,weatherPayload,day);
+  const p60m=predictedWaitMetaV37(entry?.name||result.activity.title,result.wait,minute+60,parkKey,result.activity,weatherPayload,day);
+  const best=bestQueueWindow(entry?.name||result.activity.title,result.wait,parkKey,result.activity,weatherPayload);
+  const oldWait=Number(result.components?.wait??50), oldForecast=Number(result.components?.forecast??50);
+  const absolute=clamp(100-Number(result.wait)*1.2);
+  const relative=clamp(50+(contextualReference-Number(result.wait))*1.5);
+  const waitScore=clamp(absolute*.50+relative*.50);
+  let forecastScore=clamp(50+((p60m?.expected??result.wait)-result.wait)*1.35+((p30m?.expected??result.wait)-result.wait)*.70);
+  if(best?.waitValue>0) forecastScore=clamp(forecastScore-best.waitValue*.95);
+  if(result.components){ result.components.wait=waitScore; result.components.forecast=forecastScore; }
+  const weights=result.dataQuality?.adaptiveWeights||copilotProfile().weights;
+  const delta=(waitScore-oldWait)*Number(weights.wait||0)/100+(forecastScore-oldForecast)*Number(weights.forecast||0)/100;
+  result.score=Math.round(clamp(Number(result.score||0)+delta,0,100));
+  result.band=result.score>=72?'FAÇA AGORA':result.score>=45?'ESPERE':'EVITE AGORA';
+  result.bandClass=result.score>=72?'good':result.score>=45?'warn':'bad';
+  result.forecast={...(result.forecast||{}),p30:p30m?.expected??result.forecast?.p30,p60:p60m?.expected??result.forecast?.p60,p30Range:p30m?{low:p30m.low,high:p30m.high,confidence:p30m.confidence}:null,p60Range:p60m?{low:p60m.low,high:p60m.high,confidence:p60m.confidence}:null,best,reference:contextualReference,rawHistoricalReference:rawReference,crowdIndex:crowd,v2:true,v2Confidence:p30m?.confidence||p60m?.confidence||'baixa'};
+  result.locationContext={zone:result.walk?.zone||zoneForActivityV37(result.activity,parkKey,entry),originZone:result.walk?.originZone||locationContextV37(day,previousActivity).zone,source:result.walk?.source||'unknown'};
+  const crowdReason=Math.abs(crowd.percent)>=HISTORICAL_V2_RULES.crowdStrongPct?`parque ${crowd.label}`:null;
+  if(crowdReason) result.reasons=[crowdReason,...(result.reasons||[])];
+  if(best?.timeRange) result.reasons=[...(result.reasons||[]),`janela provável ${best.timeRange}`];
+  result.reasons=[...new Set(result.reasons||[])].slice(0,8);
+  return result;
+};
+
+const v36StrategicWindowV37=strategicWindowV36;
+strategicWindowV36=function(row,day,nowMinute){
+  const original=v36StrategicWindowV37(row,day,nowMinute);
+  const best=row?.meta?.forecast?.best;
+  if(original?.type==='queue'&&best?.timeRange){
+    const target=Number(best.minute);
+    const walk=Math.max(1,Number(row.meta?.walk?.minutes||10));
+    return {...original,targetMinute:target,expectedWait:Number(best.wait),expectedLow:Number(best.low),expectedHigh:Number(best.high),label:`Melhor janela ${best.timeRange}`,leaveAt:Math.max(nowMinute,Math.round(target-walk-DECISION_ORCHESTRATOR_RULES.protectedBufferMinutes)),confidence:best.confidence,waitValue:best.waitValue};
+  }
+  return original;
+};
+
+const v35NextStepQuickReasonV37=nextStepQuickReason;
+nextStepQuickReason=function(meta,weatherPayload){
+  if(meta?.forecast?.v2){
+    const crowd=meta.forecast.crowdIndex;
+    const reference=Number(meta.forecast.reference);
+    const wait=Number(meta.wait);
+    const p30=Number(meta.forecast.p30);
+    const best=meta.forecast.best;
+    if(Number.isFinite(reference)&&reference>0&&wait<=reference*.78&&Number.isFinite(p30)&&p30>=wait+6) return 'A fila está excepcionalmente boa para o movimento de hoje e tende a aumentar.';
+    if(best?.waitValue>=8&&best?.timeRange) return `Vale esperar: a melhor janela provável é ${best.timeRange}.`;
+    if(meta.walk?.minutes>=14&&meta.walk?.source&&String(meta.walk.source).includes('zone')) return 'Apesar da fila, o deslocamento agora é alto e há decisões logisticamente melhores.';
+    if(crowd&&Math.abs(crowd.percent)>=14&&meta.band==='FAÇA AGORA') return `Esta fila está boa mesmo com o parque ${crowd.label}.`;
+  }
+  return v35NextStepQuickReasonV37(meta,weatherPayload);
+};
+
+const v35NextStepFactorsV37=nextStepFactors;
+nextStepFactors=function(meta,weatherPayload){
+  let factors=v35NextStepFactorsV37(meta,weatherPayload)||[];
+  const extra=[];
+  const f=meta?.forecast||{};
+  const crowd=f.crowdIndex;
+  if(crowd&&crowd.sampleCount>=HISTORICAL_V2_RULES.crowdMinAttractions) extra.push({icon:'◉',text:`Movimento do parque ${crowd.label} (${crowd.confidence} confiança).`});
+  if(f.p30Range) extra.push({icon:'↗',text:`Em 30 min, a faixa provável é ${f.p30Range.low}–${f.p30Range.high} min.`});
+  if(f.best?.timeRange) extra.push({icon:'◷',text:`Melhor janela provável ${f.best.timeRange}, com ${f.best.low}–${f.best.high} min de fila.`});
+  if(f.best?.waitValue>=7) extra.push({icon:'±',text:`Esperar tem ganho líquido estimado de ~${f.best.waitValue} min após considerar o retorno.`});
+  const zone=meta?.walk?.zone;
+  if(zone) extra.push({icon:'⌖',text:`Logística calculada por ${zoneLabelV37(meta.activity?.park||getSelectedDay()?.park||state.selectedPark,zone)}${meta.walk?.originZone?` a partir de ${zoneLabelV37(getSelectedDay()?.park||state.selectedPark,meta.walk.originZone)}`:''}.`});
+  const dedup=[];
+  for(const item of [...extra,...factors]) if(item?.text&&!dedup.some(x=>x.text===item.text)) dedup.push(item);
+  return dedup.slice(0,7);
+};
+
+const v36RenderLiveDecisionCardV37=renderLiveDecisionCardV36;
+renderLiveDecisionCardV36=function(row,options={}){
+  let html=v36RenderLiveDecisionCardV37(row,options);
+  const meta=row?.meta, f=meta?.forecast||{}, crowd=f.crowdIndex;
+  const details=[];
+  if(f.p30Range||f.p60Range){
+    const p30=f.p30Range?`${f.p30Range.low}–${f.p30Range.high} min`:'--';
+    const p60=f.p60Range?`${f.p60Range.low}–${f.p60Range.high} min`:'--';
+    details.push(`<div class="copilot-detail-item copilot-detail-wide v37-detail"><span>Previsão v2</span><b>+30 ${p30} · +60 ${p60}</b><small>faixas prováveis, não um minuto exato</small></div>`);
+  }
+  if(crowd) details.push(`<div class="copilot-detail-item v37-detail"><span>Contexto do parque</span><b>${escapeHtml(crowd.label)}</b><small>${crowd.sampleCount} atrações comparáveis · confiança ${escapeHtml(crowd.confidence)}</small></div>`);
+  if(meta?.walk?.zone) details.push(`<div class="copilot-detail-item v37-detail"><span>Logística</span><b>${escapeHtml(zoneLabelV37(getSelectedDay()?.park||state.selectedPark,meta.walk.zone))}</b><small>${escapeHtml(meta.walk.source||'zona')} · ~${Math.round(meta.walk.minutes||0)} min</small></div>`);
+  if(details.length) html=html.replace('<div class="copilot-detail-reasons">',`${details.join('')}<div class="copilot-detail-reasons">`);
+  return html;
+};
+
+const v36RenderLivePriorityItemV37=renderLivePriorityItemV36;
+renderLivePriorityItemV36=function(priority,nowMinute){
+  let html=v36RenderLivePriorityItemV37(priority,nowMinute);
+  const best=priority?.meta?.forecast?.best;
+  if(best?.timeRange&&priority?.window?.type==='queue') html=html.replace(/Fila esperada na janela: ~\d+ min/,`Fila provável na janela: ${best.low}–${best.high} min`);
+  return html;
+};
+
+const v36RenderLiveV37=renderLive;
+renderLive=function(){
+  v36RenderLiveV37();
+  const summary=$('#copilotSummary');
+  const crowd=crowdIndexV37(state.selectedPark,state.liveCache?.[state.selectedPark]);
+  if(summary&&crowd.sampleCount>=HISTORICAL_V2_RULES.crowdMinAttractions){
+    const base=summary.innerHTML;
+    summary.innerHTML=`${base}<span class="v37-crowd-summary">◉ Hoje: ${escapeHtml(crowd.label)} · histórico contextual ${escapeHtml(crowd.confidence)}</span>`;
+  }
+};
+
+// Busca um horizonte maior conforme o D1 amadurece. O Worker v3 limita a 90 dias.
+const v22FetchGlobalParkInsightsV37=fetchGlobalParkInsights;
+fetchGlobalParkInsights=async function(parkKey=state.selectedPark,force=false){
+  if(!PARKS[parkKey]?.entityId||!navigator.onLine) return globalHistoryEntry(parkKey)?.data||null;
+  const cached=globalHistoryEntry(parkKey);
+  if(!force&&cached?.data&&Date.now()-Number(cached.fetchedAt||0)<8*60_000) return cached.data;
+  const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),12000);
+  try{
+    const url=`${GLOBAL_HISTORY_API}/api/v3/park-insights?parkKey=${encodeURIComponent(parkKey)}&days=90`;
+    const res=await fetch(url,{headers:{Accept:'application/json'},signal:controller.signal});
+    if(!res.ok) throw new Error(`Global history HTTP ${res.status}`);
+    const data=await res.json(); if(!data?.attractions||data.parkKey!==parkKey) throw new Error('Invalid global history payload');
+    globalHistoryCache[parkKey]={fetchedAt:Date.now(),data}; persistGlobalHistoryCache(); return data;
+  }catch(error){ console.warn('Global history v37 unavailable:',error); return cached?.data||v22FetchGlobalParkInsightsV37(parkKey,force); }
+  finally{ clearTimeout(timer); }
+};
+
+
+/* ============================================================
+   Orlando Flow v38 — Ciclo 6.5
+   Estabilização, autotestes e diagnóstico do motor
+   ============================================================ */
+const ENGINE_BUILD_V38='v38.6.4';
+const ENGINE_DIAGNOSTICS_VERSION_V38='6.5.6.4';
+const runtimeDiagnosticsV38=[];
+let diagnosticsEventsInstalledV38=false;
+
+function diagnosticAgeMinutesV38(value){
+  const stamp=typeof value==='number'?value:Date.parse(value||'');
+  return Number.isFinite(stamp)?Math.max(0,Math.round((Date.now()-stamp)/60000)):null;
+}
+function recordRuntimeDiagnosticV38(kind,error,extra={}){
+  const item={at:new Date().toISOString(),kind:String(kind||'runtime'),message:String(error?.message||error||'Erro desconhecido'),stack:String(error?.stack||'').slice(0,1600),...extra};
+  runtimeDiagnosticsV38.unshift(item); if(runtimeDiagnosticsV38.length>20) runtimeDiagnosticsV38.length=20;
+  return item;
+}
+window.addEventListener('error',e=>recordRuntimeDiagnosticV38('window-error',e.error||e.message,{file:e.filename||'',line:e.lineno||null,column:e.colno||null}));
+window.addEventListener('unhandledrejection',e=>recordRuntimeDiagnosticV38('unhandled-rejection',e.reason||'Promise rejeitada sem tratamento'));
+
+function diagnosticDecisionMetaV38(decision){
+  const meta=decision?.meta||null, priority=decision?.nextPriority||decision?.priority||null;
+  return {
+    kind:decision?.kind||'none', action:decision?.activity?.title||decision?.pause?.reason||decision?.emergency?.label||null,
+    score:Number.isFinite(Number(meta?.score))?Number(meta.score):null, band:meta?.band||null,
+    wait:Number.isFinite(Number(meta?.wait))?Number(meta.wait):null,
+    strategicPriority:priority?.activity?.title||null, protectedWindow:priority?.window?.label||null,
+    totalExperienceMinutes:Number.isFinite(Number(meta?.experienceCost?.totalMinutes))?Number(meta.experienceCost.totalMinutes):null,
+    walkMinutes:Number.isFinite(Number(meta?.walk?.minutes))?Number(meta.walk.minutes):null, walkSource:meta?.walk?.source||null,
+    originZone:meta?.walk?.originZone||null, targetZone:meta?.walk?.zone||null,
+    waitValue:Number.isFinite(Number(meta?.forecast?.best?.waitValue))?Number(meta.forecast.best.waitValue):null,
+    bestWindow:meta?.forecast?.best?.timeRange||meta?.forecast?.best?.time||null,
+    dataQuality:meta?.dataQuality?{overall:Number(meta.dataQuality.overall||0),label:meta.dataQuality.label||null,weakFactors:(meta.dataQuality.weakFactors||[]).slice(0,4).map(x=>x.label||x.key||String(x))}:null
+  };
+}
+
+function engineDiagnosticSnapshotV38(){
+  const day=getSelectedDay(), parkKey=day?.park||state.selectedPark;
+  const live=state.liveCache?.[parkKey]||null, weather=state.weatherCache?.[parkKey]||null;
+  let decision={kind:'none'}, priorities=[], crowd=null, fatigue=null, location=null;
+  try{ if(day) decision=decisionOrchestratorV36(day,live,weather); }catch(error){recordRuntimeDiagnosticV38('diagnostic-decision',error);}
+  try{ if(day&&live?.liveData?.length){const now=getOrlandoParts(); priorities=strategicPrioritiesV36(day,live,weather,now.hour*60+now.minute).slice(0,3);} }catch(error){recordRuntimeDiagnosticV38('diagnostic-priorities',error);}
+  try{crowd=crowdIndexV37(parkKey,live);}catch(error){recordRuntimeDiagnosticV38('diagnostic-crowd',error);}
+  try{if(day) fatigue=fatigueMetaForDay(day,weather);}catch(error){recordRuntimeDiagnosticV38('diagnostic-fatigue',error);}
+  try{if(day) location=locationContextV37(day);}catch(error){recordRuntimeDiagnosticV38('diagnostic-location',error);}
+  const global=globalHistoryEntry(parkKey);
+  return {
+    build:ENGINE_BUILD_V38,diagnosticsVersion:ENGINE_DIAGNOSTICS_VERSION_V38,generatedAt:new Date().toISOString(),tripName:state.tripName,
+    selectedDate:day?.date||null,selectedPark:parkKey,parkName:PARKS[parkKey]?.name||parkKey,optimizationMode:state.settings?.optimizationMode||'experience',online:Boolean(navigator.onLine),
+    dataFreshness:{liveMinutes:diagnosticAgeMinutesV38(live?.fetchedAt),weatherMinutes:diagnosticAgeMinutesV38(weather?.fetchedAt),globalHistoryMinutes:diagnosticAgeMinutesV38(global?.fetchedAt),liveAttractions:Array.isArray(live?.liveData)?live.liveData.length:0,globalHistoryAvailable:Boolean(global?.data)},
+    decision:diagnosticDecisionMetaV38(decision),
+    priorities:priorities.map(p=>({title:p.activity?.title||null,strategicValue:Number.isFinite(Number(p.strategicValue))?Math.round(Number(p.strategicValue)):null,tacticalScore:Number.isFinite(Number(p.meta?.score))?Number(p.meta.score):null,band:p.meta?.band||null,window:p.window?.label||null,leaveAt:Number.isFinite(Number(p.window?.leaveAt))?Number(p.window.leaveAt):null})),
+    context:{crowd:crowd?{percent:crowd.percent,label:crowd.label,confidence:crowd.confidence,sampleCount:crowd.sampleCount}:null,fatigue:fatigue?{fatigue:fatigue.fatigue,label:fatigue.label,quality:fatigue.quality,km:fatigue.km,sinceRestMinutes:Math.round(fatigue.sinceRestMinutes||0)}:null,location:location?{zone:location.zone,label:location.zone?zoneLabelV37(parkKey,location.zone):null,source:location.source,confidence:location.confidence}:null},
+    runtimeErrors:runtimeDiagnosticsV38.slice(0,8)
+  };
+}
+
+function assertSelfTestV38(condition,message){if(!condition)throw new Error(message||'Falha de validação');}
+function addSelfTestV38(results,name,fn){const t=performance.now();try{const detail=fn();results.push({name,ok:true,ms:Math.round((performance.now()-t)*10)/10,detail:detail??'ok'});}catch(error){results.push({name,ok:false,ms:Math.round((performance.now()-t)*10)/10,error:String(error?.message||error)});}}
+function runEngineSelfTestsV38(){
+  const results=[];
+  addSelfTestV38(results,'Perfis do copiloto somam 100%',()=>{for(const [key,p] of Object.entries(COPILOT_PROFILES)){const total=Object.values(p.weights||{}).reduce((a,b)=>a+Number(b||0),0);assertSelfTestV38(Math.abs(total-100)<.001,`${key}: ${total}`);}return '3 perfis';});
+  addSelfTestV38(results,'Grafos dos 7 parques são conectados',()=>{const parks=['magic-kingdom','epcot','hollywood-studios','animal-kingdom','universal-studios-florida','islands-of-adventure','epic-universe'];for(const park of parks){const g=PARK_ZONE_GRAPHS_V37[park];assertSelfTestV38(g?.zones?.length>=5,`${park}: grafo ausente`);const zones=new Set(g.zones);for(const [a,b,m] of g.edges||[]){assertSelfTestV38(zones.has(a)&&zones.has(b),`${park}: aresta inválida`);assertSelfTestV38(Number(m)>0,`${park}: tempo inválido`);}for(const zone of g.zones){const r=zoneShortestPathV37(park,g.zones[0],zone);assertSelfTestV38(r&&Number.isFinite(r.minutes),`${park}: ${zone} desconectada`);}}return '7/7 parques';});
+  addSelfTestV38(results,'Rotas representativas dos 7 parques',()=>{const cases=[['magic-kingdom','adventureland','tomorrowland'],['epcot','norway','france'],['hollywood-studios','galaxys-edge','sunset-boulevard'],['animal-kingdom','pandora','asia'],['universal-studios-florida','diagon-alley','dreamworks-land'],['islands-of-adventure','marvel','hogsmeade'],['epic-universe','super-nintendo-world','ministry-of-magic']];for(const [park,a,b] of cases){const r=zoneShortestPathV37(park,a,b);assertSelfTestV38(r?.minutes>ZONE_LOGISTICS_RULES.sameZoneMinutes,`${park}: ${a}→${b}`);assertSelfTestV38(r.path[0]===a&&r.path[r.path.length-1]===b,`${park}: caminho`);}return '7 rotas';});
+  addSelfTestV38(results,'Mediana e percentis históricos',()=>{assertSelfTestV38(medianV37([10,20,30,40])===25,'mediana');assertSelfTestV38(quantileV37([0,10,20,30,40],.25)===10,'P25');assertSelfTestV38(quantileV37([0,10,20,30,40],.75)===30,'P75');return 'mediana/P25/P75';});
+  addSelfTestV38(results,'Limites do farol 72/45',()=>{const band=n=>n>=72?'FAÇA AGORA':n>=45?'ESPERE':'EVITE AGORA';assertSelfTestV38(band(72)==='FAÇA AGORA'&&band(71)==='ESPERE','verde');assertSelfTestV38(band(45)==='ESPERE'&&band(44)==='EVITE AGORA','amarelo');return 'limites preservados';});
+  addSelfTestV38(results,'Atividade iniciada domina o orquestrador',()=>{const now=getOrlandoParts(),id=`v38-start-${Date.now()}`,day={date:now.date,park:'epcot',activities:[{id,time:`${String(now.hour).padStart(2,'0')}:${String(now.minute).padStart(2,'0')}`,title:'Teste iniciado',type:'attraction',duration:5,flexible:true}]},before=state.history;try{state.history=[...before,{activityId:id,date:now.date,title:'Teste iniciado',status:'started',actualStart:new Date().toISOString()}];const r=decisionOrchestratorV36(day,null,null);assertSelfTestV38(r.kind==='started'&&r.activity?.id===id,`retornou ${r.kind}`);}finally{state.history=before;}return 'started > demais';});
+  addSelfTestV38(results,'Dia futuro permanece planejado',()=>{const d=new Date(Date.now()+3*86400000).toISOString().slice(0,10),day={date:d,park:'epcot',activities:[{id:'v38-future',time:'09:00',title:'Teste futuro',type:'attraction',duration:5,flexible:true}]};const r=decisionOrchestratorV36(day,{liveData:[{name:'Teste futuro',status:'OPERATING'}]},null);assertSelfTestV38(r.kind==='future',`retornou ${r.kind}`);return 'sem decisão ao vivo futura';});
+  addSelfTestV38(results,'Snapshot diagnóstico é serializável',()=>{const text=JSON.stringify(engineDiagnosticSnapshotV38());assertSelfTestV38(text.length>80,'snapshot vazio');return `${Math.round(text.length/102.4)/10} KB`;});
+  const passed=results.filter(r=>r.ok).length;return{build:ENGINE_BUILD_V38,version:ENGINE_DIAGNOSTICS_VERSION_V38,at:new Date().toISOString(),passed,failed:results.length-passed,total:results.length,ok:passed===results.length,results};
+}
+
+function renderDiagnosticSnapshotHtmlV38(s){const d=s.decision||{},c=s.context||{},p=s.priorities?.[0];const rows=[['Ação atual',d.action||d.kind],['Tipo',d.kind],['Score / farol',d.score!=null?`${d.score} · ${d.band||'--'}`:(d.band||'--')],['Prioridade protegida',p?.title||d.strategicPriority||'--'],['Janela protegida',p?.window||d.protectedWindow||'--'],['Custo total',d.totalExperienceMinutes!=null?`~${d.totalExperienceMinutes} min`:'--'],['Wait Value',d.waitValue!=null?`${d.waitValue>0?'+':''}${d.waitValue} min`:'--'],['Logística',c.location?.label?`${c.location.label} · ${c.location.source}`:(d.walkSource||'--')],['Crowd Index',c.crowd?`${c.crowd.label} · ${c.crowd.sampleCount} amostras`:'--'],['Fadiga',c.fatigue?`${c.fatigue.label} · ${c.fatigue.fatigue}/100`:'--'],['Qualidade',d.dataQuality?`${d.dataQuality.label} · ${Math.round(d.dataQuality.overall)}/100`:'--'],['Dados ao vivo',s.dataFreshness.liveMinutes==null?'sem cache':`${s.dataFreshness.liveMinutes} min atrás`]];return `<div class="engine-diagnostic-grid">${rows.map(([l,v])=>`<div><span>${escapeHtml(l)}</span><b>${escapeHtml(String(v??'--'))}</b></div>`).join('')}</div>${d.dataQuality?.weakFactors?.length?`<p class="engine-diagnostic-note"><b>Fontes mais frágeis:</b> ${escapeHtml(d.dataQuality.weakFactors.join(' · '))}</p>`:''}${s.runtimeErrors?.length?`<div class="engine-diagnostic-errors"><strong>Erros recentes</strong>${s.runtimeErrors.slice(0,3).map(e=>`<code>${escapeHtml(e.kind)} · ${escapeHtml(e.message)}</code>`).join('')}</div>`:'<p class="engine-diagnostic-ok">✓ Nenhum erro de runtime capturado nesta sessão.</p>'}`;}
+function ensureDiagnosticCardV38(){const container=document.querySelector('.view[data-view="settings"] .top-section');if(!container)return null;let card=$('#engineDiagnosticCard');if(card)return card;card=document.createElement('div');card.className='settings-card engine-diagnostic-card';card.id='engineDiagnosticCard';card.innerHTML=`<details><summary><span><b>Diagnóstico do motor</b><small>Ciclo 6.5 · validação técnica</small></span><span aria-hidden="true">⌄</span></summary><div class="engine-diagnostic-body"><p class="muted">Explica a decisão atual e executa verificações sem alterar o roteiro.</p><div class="settings-inline-actions engine-diagnostic-actions"><button class="secondary-btn" type="button" id="refreshEngineDiagnosticBtn">Atualizar diagnóstico</button><button class="secondary-btn" type="button" id="runEngineSelfTestsBtn">Executar autoteste</button><button class="ghost-btn" type="button" id="exportEngineDiagnosticBtn">Exportar JSON</button></div><div id="engineDiagnosticSnapshot"></div><div id="engineSelfTestSummary"></div></div></details>`;const source=[...container.querySelectorAll('.settings-card')].find(el=>/Fontes de dados/i.test(el.textContent||''));if(source)container.insertBefore(card,source);else container.appendChild(card);return card;}
+function renderDiagnosticPanelV38(){if(!ensureDiagnosticCardV38())return;const root=$('#engineDiagnosticSnapshot');if(root)try{root.innerHTML=renderDiagnosticSnapshotHtmlV38(engineDiagnosticSnapshotV38());}catch(error){root.innerHTML=`<p class="engine-diagnostic-error">Falha no diagnóstico: ${escapeHtml(error.message||String(error))}</p>`;}}
+function renderSelfTestSummaryV38(r){const root=$('#engineSelfTestSummary');if(!root)return;root.innerHTML=`<div class="engine-selftest-summary ${r.ok?'pass':'fail'}"><strong>${r.ok?'✓ Autoteste aprovado':'! Autoteste encontrou falhas'}</strong><span>${r.passed}/${r.total} verificações aprovadas</span></div><div class="engine-selftest-list">${r.results.map(x=>`<div class="${x.ok?'pass':'fail'}"><span>${x.ok?'✓':'!'}</span><div><b>${escapeHtml(x.name)}</b><small>${escapeHtml(x.ok?String(x.detail||'ok'):String(x.error||'falha'))} · ${x.ms} ms</small></div></div>`).join('')}</div>`;}
+function exportEngineDiagnosticV38(){const payload={snapshot:engineDiagnosticSnapshotV38(),selfTest:runEngineSelfTestsV38()};downloadBlob(`orlando-flow-diagnostico-${getOrlandoParts().date}.json`,new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));}
+function installDiagnosticEventsV38(){if(diagnosticsEventsInstalledV38)return;diagnosticsEventsInstalledV38=true;document.addEventListener('click',e=>{if(e.target.closest('#refreshEngineDiagnosticBtn')){renderDiagnosticPanelV38();toast('Diagnóstico atualizado.');}if(e.target.closest('#runEngineSelfTestsBtn')){const r=runEngineSelfTestsV38();renderSelfTestSummaryV38(r);toast(r.ok?'Autoteste aprovado.':`Autoteste: ${r.failed} falha(s).`);}if(e.target.closest('#exportEngineDiagnosticBtn'))exportEngineDiagnosticV38();});}
+const v37RenderSettingsV38=renderSettings;renderSettings=function(){v37RenderSettingsV38();renderDiagnosticPanelV38();};
+function exposeDiagnosticsApiV38(){window.__ORLANDO_FLOW_DIAGNOSTICS__={build:ENGINE_BUILD_V38,version:ENGINE_DIAGNOSTICS_VERSION_V38,snapshot:engineDiagnosticSnapshotV38,runSelfTests:runEngineSelfTestsV38,runtimeErrors:()=>structuredClone(runtimeDiagnosticsV38)};}
+function isHeadlessSelfTestV38(){return new URLSearchParams(location.search).get('selftest')==='1';}
+function runHeadlessSelfTestV38(){if(!isHeadlessSelfTestV38())return null;const report=runEngineSelfTestsV38();document.documentElement.dataset.selftestStatus=report.ok?'pass':'fail';const out=document.createElement('pre');out.id='engineSelfTestResult';out.hidden=true;out.textContent=JSON.stringify(report);document.body.appendChild(out);return report;}
+
+
+/* ============================================================
+   Orlando Flow v38.1 — Pause Choice
+   A pausa é uma sugestão opt-in; rejeitar recalcula o motor
+   sem pausa durante um cooldown contextual.
+   ============================================================ */
+const PAUSE_CHOICE_RULES_V381 = Object.freeze({
+  declineCooldownMinutes: 60,
+  logLimit: 120
+});
+
+const v38EnsureCopilotStateV381 = ensureCopilotState;
+ensureCopilotState = function() {
+  v38EnsureCopilotStateV381();
+  if (!state.pauseDeclines || typeof state.pauseDeclines !== 'object') state.pauseDeclines = {};
+  if (!Array.isArray(state.pauseChoiceLog)) state.pauseChoiceLog = [];
+};
+
+function pauseChoiceDayKeyV381(day = getSelectedDay()) {
+  return String(day?.date || getOrlandoParts().date || '');
+}
+
+function activePauseDeclineV381(day = getSelectedDay(), nowMs = Date.now()) {
+  ensureCopilotState();
+  const key = pauseChoiceDayKeyV381(day);
+  const item = state.pauseDeclines?.[key];
+  if (!item) return null;
+  const until = Number(item.declinedUntil || 0);
+  if (!Number.isFinite(until) || until <= Number(nowMs)) return null;
+  return item;
+}
+
+function pauseSuppressedV381(day = getSelectedDay(), nowMs = Date.now()) {
+  return Boolean(activePauseDeclineV381(day, nowMs));
+}
+
+function logPauseChoiceV381(action, day, pause = null, extra = {}) {
+  ensureCopilotState();
+  const weather = day ? state.weatherCache?.[day.park] : null;
+  let fatigue = null;
+  try { fatigue = day ? fatigueMetaForDay(day, weather) : null; } catch {}
+  const item = {
+    at: new Date().toISOString(),
+    dayDate: day?.date || null,
+    park: day?.park || state.selectedPark || null,
+    action,
+    suggestedMinutes: Number(pause?.duration || extra.duration || 0) || null,
+    fatigue: Number.isFinite(Number(fatigue?.fatigue)) ? Number(fatigue.fatigue) : null,
+    fatigueLabel: fatigue?.label || null,
+    optimizationMode: state.settings?.optimizationMode || 'experience',
+    ...extra
+  };
+  state.pauseChoiceLog.unshift(item);
+  if (state.pauseChoiceLog.length > PAUSE_CHOICE_RULES_V381.logLimit) state.pauseChoiceLog.length = PAUSE_CHOICE_RULES_V381.logLimit;
+  return item;
+}
+
+function declineSmartBreakV381(duration = 20) {
+  const day = getSelectedDay();
+  if (!day || day.date !== getOrlandoParts().date) return;
+  ensureCopilotState();
+  const nowMs = Date.now();
+  const key = pauseChoiceDayKeyV381(day);
+  let fatigue = null;
+  try { fatigue = fatigueMetaForDay(day, state.weatherCache?.[day.park]); } catch {}
+  state.pauseDeclines[key] = {
+    declinedAt: nowMs,
+    declinedUntil: nowMs + PAUSE_CHOICE_RULES_V381.declineCooldownMinutes * 60_000,
+    duration: Math.max(10, Number(duration || 20)),
+    fatigueAtDecline: Number.isFinite(Number(fatigue?.fatigue)) ? Number(fatigue.fatigue) : null
+  };
+  logPauseChoiceV381('continue', day, {duration:Number(duration||20)}, {
+    cooldownMinutes: PAUSE_CHOICE_RULES_V381.declineCooldownMinutes
+  });
+  saveState();
+  forceReplanAnalysis = true;
+  renderAll();
+  toast('Entendido. Vou priorizar as melhores opções para continuar.');
+}
+
+const v38StartSmartBreakV381 = startSmartBreakV35;
+startSmartBreakV35 = function(duration) {
+  const day = getSelectedDay();
+  ensureCopilotState();
+  if (day) {
+    delete state.pauseDeclines[pauseChoiceDayKeyV381(day)];
+    logPauseChoiceV381('pause', day, {duration:Number(duration||20)});
+    saveState();
+  }
+  return v38StartSmartBreakV381(duration);
+};
+
+const v38SmartBreakRecommendationV381 = smartBreakRecommendationV35;
+smartBreakRecommendationV35 = function(day, livePayload, weatherPayload) {
+  if (pauseSuppressedV381(day)) return null;
+  return v38SmartBreakRecommendationV381(day, livePayload, weatherPayload);
+};
+
+const v38PassiveWaitingBreakV381 = passiveWaitingBreakV36;
+passiveWaitingBreakV36 = function(day, protectedPriority, nowMinute) {
+  if (pauseSuppressedV381(day)) return null;
+  return v38PassiveWaitingBreakV381(day, protectedPriority, nowMinute);
+};
+
+const v38BindEventsV381 = bindEvents;
+bindEvents = function() {
+  v38BindEventsV381();
+  document.addEventListener('click', event => {
+    const button = event.target.closest('[data-decline-smart-break]');
+    if (!button) return;
+    event.preventDefault();
+    declineSmartBreakV381(Number(button.dataset.declineSmartBreak || 20));
+  });
+};
+
+function pauseChoiceDiagnosticV381(day = getSelectedDay()) {
+  ensureCopilotState();
+  const active = activePauseDeclineV381(day);
+  const last = state.pauseChoiceLog?.[0] || null;
+  return {
+    suppressed: Boolean(active),
+    declinedUntil: active ? new Date(Number(active.declinedUntil)).toISOString() : null,
+    minutesRemaining: active ? Math.max(1, Math.ceil((Number(active.declinedUntil)-Date.now())/60000)) : 0,
+    lastChoice: last ? {
+      action:last.action,
+      at:last.at,
+      fatigue:last.fatigue,
+      suggestedMinutes:last.suggestedMinutes
+    } : null
+  };
+}
+
+const v38EngineDiagnosticSnapshotV381 = engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38 = function() {
+  const snapshot = v38EngineDiagnosticSnapshotV381();
+  snapshot.pauseChoice = pauseChoiceDiagnosticV381(getSelectedDay());
+  return snapshot;
+};
+
+const v38RenderDiagnosticSnapshotHtmlV381 = renderDiagnosticSnapshotHtmlV38;
+renderDiagnosticSnapshotHtmlV38 = function(snapshot) {
+  const base = v38RenderDiagnosticSnapshotHtmlV381(snapshot);
+  const choice = snapshot?.pauseChoice;
+  if (!choice) return base;
+  const status = choice.suppressed
+    ? `Pausa recusada · nova sugestão em ~${choice.minutesRemaining} min`
+    : choice.lastChoice?.action === 'pause'
+      ? 'Última escolha: fazer pausa'
+      : choice.lastChoice?.action === 'continue'
+        ? 'Última escolha: continuar'
+        : 'Nenhuma escolha registrada';
+  return `${base}<p class="engine-diagnostic-note"><b>Escolha de pausa:</b> ${escapeHtml(status)}</p>`;
+};
+
+const v38RunEngineSelfTestsV381 = runEngineSelfTestsV38;
+runEngineSelfTestsV38 = function() {
+  const report = v38RunEngineSelfTestsV381();
+  const started = performance.now();
+  let test;
+  const savedDeclines = structuredClone(state.pauseDeclines || {});
+  try {
+    ensureCopilotState();
+    const day = {date:'2099-01-01', park:'epcot', activities:[]};
+    const key = pauseChoiceDayKeyV381(day);
+    const now = Date.now();
+    state.pauseDeclines[key] = {declinedAt:now, declinedUntil:now+60*60_000, duration:20};
+    assertSelfTestV38(pauseSuppressedV381(day, now), 'cooldown ativo não suprimiu a pausa');
+    assertSelfTestV38(!pauseSuppressedV381(day, now+61*60_000), 'cooldown expirado continuou ativo');
+    test = {name:'Recusa de pausa respeita cooldown',ok:true,ms:Math.round((performance.now()-started)*10)/10,detail:'60 min e expiração validados'};
+  } catch (error) {
+    test = {name:'Recusa de pausa respeita cooldown',ok:false,ms:Math.round((performance.now()-started)*10)/10,error:String(error?.message||error)};
+  } finally {
+    state.pauseDeclines = savedDeclines;
+  }
+  report.results.push(test);
+  report.total = report.results.length;
+  report.passed = report.results.filter(x=>x.ok).length;
+  report.failed = report.total-report.passed;
+  report.ok = report.failed===0;
+  report.build = ENGINE_BUILD_V38;
+  report.version = ENGINE_DIAGNOSTICS_VERSION_V38;
+  return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v38.2 — Anchor & Recovery Intelligence
+   - Refeições/reservas restauradoras próximas evitam pausas redundantes.
+   - Diagnóstico classifica âncoras operacionalmente.
+   - Prioridades estratégicas continuam visíveis durante âncoras.
+   ============================================================ */
+const RECOVERY_ANCHOR_RULES_V382 = Object.freeze({
+  nearStartMinutes: 45,
+  extendedStartMinutes: 60,
+  nearLeaveMinutes: 25,
+  veryHighFatigue: 82,
+  minRestorativeDuration: 20
+});
+
+const MEAL_WORDS_V382 = /(?:almo[cç]o|jantar|caf[eé](?: da manh[aã])?|brunch|refei[cç][aã]o|restaurante|restaurant|dining|breakfast|lunch|dinner|meal|lanche|snack)/i;
+
+function isMealReservationV382(activity) {
+  if (!activity) return false;
+  const type = String(activity.type || '').toLowerCase();
+  const text = [activity.title, activity.name, activity.category, activity.subtype, activity.notes].filter(Boolean).join(' ');
+  if (['meal','restaurant','food','coffee'].includes(type)) return true;
+  return type === 'reservation' && MEAL_WORDS_V382.test(text);
+}
+
+const v381IsRestorativeActivityV382 = isRestorativeActivityV35;
+isRestorativeActivityV35 = function(activity) {
+  return v381IsRestorativeActivityV382(activity) || isMealReservationV382(activity);
+};
+
+function isRestorativeAnchorV382(activity) {
+  if (!activity || !isFixedAnchor(activity)) return false;
+  if (!isRestorativeActivityV35(activity)) return false;
+  return Number(activity.duration || 0) >= RECOVERY_ANCHOR_RULES_V382.minRestorativeDuration || isMealReservationV382(activity);
+}
+
+function nextRestorativeAnchorV382(day = getSelectedDay(), nowMinute = null) {
+  if (!day) return null;
+  const now = getOrlandoParts();
+  const minute = nowMinute == null ? now.hour * 60 + now.minute : Number(nowMinute);
+  const candidates = pendingActivitiesV36(day)
+    .filter(isRestorativeAnchorV382)
+    .map(activity => {
+      const start = timeToMinutes(activity.time);
+      const buffer = anchorBufferMinutes(activity);
+      const leaveAt = start - buffer;
+      return {
+        activity, start, buffer, leaveAt,
+        minutesToStart: start - minute,
+        minutesToLeave: leaveAt - minute,
+        duration: Math.max(RECOVERY_ANCHOR_RULES_V382.minRestorativeDuration, Number(activity.duration || 30))
+      };
+    })
+    .filter(x => Number.isFinite(x.start) && x.minutesToStart >= -10)
+    .sort((a,b) => a.start - b.start);
+  return candidates[0] || null;
+}
+
+function recoveryAnchorSuppressesPauseV382(recovery, fatigueMeta) {
+  if (!recovery) return false;
+  const fatigue = Number(fatigueMeta?.fatigue || 0);
+  if (recovery.minutesToStart <= RECOVERY_ANCHOR_RULES_V382.nearStartMinutes) return true;
+  if (recovery.minutesToLeave <= RECOVERY_ANCHOR_RULES_V382.nearLeaveMinutes) return true;
+  if (recovery.minutesToStart <= RECOVERY_ANCHOR_RULES_V382.extendedStartMinutes && fatigue < RECOVERY_ANCHOR_RULES_V382.veryHighFatigue) return true;
+  return false;
+}
+
+const v381SmartBreakRecommendationV382 = smartBreakRecommendationV35;
+smartBreakRecommendationV35 = function(day, livePayload, weatherPayload) {
+  if (day && day.date === getOrlandoParts().date) {
+    const now = getOrlandoParts();
+    const nowMinute = now.hour * 60 + now.minute;
+    let fatigue = null;
+    try { fatigue = fatigueMetaForDay(day, weatherPayload); } catch {}
+    const recovery = nextRestorativeAnchorV382(day, nowMinute);
+    if (recoveryAnchorSuppressesPauseV382(recovery, fatigue)) return null;
+  }
+  return v381SmartBreakRecommendationV382(day, livePayload, weatherPayload);
+};
+
+function diagnosticAnchorClassificationV382(decision) {
+  const activity = decision?.activity || null;
+  if (!activity || !isFixedAnchor(activity)) return null;
+  const rawType = String(activity.type || 'anchor').toLowerCase();
+  const subtype = isMealReservationV382(activity) ? 'meal-reservation' : rawType;
+  const now = getOrlandoParts();
+  const nowMinute = now.hour * 60 + now.minute;
+  const start = timeToMinutes(activity.time);
+  const buffer = anchorBufferMinutes(activity);
+  const leaveAt = Number.isFinite(start) ? start - buffer : null;
+  const due = decision?.kind === 'fixed' || (Number.isFinite(leaveAt) && nowMinute >= leaveAt - 5);
+  return {
+    kind:'anchor',
+    rawKind:decision?.kind || 'none',
+    subtype,
+    status:due ? 'due' : 'upcoming',
+    time:activity.time || null,
+    buffer,
+    leaveAt:Number.isFinite(leaveAt) ? leaveAt : null,
+    minutesToStart:Number.isFinite(start) ? Math.max(0, start - nowMinute) : null,
+    restorative:isRestorativeAnchorV382(activity)
+  };
+}
+
+const v381DiagnosticDecisionMetaV382 = diagnosticDecisionMetaV38;
+diagnosticDecisionMetaV38 = function(decision) {
+  const meta = v381DiagnosticDecisionMetaV382(decision);
+  const anchor = diagnosticAnchorClassificationV382(decision);
+  if (!anchor) return meta;
+  return {
+    ...meta,
+    kind:'anchor',
+    rawKind:anchor.rawKind,
+    subtype:anchor.subtype,
+    operationalStatus:anchor.status,
+    anchorTime:anchor.time,
+    arrivalBufferMinutes:anchor.buffer,
+    anchorLeaveAt:anchor.leaveAt,
+    minutesToAnchor:anchor.minutesToStart,
+    restorativeAnchor:anchor.restorative
+  };
+};
+
+function diagnosticPriorityBacklogV382(day, livePayload, weatherPayload, nowMinute = null) {
+  if (!day) return [];
+  const now = getOrlandoParts();
+  const minute = nowMinute == null ? now.hour * 60 + now.minute : Number(nowMinute);
+  const previous = lastContextActivityV36(day);
+  const current = livePayload?.liveData?.length ? strategicPrioritiesV36(day, livePayload, weatherPayload, minute) : [];
+  const byId = new Map(current.map(p => [p.activity?.id, {...p, diagnosticSource:'actionable'}]));
+
+  for (const activity of pendingActivitiesV36(day)) {
+    if (activity.type !== 'attraction' || byId.has(activity.id)) continue;
+    const entry = livePayload?.liveData?.length ? findLiveMatch(activity, livePayload.liveData || []) : null;
+    let meta = null;
+    if (entry) {
+      try { meta = copilotScoreForEntry(entry, day, weatherPayload, minute, previous); } catch {}
+    }
+    const code = meta?.priority?.code || priorityCodeFromActivity(activity);
+    const pass = passMetaFor(activity);
+    const basePriority = Number(meta?.priority?.score ?? personalPriorityMeta(activity, meta?.wait ?? activity.plannedWait ?? 0).score);
+    let strategicScore = meta ? strategicPriorityValueV36(activity, meta, day, minute, weatherPayload) : basePriority;
+    if (pass.passType !== 'none') strategicScore = Math.max(strategicScore, 78);
+    const tracked = ['must','want'].includes(code) || pass.passType !== 'none' || strategicScore >= DECISION_ORCHESTRATOR_RULES.strategicTrackMin;
+    if (!tracked) continue;
+    const window = meta ? strategicWindowV36({activity,entry,meta}, day, minute) : {type:'monitor',targetMinute:null,leaveAt:null,label:'Monitorando próxima janela',expectedWait:null};
+    byId.set(activity.id, {activity,entry,meta,code,strategicScore,window,tracked:true,diagnosticSource:'backlog',blockedNow:Boolean(meta?.blocked)});
+  }
+
+  return [...byId.values()]
+    .sort((a,b) => Number(b.strategicScore||0)-Number(a.strategicScore||0) || Number(b.meta?.score||0)-Number(a.meta?.score||0))
+    .slice(0,3);
+}
+
+const v381EngineDiagnosticSnapshotV382 = engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38 = function() {
+  const snapshot = v381EngineDiagnosticSnapshotV382();
+  const day = getSelectedDay();
+  const parkKey = day?.park || state.selectedPark;
+  const live = state.liveCache?.[parkKey] || null;
+  const weather = state.weatherCache?.[parkKey] || null;
+  const now = getOrlandoParts();
+  const nowMinute = now.hour * 60 + now.minute;
+
+  if (day) {
+    try {
+      const priorities = diagnosticPriorityBacklogV382(day, live, weather, nowMinute);
+      snapshot.priorities = priorities.map(p => ({
+        title:p.activity?.title || null,
+        strategicValue:Number.isFinite(Number(p.strategicScore)) ? Math.round(Number(p.strategicScore)) : null,
+        tacticalScore:Number.isFinite(Number(p.meta?.score)) ? Number(p.meta.score) : null,
+        band:p.meta?.band || null,
+        window:p.window?.label || null,
+        leaveAt:Number.isFinite(Number(p.window?.leaveAt)) ? Number(p.window.leaveAt) : null,
+        source:p.diagnosticSource || null,
+        blockedNow:Boolean(p.blockedNow)
+      }));
+    } catch (error) { recordRuntimeDiagnosticV38('diagnostic-priority-backlog', error); }
+
+    try {
+      const recovery = nextRestorativeAnchorV382(day, nowMinute);
+      const fatigue = fatigueMetaForDay(day, weather);
+      snapshot.context = snapshot.context || {};
+      snapshot.context.recoveryAnchor = recovery ? {
+        title:recovery.activity.title,
+        type:String(recovery.activity.type || ''),
+        time:recovery.activity.time || null,
+        minutesToStart:Math.round(recovery.minutesToStart),
+        minutesToLeave:Math.round(recovery.minutesToLeave),
+        duration:recovery.duration,
+        suppressesPause:recoveryAnchorSuppressesPauseV382(recovery, fatigue)
+      } : null;
+    } catch (error) { recordRuntimeDiagnosticV38('diagnostic-recovery-anchor', error); }
+  }
+  return snapshot;
+};
+
+const v381RenderDiagnosticSnapshotHtmlV382 = renderDiagnosticSnapshotHtmlV38;
+renderDiagnosticSnapshotHtmlV38 = function(snapshot) {
+  const base = v381RenderDiagnosticSnapshotHtmlV382(snapshot);
+  const d = snapshot?.decision || {};
+  const recovery = snapshot?.context?.recoveryAnchor || null;
+  const notes = [];
+  if (d.kind === 'anchor') {
+    const subtype = d.subtype === 'meal-reservation' ? 'refeição com reserva' : (d.subtype || 'compromisso');
+    const status = d.operationalStatus === 'due' ? 'janela de chegada ativa' : 'próxima âncora';
+    notes.push(`<p class="engine-diagnostic-note"><b>Classificação operacional:</b> Âncora · ${escapeHtml(subtype)} · ${escapeHtml(status)}${d.anchorTime?` · ${escapeHtml(d.anchorTime)}`:''}</p>`);
+  }
+  if (recovery) {
+    const effect = recovery.suppressesPause ? 'substitui uma pausa separada neste momento' : 'será considerada na recuperação do ritmo';
+    notes.push(`<p class="engine-diagnostic-note"><b>Recuperação planejada:</b> ${escapeHtml(recovery.title)} · ${escapeHtml(recovery.time||'--')} · ${escapeHtml(effect)}.</p>`);
+  }
+  if (snapshot?.priorities?.length) {
+    const text = snapshot.priorities.map(p => `${p.title}${p.window?` — ${p.window}`:''}${p.blockedNow?' (bloqueada agora)':''}`).join(' · ');
+    notes.push(`<p class="engine-diagnostic-note"><b>Próximas prioridades:</b> ${escapeHtml(text)}</p>`);
+  }
+  return `${base}${notes.join('')}`;
+};
+
+const v381RunEngineSelfTestsV382 = runEngineSelfTestsV38;
+runEngineSelfTestsV38 = function() {
+  const report = v381RunEngineSelfTestsV382();
+  const additions = [];
+
+  addSelfTestV38(additions, 'Reserva de refeição é restauradora', () => {
+    const meal = {title:'Jantar — reserva de teste',type:'reservation',duration:70,flexible:false,fixedAnchor:true};
+    const show = {title:'Luminous',type:'reservation',duration:30,flexible:false,fixedAnchor:true};
+    assertSelfTestV38(isMealReservationV382(meal), 'jantar não reconhecido');
+    assertSelfTestV38(isRestorativeAnchorV382(meal), 'jantar não restaurador');
+    assertSelfTestV38(!isMealReservationV382(show), 'reserva genérica foi tratada como refeição');
+    return 'refeição ≠ reserva genérica';
+  });
+
+  addSelfTestV38(additions, 'Recuperação próxima evita pausa redundante', () => {
+    const near = {minutesToStart:30,minutesToLeave:10};
+    const extended = {minutesToStart:55,minutesToLeave:35};
+    assertSelfTestV38(recoveryAnchorSuppressesPauseV382(near,{fatigue:90}), 'refeição em 30 min deveria suprimir pausa');
+    assertSelfTestV38(recoveryAnchorSuppressesPauseV382(extended,{fatigue:73}), 'refeição em 55 min com fadiga 73 deveria suprimir pausa');
+    assertSelfTestV38(!recoveryAnchorSuppressesPauseV382(extended,{fatigue:88}), 'fadiga muito alta deveria permitir pausa antes de recuperação distante');
+    return 'horizonte + fadiga';
+  });
+
+  addSelfTestV38(additions, 'Âncora recebe classificação operacional', () => {
+    const decision = {kind:'fallback',activity:{title:'Jantar',type:'reservation',time:'18:30',duration:70,flexible:false,fixedAnchor:true,arrivalBuffer:20}};
+    const c = diagnosticAnchorClassificationV382(decision);
+    assertSelfTestV38(c?.kind === 'anchor', 'kind não é anchor');
+    assertSelfTestV38(c?.subtype === 'meal-reservation', 'subtipo não é refeição');
+    assertSelfTestV38(c?.rawKind === 'fallback', 'raw kind não preservado');
+    return 'anchor + subtipo + rawKind';
+  });
+
+  report.results.push(...additions);
+  report.total = report.results.length;
+  report.passed = report.results.filter(x => x.ok).length;
+  report.failed = report.total - report.passed;
+  report.ok = report.failed === 0;
+  report.build = ENGINE_BUILD_V38;
+  report.version = ENGINE_DIAGNOSTICS_VERSION_V38;
+  return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v38.3.1 — Reservation Free Window Copy
+   - Refeição flexível vira escolha explícita.
+   - Reserva futura fica protegida sem dominar o Próximo passo cedo demais.
+   - "Continuar mais um pouco" só libera ações que cabem antes da saída segura.
+   - Diagnóstico registra escolhas e mantém prioridades mesmo sem match ao vivo.
+   ============================================================ */
+const MEAL_CHOICE_RULES_V383 = Object.freeze({
+  flexibleDeclineCooldownMinutes: 45,
+  flexibleEarlyMinutes: 25,
+  flexibleLateMinutes: 75,
+  fatigueEarlyMinutes: 55,
+  fatigueThreshold: 68,
+  reservationPromptBeforeLeaveMinutes: 20,
+  reservationHardStopBeforeLeaveMinutes: 5,
+  reservationDeferralMaxMinutes: 15,
+  finishSafetyMinutes: 4,
+  logLimit: 120
+});
+
+const MEAL_TYPES_V383 = new Set(['meal','restaurant','food','coffee']);
+
+const v382EnsureCopilotStateV383 = ensureCopilotState;
+ensureCopilotState = function() {
+  v382EnsureCopilotStateV383();
+  if (!state.mealDeclines || typeof state.mealDeclines !== 'object') state.mealDeclines = {};
+  if (!state.mealAnchorDeferrals || typeof state.mealAnchorDeferrals !== 'object') state.mealAnchorDeferrals = {};
+  if (!Array.isArray(state.mealChoiceLog)) state.mealChoiceLog = [];
+};
+
+function mealChoiceKeyV383(day, activity) {
+  return `${day?.date || getOrlandoParts().date || ''}::${activity?.id || normalizeName(activity?.title || 'meal')}`;
+}
+
+function isMealActivityV383(activity) {
+  if (!activity || String(activity.type || '').toLowerCase() === 'attraction') return false;
+  const type = String(activity.type || '').toLowerCase();
+  if (MEAL_TYPES_V383.has(type)) return true;
+  if (isMealReservationV382(activity)) return true;
+  return MEAL_WORDS_V382.test(`${activity.title || ''} ${activity.restaurant || ''} ${activity.venue || ''}`);
+}
+
+function isFlexibleMealV383(activity) {
+  return isMealActivityV383(activity) && !isMealReservationV382(activity) && String(activity.type || '').toLowerCase() !== 'reservation';
+}
+
+function activeMealDeclineV383(day, activity, nowMs = Date.now()) {
+  ensureCopilotState();
+  const item = state.mealDeclines?.[mealChoiceKeyV383(day, activity)];
+  if (!item) return null;
+  const until = Number(item.until || 0);
+  return Number.isFinite(until) && until > Number(nowMs) ? item : null;
+}
+
+function activeMealAnchorDeferralV383(day, activity, nowMs = Date.now()) {
+  ensureCopilotState();
+  const item = state.mealAnchorDeferrals?.[mealChoiceKeyV383(day, activity)];
+  if (!item) return null;
+  const until = Number(item.until || 0);
+  return Number.isFinite(until) && until > Number(nowMs) ? item : null;
+}
+
+function logMealChoiceV383(action, day, activity, extra = {}) {
+  ensureCopilotState();
+  const item = {
+    at:new Date().toISOString(),
+    action,
+    dayDate:day?.date || null,
+    park:day?.park || state.selectedPark || null,
+    activityId:activity?.id || null,
+    title:activity?.title || null,
+    type:String(activity?.type || ''),
+    ...extra
+  };
+  state.mealChoiceLog.unshift(item);
+  if (state.mealChoiceLog.length > MEAL_CHOICE_RULES_V383.logLimit) state.mealChoiceLog.length = MEAL_CHOICE_RULES_V383.logLimit;
+  return item;
+}
+
+function declineFlexibleMealV383(activityId) {
+  const day = getSelectedDay();
+  const activity = day?.activities?.find(a => a.id === activityId);
+  if (!day || !activity) return;
+  ensureCopilotState();
+  const now = Date.now();
+  state.mealDeclines[mealChoiceKeyV383(day, activity)] = {
+    at:now,
+    until:now + MEAL_CHOICE_RULES_V383.flexibleDeclineCooldownMinutes * 60_000
+  };
+  logMealChoiceV383('continue-flexible', day, activity, {cooldownMinutes:MEAL_CHOICE_RULES_V383.flexibleDeclineCooldownMinutes});
+  saveState();
+  forceReplanAnalysis = true;
+  renderAll();
+  toast('Entendido. Vou continuar o roteiro e reconsiderar a refeição mais tarde.');
+}
+
+function startMealChoiceV383(activityId) {
+  const day = getSelectedDay();
+  const activity = day?.activities?.find(a => a.id === activityId);
+  if (!day || !activity) return;
+  ensureCopilotState();
+  delete state.mealDeclines[mealChoiceKeyV383(day, activity)];
+  delete state.mealAnchorDeferrals[mealChoiceKeyV383(day, activity)];
+  logMealChoiceV383(isMealReservationV382(activity) ? 'go-reservation' : 'eat-now', day, activity);
+  saveState();
+  startActivity(activity.id);
+}
+
+function reservationTimingV383(activity, nowMinute = null) {
+  if (!activity || !isMealReservationV382(activity)) return null;
+  const now = getOrlandoParts();
+  const minute = nowMinute == null ? now.hour * 60 + now.minute : Number(nowMinute);
+  const start = timeToMinutes(activity.time);
+  if (!Number.isFinite(start)) return null;
+  const buffer = anchorBufferMinutes(activity);
+  const leaveAt = start - buffer;
+  return {
+    activity,start,buffer,leaveAt,
+    minutesToStart:start-minute,
+    minutesToLeave:leaveAt-minute,
+    promptStart:leaveAt-MEAL_CHOICE_RULES_V383.reservationPromptBeforeLeaveMinutes,
+    hardStop:leaveAt-MEAL_CHOICE_RULES_V383.reservationHardStopBeforeLeaveMinutes
+  };
+}
+
+function nextMealReservationTimingV383(day, nowMinute = null) {
+  if (!day) return null;
+  const now = getOrlandoParts();
+  const minute = nowMinute == null ? now.hour * 60 + now.minute : Number(nowMinute);
+  return pendingActivitiesV36(day)
+    .filter(isMealReservationV382)
+    .map(a => reservationTimingV383(a, minute))
+    .filter(Boolean)
+    .filter(x => x.start + Number(x.activity.duration || 60) >= minute)
+    .sort((a,b) => a.start-b.start)[0] || null;
+}
+
+function reservationChoicePromptV383(day, nowMinute = null) {
+  const now = getOrlandoParts();
+  const minute = nowMinute == null ? now.hour * 60 + now.minute : Number(nowMinute);
+  const timing = nextMealReservationTimingV383(day, minute);
+  if (!timing) return null;
+  if (activeMealAnchorDeferralV383(day, timing.activity)) return null;
+  if (minute < timing.promptStart || minute >= timing.hardStop) return null;
+  return timing;
+}
+
+function deferMealReservationV383(activityId) {
+  const day = getSelectedDay();
+  const activity = day?.activities?.find(a => a.id === activityId);
+  if (!day || !activity || !isMealReservationV382(activity)) return;
+  const now = getOrlandoParts();
+  const nowMinute = now.hour * 60 + now.minute;
+  const timing = reservationTimingV383(activity, nowMinute);
+  if (!timing) return;
+  const available = Math.max(0, timing.hardStop - nowMinute);
+  if (available < 2) {
+    toast('A margem segura acabou. É hora de ir para a reserva.');
+    renderAll();
+    return;
+  }
+  const deferMinutes = Math.max(1, Math.min(MEAL_CHOICE_RULES_V383.reservationDeferralMaxMinutes, available));
+  ensureCopilotState();
+  state.mealAnchorDeferrals[mealChoiceKeyV383(day, activity)] = {
+    at:Date.now(),
+    until:Date.now() + deferMinutes * 60_000,
+    leaveAt:timing.leaveAt,
+    hardStop:timing.hardStop
+  };
+  logMealChoiceV383('continue-reservation', day, activity, {deferMinutes,leaveAt:timing.leaveAt});
+  saveState();
+  forceReplanAnalysis = true;
+  renderAll();
+  toast(`Tudo bem. Vou usar apenas ações que caibam nos próximos ${deferMinutes} min com segurança.`);
+}
+
+function flexibleMealCandidateV383(day, weatherPayload, nowMinute = null) {
+  if (!day) return null;
+  const now = getOrlandoParts();
+  const minute = nowMinute == null ? now.hour * 60 + now.minute : Number(nowMinute);
+  let fatigue = null;
+  try { fatigue = fatigueMetaForDay(day, weatherPayload); } catch {}
+  const fatigueValue = Number(fatigue?.fatigue || 0);
+  return pendingActivitiesV36(day)
+    .filter(isFlexibleMealV383)
+    .filter(a => !activeMealDeclineV383(day,a))
+    .map(activity => {
+      const planned = timeToMinutes(activity.time);
+      const delta = Number.isFinite(planned) ? planned-minute : 0;
+      const normalWindow = !Number.isFinite(planned) || (delta <= MEAL_CHOICE_RULES_V383.flexibleEarlyMinutes && delta >= -MEAL_CHOICE_RULES_V383.flexibleLateMinutes);
+      const fatigueWindow = Number.isFinite(planned) && fatigueValue >= MEAL_CHOICE_RULES_V383.fatigueThreshold && delta <= MEAL_CHOICE_RULES_V383.fatigueEarlyMinutes && delta >= -MEAL_CHOICE_RULES_V383.flexibleLateMinutes;
+      return {activity,planned,delta,fatigue,eligible:normalWindow||fatigueWindow};
+    })
+    .filter(x => x.eligible)
+    .sort((a,b) => Math.abs(a.delta)-Math.abs(b.delta))[0] || null;
+}
+
+function alternativePendingWithoutMealAnchorV383(day, excludedId = null) {
+  return pendingActivitiesV36(day).find(a => a.id !== excludedId && !isMealActivityV383(a) && !isFixedAnchor(a))
+    || pendingActivitiesV36(day).find(a => a.id !== excludedId && !isMealReservationV382(a) && !isFixedAnchor(a))
+    || null;
+}
+
+function mealActionFitsBeforeReservationV383(row, timing, day, nowMinute) {
+  if (!row?.activity || !row?.meta || !timing) return false;
+  const operational = Number(row.meta.experienceCost?.operationalMinutes ?? row.meta.totalMinutes ?? 60);
+  let transition = 0;
+  try { transition = Number(routeWalkBetweenActivities(row.activity, timing.activity, day)?.minutes || 0); } catch {}
+  const finish = Number(nowMinute) + operational + transition + MEAL_CHOICE_RULES_V383.finishSafetyMinutes;
+  return finish <= timing.leaveAt;
+}
+
+function bestSafeActionBeforeReservationV383(day, livePayload, weatherPayload, timing, nowMinute) {
+  if (!livePayload?.liveData?.length) return null;
+  const protectedPriority = protectedPriorityV36(day, livePayload, weatherPayload, nowMinute);
+  return liveDecisionRowsV36(day,livePayload,weatherPayload,nowMinute)
+    .filter(row => row.activity.id !== timing.activity.id)
+    .filter(row => row.meta?.band !== 'EVITE AGORA')
+    .filter(row => mealActionFitsBeforeReservationV383(row,timing,day,nowMinute))
+    .map(row => ({...row,utility:tacticalUtilityV36(row,protectedPriority,day,nowMinute)}))
+    .sort((a,b) => Number(b.utility||0)-Number(a.utility||0) || Number(b.meta?.score||0)-Number(a.meta?.score||0))[0] || null;
+}
+
+function activeReservationDeferralTimingV383(day, nowMinute = null) {
+  const timing = nextMealReservationTimingV383(day, nowMinute);
+  if (!timing) return null;
+  return activeMealAnchorDeferralV383(day,timing.activity) ? timing : null;
+}
+
+const v382DecisionOrchestratorV383 = decisionOrchestratorV36;
+decisionOrchestratorV36 = function(day, livePayload, weatherPayload) {
+  const base = v382DecisionOrchestratorV383(day, livePayload, weatherPayload);
+  if (!day) return base;
+  const now = getOrlandoParts();
+  const nowMinute = now.hour*60 + now.minute;
+  if (day.date !== now.date || ['started','emergency','opportunity'].includes(base?.kind)) return base;
+
+  if (base?.kind === 'fixed' && isMealReservationV382(base.activity)) {
+    const timing = reservationTimingV383(base.activity,nowMinute);
+    return {kind:'meal-anchor-due',activity:base.activity,timing,buffer:base.buffer,start:base.start,nowMinute,priorities:base.priorities||[]};
+  }
+
+  const prompt = reservationChoicePromptV383(day,nowMinute);
+  if (prompt) {
+    return {kind:'meal-anchor-choice',activity:prompt.activity,timing:prompt,nowMinute,priorities:base?.priorities||[],underlyingDecision:base};
+  }
+
+  const deferred = activeReservationDeferralTimingV383(day,nowMinute);
+  if (deferred && ['direct','bridge','priority-window','tactical-fallback'].includes(base?.kind) && base.activity && base.meta) {
+    if (!mealActionFitsBeforeReservationV383(base,deferred,day,nowMinute)) {
+      const safe = bestSafeActionBeforeReservationV383(day,livePayload,weatherPayload,deferred,nowMinute);
+      if (safe) return {kind:'bridge',...safe,priority:protectedPriorityV36(day,livePayload,weatherPayload,nowMinute),nowMinute,mealAnchor:deferred};
+      if (nowMinute < deferred.leaveAt) return {kind:'meal-anchor-free-window',activity:deferred.activity,timing:deferred,nowMinute,reason:'Nenhuma outra atividade cabe com margem antes da saída protegida.'};
+      return {kind:'meal-anchor-due',activity:deferred.activity,timing:deferred,nowMinute,reason:'Nenhuma outra atividade cabe com margem antes da reserva.'};
+    }
+  }
+
+  const flexible = flexibleMealCandidateV383(day,weatherPayload,nowMinute);
+  if (flexible && ['pause','passive-break','fallback'].includes(base?.kind)) {
+    return {kind:'meal-flex-choice',activity:flexible.activity,meal:flexible,nowMinute,priority:base?.priority||null,priorities:base?.priorities||[]};
+  }
+
+  if (base?.activity && isFlexibleMealV383(base.activity)) {
+    if (activeMealDeclineV383(day,base.activity)) {
+      const alt = alternativePendingWithoutMealAnchorV383(day,base.activity.id);
+      return alt ? {kind:'fallback',activity:alt,nowMinute,priority:base.priority||null,priorities:base.priorities||[]} : base;
+    }
+    return {kind:'meal-flex-choice',activity:base.activity,meal:flexible||{activity:base.activity,delta:0,fatigue:null},nowMinute,priority:base.priority||null,priorities:base.priorities||[]};
+  }
+
+  if (base?.kind === 'fallback' && base.activity && isMealReservationV382(base.activity)) {
+    const timing = reservationTimingV383(base.activity,nowMinute);
+    if (timing && nowMinute < timing.promptStart) {
+      const alt = alternativePendingWithoutMealAnchorV383(day,base.activity.id);
+      if (alt) return {kind:'fallback',activity:alt,nowMinute,priority:base.priority||null,priorities:base.priorities||[],protectedMealAnchor:timing};
+      return {kind:'meal-anchor-protected',activity:base.activity,timing,nowMinute,priority:base.priority||null,priorities:base.priorities||[]};
+    }
+  }
+  return base;
+};
+
+function mealMomentCopyV383(activity) {
+  const normalized=normalizeName(activity?.title||'');
+  if (/\bjantar\b|\bdinner\b/.test(normalized)) return {article:'do',label:'jantar'};
+  if (/\balmoco\b|\blunch\b/.test(normalized)) return {article:'do',label:'almoço'};
+  if (/\bcafe da manha\b|\bbreakfast\b/.test(normalized)) return {article:'do',label:'café da manhã'};
+  if (/\blanche\b|\bsnack\b/.test(normalized)) return {article:'do',label:'lanche'};
+  return {article:'da',label:'refeição'};
+}
+
+function mealFreeWindowReasonV383(activity,timing) {
+  const meal=mealMomentCopyV383(activity);
+  const time=activity?.time||'--:--';
+  const leaveAt=timing ? minutesToTime(timing.leaveAt) : '--:--';
+  return `Você tem alguns minutos livres antes ${meal.article} ${meal.label} das ${time}. Saída recomendada ~${leaveAt}.`;
+}
+
+function mealChoiceConfidenceV383() {
+  return {score:88,label:'Alta',level:'high',detail:'A escolha é baseada no horário planejado e no contexto do roteiro; a decisão final sobre comer agora continua sendo sua.'};
+}
+
+const v382RenderNextV36DecisionV383 = renderNextV36Decision;
+renderNextV36Decision = function(decision, day, livePayload, weatherPayload) {
+  const card = $('#nextCard');
+  if (!card) return v382RenderNextV36DecisionV383(decision,day,livePayload,weatherPayload);
+  const nowMinute = decision?.nowMinute ?? (getOrlandoParts().hour*60+getOrlandoParts().minute);
+
+  if (decision?.kind === 'meal-flex-choice') {
+    const a=decision.activity, meal=decision.meal||{}, confidence=mealChoiceConfidenceV383();
+    const fatigue=Number(meal.fatigue?.fatigue||0);
+    const reason=fatigue>=MEAL_CHOICE_RULES_V383.fatigueThreshold
+      ? 'É uma boa janela para comer e recuperar energia, mas você pode continuar se preferir aproveitar outra atividade agora.'
+      : 'A refeição chegou a uma boa janela do roteiro. Você decide se quer comer agora ou seguir por mais um tempo.';
+    const factors=[{icon:'◷',text:a.time?`Horário planejado: ${a.time}.`:'A refeição está dentro da janela planejada.'}];
+    if(fatigue) factors.push({icon:'☕',text:`Desgaste atual: ${meal.fatigue.label||'--'} · ${Math.round(fatigue)}/100.`});
+    factors.push({icon:'↻',text:`Se continuar, a refeição sai das recomendações por ${MEAL_CHOICE_RULES_V383.flexibleDeclineCooldownMinutes} min e o roteiro é recalculado.`});
+    card.className='next-card next-step-card';
+    card.innerHTML=`<div class="next-step-eyebrow">RITMO DO DIA</div><div class="next-step-title-row"><div class="next-step-main"><div class="next-step-title">${escapeHtml(a.title)}</div><div class="next-step-decision neutral"><span class="next-step-light"></span>REFEIÇÃO SUGERIDA</div></div><span class="next-step-confidence high">Escolha sua</span></div><p class="next-step-reason">${escapeHtml(reason)}</p>${renderNextStepDetails('Por que considerar comer agora?',factors,confidence)}${priorityWatchBlockV36(decision.priority,nowMinute)}<div class="next-step-actions"><button class="primary-btn" data-meal-now="${a.id}">Vou comer agora</button><button class="secondary-btn" data-decline-meal="${a.id}">Continuar por enquanto</button></div>`;
+    return;
+  }
+
+  if (decision?.kind === 'meal-anchor-choice') {
+    const a=decision.activity,t=decision.timing,confidence=mealChoiceConfidenceV383();
+    const usable=Math.max(0,Math.round(t.hardStop-nowMinute));
+    const factors=[{icon:'◷',text:`Reserva às ${a.time}.`},{icon:'→',text:`Saída segura por volta de ${minutesToTime(t.leaveAt)}.`},{icon:'✓',text:`Você ainda tem cerca de ${Math.max(0,Math.round(t.minutesToLeave))} min antes da saída planejada.`},{icon:'↻',text:`Se continuar, o motor aceitará somente ações que caibam com margem antes da reserva.`}];
+    card.className='next-card next-step-card';
+    card.innerHTML=`<div class="next-step-eyebrow">PRÓXIMO COMPROMISSO</div><div class="next-step-title-row"><div class="next-step-main"><div class="next-step-title">${escapeHtml(a.title)}</div><div class="next-step-decision neutral"><span class="next-step-light"></span>RESERVA PROTEGIDA</div></div><span class="next-step-confidence high">${escapeHtml(a.time||'')}</span></div><p class="next-step-reason">Está chegando a hora da reserva. Você pode ir agora ou usar mais alguns minutos do parque sem perder a margem segura.</p>${renderNextStepDetails('Quanto tempo ainda tenho?',factors,confidence)}<p class="muted next-step-choice-note">Ao continuar, o Orlando Flow limita automaticamente as próximas ações ao tempo realmente disponível.</p><div class="next-step-actions"><button class="primary-btn" data-meal-now="${a.id}">Ir agora</button>${usable>=2?`<button class="secondary-btn" data-defer-meal-reservation="${a.id}">Continuar mais um pouco</button>`:''}</div>`;
+    return;
+  }
+
+  if (decision?.kind === 'meal-anchor-free-window') {
+    const a=decision.activity,t=decision.timing||reservationTimingV383(a,nowMinute),confidence={score:92,label:'Alta',level:'high',detail:'Não existe uma atividade segura que caiba antes da saída protegida para a refeição.'};
+    const remaining=t?Math.max(0,Math.round(t.leaveAt-nowMinute)):0;
+    const reason=mealFreeWindowReasonV383(a,t);
+    const factors=[{icon:'◷',text:`${remaining} min até a saída recomendada.`},{icon:'→',text:t?`Saída recomendada: ${minutesToTime(t.leaveAt)}.`:'A saída protegida está próxima.'},{icon:'✓',text:'Nenhuma atração que caiba com segurança será forçada neste intervalo.'}];
+    card.className='next-card next-step-card';
+    card.innerHTML=`<div class="next-step-eyebrow">TEMPO LIVRE AGORA</div><div class="next-step-title-row"><div class="next-step-main"><div class="next-step-title">${escapeHtml(a.title)}</div><div class="next-step-decision neutral"><span class="next-step-light"></span>COMPROMISSO PROTEGIDO</div></div><span class="next-step-confidence high">${escapeHtml(a.time||'')}</span></div><p class="next-step-reason">${escapeHtml(reason)}</p>${renderNextStepDetails('Por que não encaixar uma atração?',factors,confidence)}<div class="next-step-actions"><button class="primary-btn" data-meal-now="${a.id}">Ir agora</button></div>`;
+    return;
+  }
+
+  if (decision?.kind === 'meal-anchor-due') {
+    const a=decision.activity,t=decision.timing||reservationTimingV383(a,nowMinute),confidence={score:96,label:'Alta',level:'high',detail:'A margem operacional da reserva chegou ao limite protegido pelo roteiro.'};
+    const factors=[{icon:'◷',text:`Reserva às ${a.time}.`},{icon:'→',text:t?`Saída planejada: ${minutesToTime(t.leaveAt)}.`:'A janela protegida já começou.'},{icon:'✓',text:decision.reason||'Não vale iniciar uma nova atividade que coloque a reserva em risco.'}];
+    card.className='next-card next-step-card';
+    card.innerHTML=`<div class="next-step-eyebrow">MELHOR AÇÃO AGORA</div><div class="next-step-title-row"><div class="next-step-main"><div class="next-step-title">${escapeHtml(a.title)}</div><div class="next-step-decision good"><span class="next-step-light"></span>HORA DE IR</div></div><span class="next-step-confidence high">Confiança alta</span></div><p class="next-step-reason">A margem segura para a reserva chegou. Agora o melhor é seguir para o compromisso.</p>${renderNextStepDetails('Por que ir agora?',factors,confidence)}<div class="next-step-actions"><button class="primary-btn" data-meal-now="${a.id}">Ir agora</button></div>`;
+    return;
+  }
+
+  if (decision?.kind === 'meal-anchor-protected') {
+    const a=decision.activity,t=decision.timing,confidence={score:82,label:'Alta',level:'high',detail:'A reserva está protegida, mas ainda não chegou a hora de interromper o restante do parque.'};
+    card.className='next-card next-step-card';
+    card.innerHTML=`<div class="next-step-eyebrow">PRÓXIMO COMPROMISSO</div><div class="next-step-title-row"><div class="next-step-main"><div class="next-step-title">${escapeHtml(a.title)}</div><div class="next-step-decision neutral"><span class="next-step-light"></span>PROTEGIDA PARA ${escapeHtml(a.time||'')}</div></div><span class="next-step-confidence medium">Ainda há tempo</span></div><p class="next-step-reason">A reserva está protegida e ainda não precisa dominar sua próxima ação.</p>${renderNextStepDetails('O que o motor está preservando?',[{icon:'◷',text:`Reserva às ${a.time}.`},{icon:'→',text:`Saída segura por volta de ${minutesToTime(t.leaveAt)}.`},{icon:'↻',text:'O motor continuará procurando uma ação executável enquanto houver margem.'}],confidence)}<div class="next-step-actions"><button class="secondary-btn" data-next-step-live>Ver opções agora</button></div>`;
+    return;
+  }
+
+  return v382RenderNextV36DecisionV383(decision,day,livePayload,weatherPayload);
+};
+
+const v382BindEventsV383 = bindEvents;
+bindEvents = function() {
+  v382BindEventsV383();
+  document.addEventListener('click', event => {
+    const nowBtn=event.target.closest('[data-meal-now]');
+    if(nowBtn){event.preventDefault();startMealChoiceV383(nowBtn.dataset.mealNow);return;}
+    const decline=event.target.closest('[data-decline-meal]');
+    if(decline){event.preventDefault();declineFlexibleMealV383(decline.dataset.declineMeal);return;}
+    const defer=event.target.closest('[data-defer-meal-reservation]');
+    if(defer){event.preventDefault();deferMealReservationV383(defer.dataset.deferMealReservation);}
+  });
+};
+
+function mealLiveCalloutV383(decision) {
+  if (!decision?.activity) return '';
+  const a=decision.activity;
+  if (decision.kind==='meal-flex-choice') return `<div class="live-action-callout"><span class="live-action-callout-icon">🍽</span><div><span class="kicker">RITMO DO DIA</span><strong>${escapeHtml(a.title)}</strong><p>Boa janela para comer. Você decide se quer parar agora ou continuar o parque por enquanto.</p><div class="live-action-callout-actions"><button class="secondary-btn" type="button" data-meal-now="${a.id}">Vou comer agora</button><button class="ghost-btn" type="button" data-decline-meal="${a.id}">Continuar por enquanto</button></div></div></div>`;
+  if (decision.kind==='meal-anchor-choice') return `<div class="live-action-callout"><span class="live-action-callout-icon">🍽</span><div><span class="kicker">RESERVA PROTEGIDA</span><strong>${escapeHtml(a.title)} · ${escapeHtml(a.time||'')}</strong><p>Você ainda pode usar alguns minutos, mas o motor limitará as opções ao que cabe com segurança.</p><div class="live-action-callout-actions"><button class="secondary-btn" type="button" data-meal-now="${a.id}">Ir agora</button><button class="ghost-btn" type="button" data-defer-meal-reservation="${a.id}">Continuar mais um pouco</button></div></div></div>`;
+  if (decision.kind==='meal-anchor-due') return `<div class="live-action-callout"><span class="live-action-callout-icon">🍽</span><div><span class="kicker">HORA DE IR</span><strong>${escapeHtml(a.title)} · ${escapeHtml(a.time||'')}</strong><p>A margem segura chegou ao limite. Não vale iniciar outra atividade agora.</p><div class="live-action-callout-actions"><button class="secondary-btn" type="button" data-meal-now="${a.id}">Ir agora</button></div></div></div>`;
+  return '';
+}
+
+const v382RenderLiveHierarchyV383 = renderLiveHierarchyV36;
+renderLiveHierarchyV36 = function(day,payload,weather) {
+  v382RenderLiveHierarchyV383(day,payload,weather);
+  const root=$('#recommendations');
+  if(!root) return;
+  const decision=decisionOrchestratorV36(day,payload,weather);
+  const callout=mealLiveCalloutV383(decision);
+  if(!callout) return;
+  const existing=root.querySelector(':scope > .live-action-callout');
+  if(existing) existing.remove();
+  root.insertAdjacentHTML('afterbegin',callout);
+};
+
+function mealChoiceDiagnosticV383(day = getSelectedDay()) {
+  ensureCopilotState();
+  const last=state.mealChoiceLog?.[0]||null;
+  const now=getOrlandoParts();
+  const nowMinute=now.hour*60+now.minute;
+  const reservation=day?nextMealReservationTimingV383(day,nowMinute):null;
+  const activeDeferral=reservation?activeMealAnchorDeferralV383(day,reservation.activity):null;
+  const declinedEntries=day ? pendingActivitiesV36(day).filter(isFlexibleMealV383).map(a=>({activity:a,item:activeMealDeclineV383(day,a)})).filter(x=>x.item) : [];
+  return {
+    lastChoice:last?{action:last.action,at:last.at,title:last.title,activityId:last.activityId}:null,
+    flexibleSuppressed:declinedEntries.map(x=>({title:x.activity.title,minutesRemaining:Math.max(1,Math.ceil((Number(x.item.until)-Date.now())/60000))})),
+    reservation:reservation?{title:reservation.activity.title,time:reservation.activity.time,leaveAt:minutesToTime(reservation.leaveAt),minutesToLeave:Math.round(reservation.minutesToLeave),promptActive:Boolean(reservationChoicePromptV383(day,nowMinute)),deferred:Boolean(activeDeferral),deferralMinutesRemaining:activeDeferral?Math.max(1,Math.ceil((Number(activeDeferral.until)-Date.now())/60000)):0}:null
+  };
+}
+
+function diagnosticFallbackPrioritiesV383(day) {
+  if(!day) return [];
+  return pendingActivitiesV36(day)
+    .filter(a=>a.type==='attraction')
+    .map(activity=>{const priority=personalPriorityMeta(activity,activity.plannedWait||0);return {title:activity.title,strategicValue:Math.round(priority.score),tacticalScore:null,band:null,window:'Monitorando próxima janela',leaveAt:null,source:'declared-priority',blockedNow:false,code:priority.code};})
+    .filter(x=>['must','want'].includes(x.code)||x.strategicValue>=78)
+    .sort((a,b)=>b.strategicValue-a.strategicValue)
+    .slice(0,3)
+    .map(({code,...x})=>x);
+}
+
+const v382EngineDiagnosticSnapshotV383 = engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38 = function() {
+  const snapshot=v382EngineDiagnosticSnapshotV383();
+  const day=getSelectedDay();
+  if(day && (!Array.isArray(snapshot.priorities) || snapshot.priorities.length===0)) snapshot.priorities=diagnosticFallbackPrioritiesV383(day);
+  snapshot.mealChoice=mealChoiceDiagnosticV383(day);
+  return snapshot;
+};
+
+const v382RenderDiagnosticSnapshotHtmlV383 = renderDiagnosticSnapshotHtmlV38;
+renderDiagnosticSnapshotHtmlV38 = function(snapshot) {
+  const base=v382RenderDiagnosticSnapshotHtmlV383(snapshot);
+  const choice=snapshot?.mealChoice;
+  if(!choice) return base;
+  const notes=[];
+  if(choice.flexibleSuppressed?.length){notes.push(`<p class="engine-diagnostic-note"><b>Refeição adiada:</b> ${escapeHtml(choice.flexibleSuppressed.map(x=>`${x.title} · ~${x.minutesRemaining} min`).join(' · '))}</p>`);}
+  if(choice.reservation){const r=choice.reservation;const stateText=r.deferred?`continuar escolhido · nova decisão em ~${r.deferralMinutesRemaining} min`:r.promptActive?'aguardando escolha do usuário':`protegida · sair ~${r.leaveAt}`;notes.push(`<p class="engine-diagnostic-note"><b>Reserva de refeição:</b> ${escapeHtml(r.title)} · ${escapeHtml(r.time||'--')} · ${escapeHtml(stateText)}.</p>`);}
+  if(choice.lastChoice){notes.push(`<p class="engine-diagnostic-note"><b>Última escolha de refeição:</b> ${escapeHtml(choice.lastChoice.action)} · ${escapeHtml(choice.lastChoice.title||'--')}</p>`);}
+  return `${base}${notes.join('')}`;
+};
+
+const v382RunEngineSelfTestsV383 = runEngineSelfTestsV38;
+runEngineSelfTestsV38 = function() {
+  const report=v382RunEngineSelfTestsV383();
+  const additions=[];
+  addSelfTestV38(additions,'Refeição flexível respeita escolha de continuar',()=>{
+    const saved=structuredClone(state.mealDeclines||{});try{ensureCopilotState();const day={date:'2099-01-02',park:'epcot',activities:[]},a={id:'meal-test',title:'Almoço',type:'meal'};const key=mealChoiceKeyV383(day,a),now=Date.now();state.mealDeclines[key]={until:now+45*60_000};assertSelfTestV38(Boolean(activeMealDeclineV383(day,a,now)),'cooldown não ativou');assertSelfTestV38(!activeMealDeclineV383(day,a,now+46*60_000),'cooldown não expirou');return '45 min e expiração';}finally{state.mealDeclines=saved;}
+  });
+  addSelfTestV38(additions,'Reserva só pede decisão perto da saída',()=>{
+    const minute=600;const a={id:'res-test',title:'Jantar',type:'reservation',time:'11:00',duration:60,arrivalBuffer:20,fixedAnchor:true,flexible:false};const t=reservationTimingV383(a,minute);assertSelfTestV38(t.promptStart===minute+20,'prompt deveria começar 20 min antes da saída');assertSelfTestV38(t.hardStop===minute+35,'hard stop deveria ficar 5 min antes da saída');return 'janela 20→5 min antes da saída';
+  });
+  addSelfTestV38(additions,'Ação após adiar reserva precisa caber na margem',()=>{
+    const minute=600;const anchor={id:'anchor-fit',title:'Jantar',type:'reservation',time:'10:45',duration:60,arrivalBuffer:15,fixedAnchor:true,flexible:false,area:'World Showcase'};const timing=reservationTimingV383(anchor,minute);const day={date:'2099-01-03',park:'epcot',activities:[]};const short={activity:{id:'short',title:'Curta',type:'attraction',area:'World Showcase'},meta:{experienceCost:{operationalMinutes:8}}};const long={activity:{id:'long',title:'Longa',type:'attraction',area:'World Showcase'},meta:{experienceCost:{operationalMinutes:40}}};assertSelfTestV38(mealActionFitsBeforeReservationV383(short,timing,day,minute),'ação curta deveria caber');assertSelfTestV38(!mealActionFitsBeforeReservationV383(long,timing,day,minute),'ação longa não deveria caber');return 'deadline logístico preservado';
+  });
+  addSelfTestV38(additions,'Janela livre identifica a refeição na mensagem',()=>{
+    const a={title:'Jantar — reserva de teste',time:'18:30'};const t={leaveAt:18*60+10};const msg=mealFreeWindowReasonV383(a,t);assertSelfTestV38(msg==='Você tem alguns minutos livres antes do jantar das 18:30. Saída recomendada ~18:10.','mensagem não identifica jantar/horário');return 'jantar 18:30 + saída 18:10';
+  });
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v38.4 — Tactical Fallback Guard
+   - ESPERE / EVITE não viram ação executável por simples fallback.
+   - A própria prioridade protegida nunca é promovida como fallback.
+   - Sem ponte válida, o motor assume um estado neutro de estratégia.
+   ============================================================ */
+const TACTICAL_FALLBACK_RULES_V384 = Object.freeze({
+  executableBand: 'FAÇA AGORA'
+});
+
+function sameActivityV384(a,b){
+  if(!a||!b) return false;
+  if(a.id&&b.id) return a.id===b.id;
+  return normalizeName(a.title||a.entityName||'')===normalizeName(b.title||b.entityName||'');
+}
+
+function liveFallbackEligibleV384(meta){
+  return meta?.band===TACTICAL_FALLBACK_RULES_V384.executableBand;
+}
+
+function tacticalFallbackNeedsGuardV384(decision){
+  if(decision?.kind!=='tactical-fallback') return false;
+  if(!liveFallbackEligibleV384(decision.meta)) return true;
+  const protectedActivity=decision.priority?.activity||null;
+  return Boolean(protectedActivity&&sameActivityV384(decision.activity,protectedActivity));
+}
+
+function strategicHoldDecisionV384(decision,day){
+  const priority=decision?.priority||(decision?.priorities||[])[0]||null;
+  let locationLabel=null;
+  try{
+    const context=day?locationContextV37(day):null;
+    if(context?.zone) locationLabel=zoneLabelV37(day.park,context.zone);
+  }catch{}
+  const protectedTitle=priority?.activity?.title||null;
+  const rejectedTitle=decision?.activity?.title||null;
+  const reason=protectedTitle
+    ? `Nenhuma atração está em uma janela boa o bastante agora. Continue aproveitando esta região enquanto monitoramos uma janela melhor para ${protectedTitle}.`
+    : 'Nenhuma atração está em uma janela boa o bastante agora. Aproveite a região por alguns minutos enquanto o motor continua monitorando as próximas opções.';
+  return {
+    kind:'strategic-hold',
+    nowMinute:decision?.nowMinute ?? (getOrlandoParts().hour*60+getOrlandoParts().minute),
+    priority,
+    priorities:decision?.priorities||[],
+    locationLabel,
+    reason,
+    rejectedDecision:rejectedTitle?{
+      title:rejectedTitle,
+      band:decision?.meta?.band||null,
+      score:Number.isFinite(Number(decision?.meta?.score))?Number(decision.meta.score):null,
+      sameAsProtected:Boolean(priority?.activity&&sameActivityV384(decision.activity,priority.activity))
+    }:null
+  };
+}
+
+function applyTacticalFallbackGuardV384(decision,day){
+  if(tacticalFallbackNeedsGuardV384(decision)) return strategicHoldDecisionV384(decision,day);
+  return decision;
+}
+
+const v383DecisionOrchestratorV384=decisionOrchestratorV36;
+decisionOrchestratorV36=function(day,livePayload,weatherPayload){
+  const decision=v383DecisionOrchestratorV384(day,livePayload,weatherPayload);
+  if(!day||!decision) return decision;
+  const guarded=applyTacticalFallbackGuardV384(decision,day);
+  if(guarded.kind!=='strategic-hold') return guarded;
+
+  // Se existe uma refeição flexível apropriada, ela é uma escolha melhor que
+  // transformar uma atração amarela/vermelha em ordem de execução.
+  try{
+    const now=getOrlandoParts();
+    const nowMinute=now.hour*60+now.minute;
+    const flexible=flexibleMealCandidateV383(day,weatherPayload,nowMinute);
+    if(flexible&&!activeMealDeclineV383(day,flexible.activity)){
+      return {kind:'meal-flex-choice',activity:flexible.activity,meal:flexible,nowMinute,priority:guarded.priority,priorities:guarded.priorities||[]};
+    }
+  }catch{}
+  return guarded;
+};
+
+const v383RenderNextV36DecisionV384=renderNextV36Decision;
+renderNextV36Decision=function(decision,day,livePayload,weatherPayload){
+  if(decision?.kind!=='strategic-hold') return v383RenderNextV36DecisionV384(decision,day,livePayload,weatherPayload);
+  const card=$('#nextCard');
+  if(!card) return;
+  const priority=decision.priority||null;
+  const rejected=decision.rejectedDecision||null;
+  const confidence=priority?.meta?nextStepConfidence(priority.meta,livePayload,weatherPayload):{score:68,label:'Média',level:'medium',detail:'O motor não encontrou uma atração com qualidade suficiente para transformar em ordem de execução.'};
+  const factors=[{icon:'✓',text:'Nenhuma atração atingiu uma condição forte o bastante para ser forçada agora.'}];
+  if(rejected?.title&&rejected?.band){
+    const display=rejected.band==='ESPERE'?'MELHOR DEPOIS':rejected.band;
+    factors.push({icon:'↻',text:`${rejected.title} está como ${display}; o fallback não a transforma automaticamente em ação.`});
+  }
+  if(priority?.activity){
+    factors.push({icon:'★',text:`${priority.activity.title} continua protegida como prioridade estratégica.`});
+    if(priority.window?.label) factors.push({icon:'◷',text:priority.window.label+'.'});
+  }
+  if(decision.locationLabel) factors.push({icon:'⌖',text:`Localização de referência: ${decision.locationLabel}.`});
+  card.className='next-card next-step-card next-step-neutral';
+  card.innerHTML=`<div class="next-step-eyebrow">MELHOR ESTRATÉGIA AGORA</div><div class="next-step-title-row"><div class="next-step-main"><div class="next-step-title">Aproveite a região</div><div class="next-step-decision neutral"><span class="next-step-light"></span>NÃO FORCE UMA ATRAÇÃO</div></div><span class="next-step-confidence ${confidence.level}">Confiança ${escapeHtml(confidence.label.toLowerCase())}</span></div><p class="next-step-reason">${escapeHtml(decision.reason)}</p>${renderNextStepDetails('Por que não iniciar uma atração agora?',factors.slice(0,6),confidence)}${priorityWatchBlockV36(priority,decision.nowMinute)}<div class="next-step-actions"><button class="secondary-btn" data-next-step-live>Ver alternativas</button></div>`;
+};
+
+const v383DiagnosticDecisionMetaV384=diagnosticDecisionMetaV38;
+diagnosticDecisionMetaV38=function(decision){
+  const meta=v383DiagnosticDecisionMetaV384(decision);
+  if(decision?.kind!=='strategic-hold') return meta;
+  return {...meta,action:'Aproveitar a região',holdReason:decision.reason||null,rejectedDecision:decision.rejectedDecision||null};
+};
+
+const v383RenderDiagnosticSnapshotHtmlV384=renderDiagnosticSnapshotHtmlV38;
+renderDiagnosticSnapshotHtmlV38=function(snapshot){
+  const base=v383RenderDiagnosticSnapshotHtmlV384(snapshot);
+  if(snapshot?.decision?.kind!=='strategic-hold') return base;
+  const d=snapshot.decision;
+  const rejected=d.rejectedDecision;
+  const detail=rejected?.title?`${rejected.title} · ${rejected.band||'sem farol'}${rejected.score!=null?` · score ${rejected.score}`:''}`:'nenhum candidato promovido';
+  return `${base}<p class="engine-diagnostic-note"><b>Fallback protegido:</b> ${escapeHtml(detail)}. ${escapeHtml(d.holdReason||'O motor preferiu não forçar uma atração.')}</p>`;
+};
+
+const v383RunEngineSelfTestsV384=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v383RunEngineSelfTestsV384();
+  const additions=[];
+  addSelfTestV38(additions,'MELHOR DEPOIS não vira fallback executável',()=>{
+    const activity={id:'frozen-test',title:'Frozen Ever After'};
+    const priority={activity,window:{label:'Melhor janela ~21:30'}};
+    const fake={kind:'tactical-fallback',activity,meta:{band:'ESPERE',score:60},priority,priorities:[priority],nowMinute:900};
+    const guarded=applyTacticalFallbackGuardV384(fake,{park:'epcot'});
+    assertSelfTestV38(guarded.kind==='strategic-hold',`retornou ${guarded.kind}`);
+    assertSelfTestV38(!guarded.activity,'estado neutro não pode expor atividade executável');
+    return 'ESPERE → estratégia neutra';
+  });
+  addSelfTestV38(additions,'Prioridade protegida não pode ser seu próprio fallback',()=>{
+    const activity={id:'same-priority',title:'Prioridade teste'};
+    const fake={kind:'tactical-fallback',activity,meta:{band:'FAÇA AGORA',score:75},priority:{activity,window:{label:'Monitorando'}},priorities:[],nowMinute:900};
+    assertSelfTestV38(tacticalFallbackNeedsGuardV384(fake),'conflito ação=prioridade não foi bloqueado');
+    return 'ação ≠ prioridade protegida no fallback';
+  });
+  addSelfTestV38(additions,'Preenchimento genérico do Ao vivo exige FAÇA AGORA',()=>{
+    assertSelfTestV38(liveFallbackEligibleV384({band:'FAÇA AGORA'}),'verde deveria ser elegível');
+    assertSelfTestV38(!liveFallbackEligibleV384({band:'ESPERE'}),'amarelo não pode preencher Melhor Agora');
+    assertSelfTestV38(!liveFallbackEligibleV384({band:'EVITE AGORA'}),'vermelho não pode preencher Melhor Agora');
+    return 'somente verde; pontes continuam explícitas';
+  });
+  report.results.push(...additions);
+  report.total=report.results.length;
+  report.passed=report.results.filter(x=>x.ok).length;
+  report.failed=report.total-report.passed;
+  report.ok=report.failed===0;
+  report.build=ENGINE_BUILD_V38;
+  report.version=ENGINE_DIAGNOSTICS_VERSION_V38;
+  return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v38.5 — Anchor Timing Guard
+   - Âncoras não-refeição distantes permanecem protegidas, sem virar fallback.
+   - Ações executáveis precisam terminar + permitir deslocamento antes da janela da âncora.
+   - Quando nada cabe, o motor assume estratégia neutra; na janela operacional, a âncora domina.
+   ============================================================ */
+const ANCHOR_TIMING_RULES_V385 = Object.freeze({
+  prepareLeadMinutes: 10,
+  finishSafetyMinutes: 4
+});
+
+function isNonMealAnchorV385(activity){
+  return Boolean(activity && isFixedAnchor(activity) && !isMealReservationV382(activity));
+}
+
+function anchorTimingStatusV385(nowMinute, leaveAt){
+  const now=Number(nowMinute), leave=Number(leaveAt);
+  if(!Number.isFinite(now)||!Number.isFinite(leave)) return 'protected';
+  if(now>=leave) return 'due';
+  if(now>=leave-ANCHOR_TIMING_RULES_V385.prepareLeadMinutes) return 'prepare';
+  return 'protected';
+}
+
+function anchorTimingV385(activity,day,nowMinute=null){
+  if(!isNonMealAnchorV385(activity)) return null;
+  const now=getOrlandoParts();
+  const minute=nowMinute==null?now.hour*60+now.minute:Number(nowMinute);
+  const start=timeToMinutes(activity.time);
+  if(!Number.isFinite(start)) return null;
+  const buffer=anchorBufferMinutes(activity);
+  const arrivalTarget=start-buffer;
+  let walkMeta={minutes:0,source:'none',known:false};
+  try{ walkMeta=walkingMeta(activity,null,day,null)||walkMeta; }catch{}
+  const walk=Math.max(0,Math.round(Number(walkMeta?.minutes||0)));
+  const leaveAt=arrivalTarget-walk;
+  const end=start+Math.max(10,Number(activity.duration||20));
+  return {
+    activity,start,buffer,arrivalTarget,walkMinutes:walk,walkSource:walkMeta?.source||'unknown',
+    leaveAt,promptStart:leaveAt-ANCHOR_TIMING_RULES_V385.prepareLeadMinutes,end,
+    minutesToStart:Math.round(start-minute),minutesToLeave:Math.round(leaveAt-minute),
+    status:anchorTimingStatusV385(minute,leaveAt)
+  };
+}
+
+function nextAnchorTimingV385(day,nowMinute=null){
+  if(!day) return null;
+  const now=getOrlandoParts();
+  const minute=nowMinute==null?now.hour*60+now.minute:Number(nowMinute);
+  return (day.activities||[])
+    .filter(a=>isNonMealAnchorV385(a)&&!a.replanDeferred&&!isDone(a.id)&&!isSkipped(a.id))
+    .map(a=>anchorTimingV385(a,day,minute))
+    .filter(t=>t&&minute<=t.end)
+    .sort((a,b)=>a.leaveAt-b.leaveAt||a.start-b.start)[0]||null;
+}
+
+function anchorActionFitsValuesV385(operationalMinutes,transitionMinutes,timing,nowMinute){
+  if(!timing) return true;
+  const operational=Math.max(0,Number(operationalMinutes||0));
+  const transition=Math.max(0,Number(transitionMinutes||0));
+  const finish=Number(nowMinute)+operational+transition+ANCHOR_TIMING_RULES_V385.finishSafetyMinutes;
+  return finish<=Number(timing.arrivalTarget);
+}
+
+function rowFitsBeforeAnchorV385(row,timing,day,nowMinute){
+  if(!row?.activity||!row?.meta||!timing) return false;
+  const operational=Number(row.meta.experienceCost?.operationalMinutes??row.meta.totalMinutes??60);
+  let transition=0;
+  try{ transition=Number(routeWalkBetweenActivities(row.activity,timing.activity,day)?.minutes||0); }catch{}
+  return anchorActionFitsValuesV385(operational,transition,timing,nowMinute);
+}
+
+function simpleActivityFitsBeforeAnchorV385(activity,timing,day,nowMinute){
+  if(!activity||!timing) return false;
+  let walkTo=0, transition=0;
+  try{ walkTo=Number(walkingMeta(activity,null,day,null)?.minutes||0); }catch{}
+  try{ transition=Number(routeWalkBetweenActivities(activity,timing.activity,day)?.minutes||0); }catch{}
+  const type=String(activity.type||'').toLowerCase();
+  const baseDuration=Math.max(5,Number(activity.duration||(type==='meal'?45:20)));
+  const queue=type==='attraction'?Math.max(0,Number(activity.plannedWait||15)):0;
+  return anchorActionFitsValuesV385(walkTo+queue+baseDuration,transition,timing,nowMinute);
+}
+
+function pauseFitsBeforeAnchorV385(decision,timing,day,nowMinute){
+  const duration=Math.max(0,Number(decision?.pause?.duration||0));
+  let transition=0;
+  try{ transition=Number(walkingMeta(timing.activity,null,day,null)?.minutes||0); }catch{}
+  return anchorActionFitsValuesV385(duration,transition,timing,nowMinute);
+}
+
+function decisionFitsBeforeAnchorV385(decision,timing,day,nowMinute){
+  if(!decision||!timing) return true;
+  if(['started','emergency','future','none','strategic-hold','meal-anchor-choice','meal-anchor-due','meal-anchor-free-window','meal-anchor-protected'].includes(decision.kind)) return true;
+  if(['direct','bridge','priority-window','opportunity','tactical-fallback'].includes(decision.kind)) return rowFitsBeforeAnchorV385(decision,timing,day,nowMinute);
+  if(['pause','passive-break'].includes(decision.kind)) return pauseFitsBeforeAnchorV385(decision,timing,day,nowMinute);
+  if(decision.kind==='meal-flex-choice') return simpleActivityFitsBeforeAnchorV385(decision.activity,timing,day,nowMinute);
+  if(decision.kind==='fallback'&&decision.activity) return simpleActivityFitsBeforeAnchorV385(decision.activity,timing,day,nowMinute);
+  return true;
+}
+
+function bestSafeActionBeforeAnchorV385(day,livePayload,weatherPayload,timing,nowMinute,priorities=[]){
+  if(!livePayload?.liveData?.length) return null;
+  const priority=(priorities||[])[0]||protectedPriorityV36(day,livePayload,weatherPayload,nowMinute)||null;
+  const rows=liveDecisionRowsV36(day,livePayload,weatherPayload,nowMinute);
+  const green=rows
+    .filter(r=>r.meta?.band==='FAÇA AGORA')
+    .filter(r=>rowFitsBeforeAnchorV385(r,timing,day,nowMinute))
+    .map(r=>({...r,utility:tacticalUtilityV36(r,priority,day,nowMinute)}))
+    .sort((a,b)=>Number(b.meta?.score||0)-Number(a.meta?.score||0)||Number(b.utility||0)-Number(a.utility||0));
+  if(green[0]){
+    const selected=green[0];
+    const nextPriority=(priorities||[]).find(p=>p.activity?.id!==selected.activity.id)||null;
+    return {kind:'direct',...selected,priority:(priorities||[]).find(p=>p.activity?.id===selected.activity.id)||null,nextPriority,priorities:priorities||[],nowMinute,anchorTiming:timing};
+  }
+  const bridges=bridgeCandidatesV36(day,livePayload,weatherPayload,priority,nowMinute)
+    .filter(r=>rowFitsBeforeAnchorV385(r,timing,day,nowMinute));
+  if(bridges[0]) return {kind:'bridge',...bridges[0],priority,bridges,priorities:priorities||[],nowMinute,anchorTiming:timing};
+  return null;
+}
+
+function anchorFallbackNeedsGuardV385(decision,timing){
+  return Boolean(decision?.kind==='fallback'&&decision.activity&&timing?.activity&&sameActivityV384(decision.activity,timing.activity)&&timing.status!=='due');
+}
+
+function anchorHoldDecisionV385(base,timing,day,reason=null){
+  let hold;
+  if(base?.kind==='strategic-hold') hold={...base};
+  else {
+    const priority=base?.priority||(base?.priorities||[])[0]||null;
+    let locationLabel=null;
+    try{const c=locationContextV37(day);if(c?.zone)locationLabel=zoneLabelV37(day.park,c.zone);}catch{}
+    hold={kind:'strategic-hold',nowMinute:base?.nowMinute??(getOrlandoParts().hour*60+getOrlandoParts().minute),priority,priorities:base?.priorities||[],locationLabel,rejectedDecision:null};
+  }
+  const anchor=timing.activity;
+  hold.upcomingAnchor=timing;
+  hold.anchorLimited=true;
+  hold.reason=reason||`Nenhuma atração precisa ser forçada agora. O próximo compromisso é ${anchor.title} às ${anchor.time}; saída recomendada por volta de ${minutesToTime(timing.leaveAt)}.`;
+  return hold;
+}
+
+function anchorPrepareDecisionV385(base,timing,day){
+  return {
+    kind:'anchor-prepare',activity:timing.activity,timing,nowMinute:base?.nowMinute??(getOrlandoParts().hour*60+getOrlandoParts().minute),
+    priority:base?.priority||(base?.priorities||[])[0]||null,priorities:base?.priorities||[],
+    reason:`A saída protegida para ${timing.activity.title} está próxima. Evite iniciar algo que comprometa o posicionamento.`
+  };
+}
+
+const v384DecisionOrchestratorV385=decisionOrchestratorV36;
+decisionOrchestratorV36=function(day,livePayload,weatherPayload){
+  const base=v384DecisionOrchestratorV385(day,livePayload,weatherPayload);
+  if(!day||!base) return base;
+  const now=getOrlandoParts();
+  const nowMinute=now.hour*60+now.minute;
+  if(day.date!==now.date||['started','emergency'].includes(base.kind)) return base;
+  if(String(base.kind||'').startsWith('meal-anchor-')) return base;
+
+  const timing=nextAnchorTimingV385(day,nowMinute);
+  if(!timing) return base;
+
+  if(timing.status==='due'){
+    return {kind:'anchor-due',activity:timing.activity,timing,nowMinute,priority:base.priority||null,priorities:base.priorities||[]};
+  }
+
+  if(base.kind==='fixed'&&sameActivityV384(base.activity,timing.activity)){
+    return timing.status==='prepare' ? anchorPrepareDecisionV385(base,timing,day) : {...base,upcomingAnchor:timing};
+  }
+
+  if(anchorFallbackNeedsGuardV385(base,timing)){
+    return timing.status==='prepare' ? anchorPrepareDecisionV385(base,timing,day) : anchorHoldDecisionV385(base,timing,day);
+  }
+
+  if(base.kind==='strategic-hold'&&timing.status==='prepare'){
+    return anchorPrepareDecisionV385(base,timing,day);
+  }
+
+  if(!decisionFitsBeforeAnchorV385(base,timing,day,nowMinute)){
+    const safe=bestSafeActionBeforeAnchorV385(day,livePayload,weatherPayload,timing,nowMinute,base.priorities||[]);
+    if(safe) return {...safe,upcomingAnchor:timing,anchorLimited:true};
+    if(timing.status==='prepare') return anchorPrepareDecisionV385(base,timing,day);
+    return anchorHoldDecisionV385(base,timing,day,`Nenhuma atração cabe com segurança antes de ${timing.activity.title} às ${timing.activity.time}. Aproveite a região e preserve a saída recomendada por volta de ${minutesToTime(timing.leaveAt)}.`);
+  }
+
+  if(base.kind==='strategic-hold') return {...base,upcomingAnchor:timing};
+  return {...base,upcomingAnchor:timing};
+};
+
+function anchorIconV385(activity){
+  const type=String(activity?.type||'').toLowerCase();
+  if(type==='fireworks') return '✦';
+  if(['show','parade','entertainment'].includes(type)) return '◉';
+  return '◷';
+}
+
+function anchorWatchBlockV385(timing){
+  if(!timing?.activity) return '';
+  const a=timing.activity;
+  return `<div class="next-step-priority-watch anchor-watch-v385"><span>PRÓXIMO COMPROMISSO</span><div><b aria-hidden="true">${anchorIconV385(a)}</b><strong>${escapeHtml(a.title)}</strong></div><small>${escapeHtml(a.time||'')} · saída recomendada ~${escapeHtml(minutesToTime(timing.leaveAt))}</small></div>`;
+}
+
+function injectAnchorWatchV385(timing){
+  if(!timing?.activity) return;
+  const card=$('#nextCard');
+  if(!card||card.querySelector('.anchor-watch-v385')) return;
+  const html=anchorWatchBlockV385(timing);
+  const actions=card.querySelector('.next-step-actions');
+  if(actions) actions.insertAdjacentHTML('beforebegin',html);
+  else card.insertAdjacentHTML('beforeend',html);
+}
+
+const v384RenderNextV36DecisionV385=renderNextV36Decision;
+renderNextV36Decision=function(decision,day,livePayload,weatherPayload){
+  const card=$('#nextCard');
+  if(decision?.kind==='anchor-due'){
+    if(!card) return;
+    const a=decision.activity,t=decision.timing;
+    const confidence={score:97,label:'Alta',level:'high',detail:'O horário seguro de saída para este compromisso já chegou.'};
+    const factors=[{icon:'◷',text:`Horário: ${a.time}.`},{icon:'→',text:`Saída recomendada: ${minutesToTime(t.leaveAt)}.`},{icon:'⌖',text:`Deslocamento estimado: ~${Math.max(0,t.walkMinutes)} min.`},{icon:'✓',text:`${t.buffer} min protegidos para posicionamento/chegada.`}];
+    card.className='next-card next-step-card next-step-good';
+    card.innerHTML=`<div class="next-step-eyebrow">MELHOR AÇÃO AGORA</div><div class="next-step-title-row"><div class="next-step-main"><div class="next-step-title">${escapeHtml(a.title)}</div><div class="next-step-decision good"><span class="next-step-light"></span>HORA DE IR</div></div><span class="next-step-confidence high">Confiança alta</span></div><p class="next-step-reason">Chegou a hora de se posicionar para este compromisso. Não vale iniciar outra atividade que coloque a janela em risco.</p>${renderNextStepDetails('Por que ir agora?',factors,confidence)}<div class="next-step-actions"><button class="primary-btn" data-start="${a.id}">Iniciar</button></div>`;
+    return;
+  }
+  if(decision?.kind==='anchor-prepare'){
+    if(!card) return;
+    const a=decision.activity,t=decision.timing;
+    const confidence={score:88,label:'Alta',level:'high',detail:'A janela segura de saída está próxima e nenhuma atividade disponível cabe com folga suficiente.'};
+    const factors=[{icon:'◷',text:`${a.title} começa às ${a.time}.`},{icon:'→',text:`Saída recomendada ~${minutesToTime(t.leaveAt)}.`},{icon:'⌖',text:`Deslocamento estimado: ~${Math.max(0,t.walkMinutes)} min.`},{icon:'✓',text:'O motor não iniciará uma atividade que comprometa este horário.'}];
+    card.className='next-card next-step-card next-step-neutral';
+    card.innerHTML=`<div class="next-step-eyebrow">PRÓXIMO COMPROMISSO</div><div class="next-step-title-row"><div class="next-step-main"><div class="next-step-title">${escapeHtml(a.title)}</div><div class="next-step-decision neutral"><span class="next-step-light"></span>PREPARE-SE</div></div><span class="next-step-confidence high">${escapeHtml(a.time||'')}</span></div><p class="next-step-reason">${escapeHtml(decision.reason)}</p>${renderNextStepDetails('O que o motor está protegendo?',factors,confidence)}<div class="next-step-actions"><button class="secondary-btn" data-next-step-live>Ver alternativas</button></div>`;
+    return;
+  }
+  v384RenderNextV36DecisionV385(decision,day,livePayload,weatherPayload);
+  if(decision?.upcomingAnchor) injectAnchorWatchV385(decision.upcomingAnchor);
+};
+
+function anchorLiveCalloutV385(decision){
+  if(!decision?.activity||!['anchor-due','anchor-prepare'].includes(decision.kind)) return '';
+  const a=decision.activity,t=decision.timing;
+  if(decision.kind==='anchor-due') return `<div class="live-action-callout"><span class="live-action-callout-icon">${anchorIconV385(a)}</span><div><span class="kicker">HORA DE IR</span><strong>${escapeHtml(a.title)} · ${escapeHtml(a.time||'')}</strong><p>A saída segura chegou. Não vale iniciar outra atividade agora.</p></div></div>`;
+  return `<div class="live-action-callout"><span class="live-action-callout-icon">${anchorIconV385(a)}</span><div><span class="kicker">PRÓXIMO COMPROMISSO</span><strong>${escapeHtml(a.title)} · ${escapeHtml(a.time||'')}</strong><p>Prepare-se: saída recomendada ~${escapeHtml(minutesToTime(t.leaveAt))}.</p></div></div>`;
+}
+
+const v384RenderLiveHierarchyV385=renderLiveHierarchyV36;
+renderLiveHierarchyV36=function(day,payload,weather){
+  v384RenderLiveHierarchyV385(day,payload,weather);
+  const root=$('#recommendations');
+  if(!root) return;
+  const decision=decisionOrchestratorV36(day,payload,weather);
+  const callout=anchorLiveCalloutV385(decision);
+  if(!callout) return;
+  const existing=root.querySelector(':scope > .live-action-callout');
+  if(existing) existing.remove();
+  root.insertAdjacentHTML('afterbegin',callout);
+};
+
+const v384DiagnosticDecisionMetaV385=diagnosticDecisionMetaV38;
+diagnosticDecisionMetaV38=function(decision){
+  const meta=v384DiagnosticDecisionMetaV385(decision);
+  if(decision?.kind==='anchor-due'||decision?.kind==='anchor-prepare'){
+    const t=decision.timing,a=decision.activity;
+    return {...meta,kind:'anchor',rawKind:decision.kind,subtype:String(a?.type||'anchor').toLowerCase(),operationalStatus:decision.kind==='anchor-due'?'due':'prepare',anchorTime:a?.time||null,arrivalBufferMinutes:t?.buffer??null,anchorLeaveAt:t?.leaveAt??null,minutesToAnchor:t?.minutesToStart??null,anchorWalkMinutes:t?.walkMinutes??null,restorativeAnchor:false};
+  }
+  if(decision?.upcomingAnchor){
+    const t=decision.upcomingAnchor;
+    return {...meta,nextAnchorTitle:t.activity?.title||null,nextAnchorTime:t.activity?.time||null,nextAnchorStatus:t.status,nextAnchorLeaveAt:t.leaveAt,nextAnchorWalkMinutes:t.walkMinutes};
+  }
+  return meta;
+};
+
+const v384EngineDiagnosticSnapshotV385=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){
+  const snapshot=v384EngineDiagnosticSnapshotV385();
+  const day=getSelectedDay();
+  if(day){
+    try{
+      const now=getOrlandoParts(), t=nextAnchorTimingV385(day,now.hour*60+now.minute);
+      snapshot.context=snapshot.context||{};
+      snapshot.context.anchorTiming=t?{title:t.activity.title,type:t.activity.type||null,time:t.activity.time||null,status:t.status,bufferMinutes:t.buffer,walkMinutes:t.walkMinutes,walkSource:t.walkSource,leaveAt:minutesToTime(t.leaveAt),minutesToLeave:t.minutesToLeave}:null;
+    }catch(error){recordRuntimeDiagnosticV38('diagnostic-anchor-timing',error);}
+  }
+  return snapshot;
+};
+
+const v384RenderDiagnosticSnapshotHtmlV385=renderDiagnosticSnapshotHtmlV38;
+renderDiagnosticSnapshotHtmlV38=function(snapshot){
+  const base=v384RenderDiagnosticSnapshotHtmlV385(snapshot);
+  const a=snapshot?.context?.anchorTiming;
+  if(!a) return base;
+  const status=a.status==='due'?'hora de ir':a.status==='prepare'?'preparação':'protegida em segundo plano';
+  return `${base}<p class="engine-diagnostic-note"><b>Próxima âncora:</b> ${escapeHtml(a.title)} · ${escapeHtml(a.time||'--')} · ${escapeHtml(status)} · saída ~${escapeHtml(a.leaveAt||'--')}${Number.isFinite(Number(a.walkMinutes))?` · caminhada ~${Math.round(Number(a.walkMinutes))} min`:''}.</p>`;
+};
+
+const v384RunEngineSelfTestsV385=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v384RunEngineSelfTestsV385();
+  const additions=[];
+  addSelfTestV38(additions,'Âncora distante não vira fallback executável',()=>{
+    const a={id:'show-far',title:'Luminous',type:'fireworks',time:'21:00',fixedAnchor:true,flexible:false};
+    const timing={activity:a,status:'protected',leaveAt:1220};
+    const fallback={kind:'fallback',activity:a};
+    assertSelfTestV38(anchorFallbackNeedsGuardV385(fallback,timing),'show distante deveria ser protegido');
+    return 'fallback de âncora → estratégia protegida';
+  });
+  addSelfTestV38(additions,'Ação precisa caber antes da âncora',()=>{
+    const timing={arrivalTarget:700};
+    assertSelfTestV38(anchorActionFitsValuesV385(20,5,timing,660),'ação curta deveria caber');
+    assertSelfTestV38(!anchorActionFitsValuesV385(35,8,timing,660),'ação longa deveria ser bloqueada');
+    return 'duração + transição + margem';
+  });
+  addSelfTestV38(additions,'Âncora muda de protegida para hora de ir',()=>{
+    assertSelfTestV38(anchorTimingStatusV385(100,120)==='protected','deveria estar protegida');
+    assertSelfTestV38(anchorTimingStatusV385(112,120)==='prepare','deveria estar em preparação');
+    assertSelfTestV38(anchorTimingStatusV385(120,120)==='due','deveria estar em hora de ir');
+    return 'protected → prepare → due';
+  });
+  report.results.push(...additions);
+  report.total=report.results.length;
+  report.passed=report.results.filter(x=>x.ok).length;
+  report.failed=report.total-report.passed;
+  report.ok=report.failed===0;
+  report.build=ENGINE_BUILD_V38;
+  report.version=ENGINE_DIAGNOSTICS_VERSION_V38;
+  return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v38.6 — Smart Bridge Selection
+   - Usa o intervalo livre antes de âncoras sem fingir que uma atração amarela virou verde.
+   - "MELHOR DEPOIS" pode ser promovida somente como ponte explícita e segura.
+   - Corrige o rótulo "pass marcado" quando não existe Pass operacional.
+   ============================================================ */
+const SMART_BRIDGE_RULES_V386 = Object.freeze({
+  minTacticalScore: 45,
+  minBridgeScore: 58,
+  minMarginMinutes: 12,
+  maxOperationalMinutes: 58,
+  maxWalkMinutes: 22,
+  longExperienceMinutes: 42,
+  highFatigueThreshold: 70,
+  finishSafetyMinutes: 4
+});
+
+// v25 moveu Pass para o dia/atividade, mas o objeto de score antigo não
+// propagava passType. Comparações com undefined acabavam exibindo "pass marcado"
+// em atrações sem Pass. Mantemos a API e acrescentamos o tipo real.
+const v385PassScheduleScoreV386 = passScheduleScore;
+passScheduleScore = function(activity,startMinute){
+  const result=v385PassScheduleScoreV386(activity,startMinute)||{};
+  const pass=passMetaFor(activity)||{passType:'none',passTime:'',passWindowMinutes:60};
+  return {...result,passType:pass.passType||'none',passTime:pass.passTime||'',passWindowMinutes:Number(pass.passWindowMinutes||60)};
+};
+
+function bridgeFitValuesV386(operationalMinutes,transitionMinutes,arrivalTarget,nowMinute){
+  const operational=Math.max(0,Number(operationalMinutes||0));
+  const transition=Math.max(0,Number(transitionMinutes||0));
+  const finish=Number(nowMinute)+operational+transition+SMART_BRIDGE_RULES_V386.finishSafetyMinutes;
+  const margin=Number(arrivalTarget)-finish;
+  return {finish,margin,fits:Number.isFinite(margin)&&margin>=SMART_BRIDGE_RULES_V386.minMarginMinutes};
+}
+
+function smartBridgeMetricsV386(row,timing,day,nowMinute,weatherPayload,protectedPriority=null){
+  if(!row?.activity||!row?.meta) return null;
+  const meta=row.meta;
+  if(meta.blocked||meta.band==='EVITE AGORA'||Number(meta.score||0)<SMART_BRIDGE_RULES_V386.minTacticalScore) return null;
+  if(protectedPriority?.activity&&sameActivityV384(row.activity,protectedPriority.activity)) return null;
+
+  const operational=Math.max(1,Number(meta.experienceCost?.operationalMinutes??meta.totalMinutes??60));
+  if(operational>SMART_BRIDGE_RULES_V386.maxOperationalMinutes) return null;
+  const walk=Math.max(0,Number(meta.walk?.minutes||0));
+  if(walk>SMART_BRIDGE_RULES_V386.maxWalkMinutes&&Number(meta.score||0)<68) return null;
+
+  let transition=0, arrivalTarget=Infinity, availableBridgeMinutes=null, deadlineLabel=null;
+  if(timing?.activity){
+    try{transition=Math.max(0,Number(routeWalkBetweenActivities(row.activity,timing.activity,day)?.minutes||0));}catch{}
+    arrivalTarget=Number(timing.arrivalTarget);
+    availableBridgeMinutes=Math.max(0,Math.round(Number(timing.leaveAt)-Number(nowMinute)));
+    deadlineLabel=`${timing.activity.title} às ${timing.activity.time}`;
+  }else if(protectedPriority?.window?.leaveAt!=null){
+    try{transition=Math.max(0,Number(routeWalkBetweenActivities(row.activity,protectedPriority.activity,day)?.minutes||0));}catch{}
+    arrivalTarget=Number(protectedPriority.window.leaveAt)+transition;
+    availableBridgeMinutes=Math.max(0,Math.round(Number(protectedPriority.window.leaveAt)-Number(nowMinute)));
+    deadlineLabel=protectedPriority.activity.title;
+  }
+
+  let margin=Infinity, finish=Number(nowMinute)+operational;
+  if(Number.isFinite(arrivalTarget)){
+    const fit=bridgeFitValuesV386(operational,transition,arrivalTarget,nowMinute);
+    if(!fit.fits) return null;
+    ({margin,finish}=fit);
+  }
+
+  const costScore=Number(meta.experienceCost?.score??clamp(105-operational*.85,5,100));
+  const proximityScore=clamp(100-walk*4,12,100);
+  const tacticalScore=Number(meta.score||0);
+  const priorityScore=Number(meta.priority?.score||60);
+  const qualityScore=Number(meta.dataQuality?.overall||62);
+  const fitScore=Number.isFinite(margin)?clamp(55+margin*1.15,55,100):76;
+  let paceScore=82;
+  try{
+    const fatigue=fatigueMetaForDay(day,weatherPayload);
+    const fatigueValue=Number(fatigue?.fatigue||0);
+    if(fatigueValue>=SMART_BRIDGE_RULES_V386.highFatigueThreshold){
+      paceScore=operational<=32?94:operational<=SMART_BRIDGE_RULES_V386.longExperienceMinutes?76:48;
+    }else paceScore=operational<=38?90:72;
+  }catch{}
+
+  let bridgeScore=tacticalScore*.28+costScore*.22+proximityScore*.16+fitScore*.19+priorityScore*.05+qualityScore*.05+paceScore*.05;
+  if(meta.band==='FAÇA AGORA') bridgeScore+=5;
+  if(meta.band==='ESPERE'&&walk<=6&&operational<=36) bridgeScore+=4;
+  if(Number.isFinite(margin)&&margin>=25) bridgeScore+=3;
+  bridgeScore=Math.round(clamp(bridgeScore,0,100));
+  if(bridgeScore<SMART_BRIDGE_RULES_V386.minBridgeScore) return null;
+
+  return {
+    ...row,
+    bridgeScore,
+    bridgeMargin:Number.isFinite(margin)?Math.max(0,Math.round(margin)):null,
+    availableBridgeMinutes,
+    bridgeOperationalMinutes:Math.round(operational),
+    transitionToAnchorMinutes:Math.round(transition),
+    bridgeFinishMinute:Math.round(finish),
+    deadlineLabel,
+    originalBand:meta.band
+  };
+}
+
+function bestSmartBridgeV386(day,livePayload,weatherPayload,timing,nowMinute,priorities=[]){
+  if(!day||!livePayload?.liveData?.length) return null;
+  const protectedPriority=(priorities||[])[0]||protectedPriorityV36(day,livePayload,weatherPayload,nowMinute)||null;
+  const rows=liveDecisionRowsV36(day,livePayload,weatherPayload,nowMinute);
+  return rows
+    .map(row=>smartBridgeMetricsV386(row,timing,day,nowMinute,weatherPayload,protectedPriority))
+    .filter(Boolean)
+    .sort((a,b)=>b.bridgeScore-a.bridgeScore||Number(b.bridgeMargin||0)-Number(a.bridgeMargin||0)||Number(a.meta?.walk?.minutes||99)-Number(b.meta?.walk?.minutes||99))[0]||null;
+}
+
+function smartBridgeReasonV386(decision){
+  const a=decision?.activity, timing=decision?.anchorTiming;
+  const margin=Number(decision?.bridgeMargin||0);
+  if(timing?.activity){
+    const proximity=Number(decision?.meta?.walk?.minutes||0)<=6?'está perto, ':'';
+    return `Não é uma janela excepcional para ${a?.title||'esta atração'}, mas ela ${proximity}usa bem este intervalo e ainda deixa cerca de ${Math.max(0,Math.round(margin))} min de folga antes de ${timing.activity.title}.`;
+  }
+  if(decision?.priority?.activity) return `É uma boa atividade ponte para avançar no roteiro sem perder a próxima janela de ${decision.priority.activity.title}.`;
+  return 'É a melhor atividade ponte disponível para usar este intervalo sem comprometer o restante do dia.';
+}
+
+function smartBridgeFactorsV386(decision,day,weatherPayload){
+  const meta=decision.meta||{}, factors=[];
+  if(meta.band==='ESPERE') factors.push({icon:'↻',text:'Individualmente, a atração continua como Melhor depois; aqui ela entra apenas como atividade ponte.'});
+  if(meta.walk?.minutes!=null) factors.push({icon:'⌖',text:`${meta.walk?.known?'Apenas':'Cerca de'} ${Math.round(meta.walk.minutes)} min de caminhada.`});
+  if(meta.experienceCost?.totalMinutes!=null) factors.push({icon:'⏱',text:`Custo total de cerca de ${Math.round(meta.experienceCost.totalMinutes)} min.`});
+  if(decision.availableBridgeMinutes!=null) factors.push({icon:'◷',text:`Há cerca de ${Math.max(0,Math.round(decision.availableBridgeMinutes))} min até a saída protegida do próximo compromisso.`});
+  if(decision.bridgeMargin!=null&&decision.anchorTiming?.activity) factors.push({icon:'✓',text:`Ainda restam cerca de ${Math.round(decision.bridgeMargin)} min de folga antes de ${decision.anchorTiming.activity.title}.`});
+  if(decision.anchorTiming?.activity) factors.push({icon:'✦',text:`${decision.anchorTiming.activity.title} continua protegido para ${decision.anchorTiming.activity.time}.`});
+  const extra=nextStepFactors(meta,weatherPayload).filter(f=>!factors.some(x=>x.text===f.text));
+  return [...factors,...extra].slice(0,6);
+}
+
+const v385DecisionOrchestratorV386=decisionOrchestratorV36;
+decisionOrchestratorV36=function(day,livePayload,weatherPayload){
+  const base=v385DecisionOrchestratorV386(day,livePayload,weatherPayload);
+  if(!day||!base||base.kind!=='strategic-hold'||!livePayload?.liveData?.length) return base;
+  const now=getOrlandoParts(), nowMinute=now.hour*60+now.minute;
+  if(day.date!==now.date) return base;
+  const timing=base.upcomingAnchor||nextAnchorTimingV385(day,nowMinute);
+  // Só usamos uma ponte amarela enquanto a âncora está protegida. Nos estados
+  // prepare/due a janela operacional continua dominando.
+  if(timing&&timing.status!=='protected') return base;
+  const candidate=bestSmartBridgeV386(day,livePayload,weatherPayload,timing,nowMinute,base.priorities||[]);
+  if(!candidate) return base;
+  return {
+    kind:'smart-bridge',...candidate,
+    priority:base.priority||(base.priorities||[])[0]||null,
+    priorities:base.priorities||[],
+    nowMinute,
+    anchorTiming:timing||null,
+    upcomingAnchor:timing||base.upcomingAnchor||null
+  };
+};
+
+const v385RenderNextV36DecisionV386=renderNextV36Decision;
+renderNextV36Decision=function(decision,day,livePayload,weatherPayload){
+  if(decision?.kind!=='smart-bridge') return v385RenderNextV36DecisionV386(decision,day,livePayload,weatherPayload);
+  const card=$('#nextCard'); if(!card) return;
+  const a=decision.activity, meta=decision.meta;
+  const confidence=nextStepConfidence(meta,livePayload,weatherPayload);
+  const factors=smartBridgeFactorsV386(decision,day,weatherPayload);
+  const pass=passMetaFor(a);
+  card.className='next-card next-step-card next-step-neutral';
+  card.innerHTML=`<div class="next-step-eyebrow">MELHOR AÇÃO AGORA</div><div class="next-step-title-row"><div class="next-step-main"><div class="next-step-title">${escapeHtml(a.title)}</div><div class="next-step-decision neutral"><span class="next-step-light"></span>APROVEITE ESTE INTERVALO</div></div><span class="next-step-confidence ${confidence.level}">Confiança ${escapeHtml(confidence.label.toLowerCase())}</span></div><p class="next-step-reason">${escapeHtml(smartBridgeReasonV386(decision))}</p>${renderNextStepDetails('Por que esta atividade cabe agora?',factors,confidence)}${decision.anchorTiming?anchorWatchBlockV385(decision.anchorTiming):priorityWatchBlockV36(decision.priority,decision.nowMinute)}<div class="next-step-actions"><button class="primary-btn" data-start="${a.id}">Iniciar</button><button class="secondary-btn pass-action ${pass.passType!=='none'?'active':''}" data-pass="${a.id}">${escapeHtml(passButtonLabel(a))}</button><button class="secondary-btn" data-next-step-live>Ver alternativas</button></div>`;
+};
+
+const v385RenderLiveHierarchyV386=renderLiveHierarchyV36;
+renderLiveHierarchyV36=function(day,payload,weather){
+  v385RenderLiveHierarchyV386(day,payload,weather);
+  const root=$('#recommendations');
+  if(!root||!day||!payload?.liveData?.length) return;
+  const decision=decisionOrchestratorV36(day,payload,weather);
+  if(decision?.kind!=='smart-bridge'||!decision.entry||!decision.meta) return;
+  const group=root.querySelector('.live-best-now');
+  if(!group) return;
+  // Evita duplicar o mesmo card se uma camada anterior já o incluiu.
+  const name=decision.entry.name||decision.activity?.title||'';
+  const exists=[...group.querySelectorAll('.rec-card strong')].some(el=>normalizeName(el.textContent||'').startsWith(normalizeName(name)));
+  if(exists) return;
+  const placeholder=group.querySelector(':scope > p.muted');
+  if(placeholder) placeholder.remove();
+  const card=renderLiveDecisionCardV36({entry:decision.entry,meta:decision.meta},{display:{label:'APROVEITE ESTE INTERVALO',className:'bridge'},reason:smartBridgeReasonV386(decision)});
+  const head=group.querySelector('.live-decision-group-head');
+  if(head) head.insertAdjacentHTML('afterend',card);
+};
+
+const v385DiagnosticDecisionMetaV386=diagnosticDecisionMetaV38;
+diagnosticDecisionMetaV38=function(decision){
+  const meta=v385DiagnosticDecisionMetaV386(decision);
+  if(decision?.kind!=='smart-bridge') return meta;
+  return {...meta,kind:'smart-bridge',bridgeScore:decision.bridgeScore??null,bridgeBand:decision.originalBand||decision.meta?.band||null,availableBridgeMinutes:decision.availableBridgeMinutes??null,bridgeMargin:decision.bridgeMargin??null,transitionToAnchorMinutes:decision.transitionToAnchorMinutes??null,nextAnchorTitle:decision.anchorTiming?.activity?.title||null,nextAnchorTime:decision.anchorTiming?.activity?.time||null};
+};
+
+const v385RenderDiagnosticSnapshotHtmlV386=renderDiagnosticSnapshotHtmlV38;
+renderDiagnosticSnapshotHtmlV38=function(snapshot){
+  const base=v385RenderDiagnosticSnapshotHtmlV386(snapshot);
+  const d=snapshot?.decision;
+  if(d?.kind!=='smart-bridge') return base;
+  return `${base}<p class="engine-diagnostic-note"><b>Ponte inteligente:</b> score ${escapeHtml(String(d.bridgeScore??'--'))} · ${escapeHtml(String(d.availableBridgeMinutes??'--'))} min disponíveis · margem ${escapeHtml(String(d.bridgeMargin??'--'))} min${d.nextAnchorTitle?` · protege ${escapeHtml(d.nextAnchorTitle)}${d.nextAnchorTime?` ${escapeHtml(d.nextAnchorTime)}`:''}`:''}.</p>`;
+};
+
+const v385RunEngineSelfTestsV386=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v385RunEngineSelfTestsV386();
+  const additions=[];
+  addSelfTestV38(additions,'Pass inexistente não aparece como marcado',()=>{
+    const fake={id:'no-pass',title:'Sem Pass',type:'attraction'};
+    const p=passScheduleScore(fake,600);
+    assertSelfTestV38(p.passType==='none',`passType=${p.passType}`);
+    assertSelfTestV38(!p.label,'atração sem Pass não deve ter rótulo');
+    return 'none permanece none';
+  });
+  addSelfTestV38(additions,'Ponte amarela pode usar intervalo amplo com folga',()=>{
+    const fit=bridgeFitValuesV386(31,6,1220,1128);
+    assertSelfTestV38(fit.fits,'31 min + transição deveria caber');
+    assertSelfTestV38(fit.margin>=SMART_BRIDGE_RULES_V386.minMarginMinutes,`margem ${fit.margin}`);
+    return `${Math.round(fit.margin)} min de margem`;
+  });
+  addSelfTestV38(additions,'Ponte longa é rejeitada antes da âncora',()=>{
+    const fit=bridgeFitValuesV386(70,8,1220,1148);
+    assertSelfTestV38(!fit.fits,'atividade longa deveria ser rejeitada');
+    return 'deadline preservado';
+  });
+  addSelfTestV38(additions,'Melhor depois continua amarelo quando vira ponte',()=>{
+    const fake={meta:{band:'ESPERE'}};
+    assertSelfTestV38(fake.meta.band==='ESPERE','ponte não deve reescrever o farol individual');
+    return 'classificação individual preservada';
+  });
+  report.results.push(...additions);
+  report.total=report.results.length;
+  report.passed=report.results.filter(x=>x.ok).length;
+  report.failed=report.total-report.passed;
+  report.ok=report.failed===0;
+  report.build=ENGINE_BUILD_V38;
+  report.version=ENGINE_DIAGNOSTICS_VERSION_V38;
+  return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v38.6.1 — Park-wide Smart Bridge
+   - O Smart Bridge avalia também atrações OPERATING fora do roteiro.
+   - A recomendação não altera o roteiro; a atividade é materializada
+     somente quando o usuário toca em Iniciar.
+   - Diagnóstico expõe tamanho do pool e origem da ponte.
+   ============================================================ */
+const PARK_WIDE_BRIDGE_RULES_V3861 = Object.freeze({
+  maxDiagnosticCandidates: 5
+});
+
+function stableBridgeHashV3861(value=''){
+  let hash=2166136261;
+  for(const ch of String(value)){
+    hash^=ch.charCodeAt(0);
+    hash=Math.imul(hash,16777619);
+  }
+  return (hash>>>0).toString(36);
+}
+
+function bridgeCandidateIdV3861(day,entry){
+  return `park-bridge-${stableBridgeHashV3861(`${day?.park||state.selectedPark}|${entry?.name||'attraction'}`)}`;
+}
+
+function matchingDayAttractionV3861(day,entry){
+  if(!day||!entry) return null;
+  return (day.activities||[]).find(a=>a.type==='attraction'&&findLiveMatch(a,[entry]))||null;
+}
+
+function parkWideBridgeRowsV3861(day,livePayload,weatherPayload,nowMinute=null){
+  if(!day||!livePayload?.liveData?.length) return [];
+  const now=getOrlandoParts();
+  const minute=nowMinute==null?now.hour*60+now.minute:Number(nowMinute);
+  const previous=lastContextActivityV36(day);
+  const rows=[];
+  const seen=new Set();
+
+  // Primeiro preserva as atividades pendentes já presentes no roteiro.
+  for(const row of liveDecisionRowsV36(day,livePayload,weatherPayload,minute)){
+    const key=normalizeName(row.entry?.name||row.activity?.title||'');
+    if(!key||seen.has(key)) continue;
+    seen.add(key);
+    rows.push({...row,isAdHocCandidate:false,candidateSource:'planned'});
+  }
+
+  // Em seguida inclui o restante do parque sem materializar nada no roteiro.
+  for(const entry of livePayload.liveData||[]){
+    const key=normalizeName(entry?.name||'');
+    if(!key||seen.has(key)) continue;
+    const planned=matchingDayAttractionV3861(day,entry);
+    if(planned&&isSkipped(planned.id)) continue;
+    if(planned&&isDone(planned.id)&&!repeatWantedFor(planned)) continue;
+
+    const meta0=copilotScoreForEntry(entry,day,weatherPayload,minute,previous);
+    if(!meta0||meta0.wait==null||meta0.blocked) continue;
+
+    // Se a atração já foi concluída mas repetição é desejada, uma nova execução
+    // precisa de um id ad hoc; o id original já está marcado como concluído.
+    const needsAdHoc=!planned||(planned&&isDone(planned.id));
+    let activity=planned||meta0.activity;
+    if(needsAdHoc){
+      activity={
+        ...meta0.activity,
+        id:bridgeCandidateIdV3861(day,entry),
+        title:entry.name||meta0.activity?.title||'Atração',
+        entityName:entry.name||meta0.activity?.entityName||meta0.activity?.title||'',
+        type:'attraction',flexible:true,adHocCandidate:true,source:'park-wide-smart-bridge'
+      };
+    }
+    const meta=activity===meta0.activity?meta0:{...meta0,activity};
+    seen.add(key);
+    rows.push({activity,entry,meta,isAdHocCandidate:needsAdHoc,candidateSource:needsAdHoc?'park-live':'planned'});
+  }
+  return rows;
+}
+
+function smartBridgePoolV3861(day,livePayload,weatherPayload,timing,nowMinute,priorities=[]){
+  const protectedPriority=(priorities||[])[0]||protectedPriorityV36(day,livePayload,weatherPayload,nowMinute)||null;
+  const rows=parkWideBridgeRowsV3861(day,livePayload,weatherPayload,nowMinute);
+  const eligible=rows
+    .map(row=>smartBridgeMetricsV386(row,timing,day,nowMinute,weatherPayload,protectedPriority))
+    .filter(Boolean)
+    .sort((a,b)=>b.bridgeScore-a.bridgeScore||Number(b.bridgeMargin||0)-Number(a.bridgeMargin||0)||Number(a.meta?.walk?.minutes||99)-Number(b.meta?.walk?.minutes||99));
+  const stats={
+    analyzed:rows.length,
+    eligible:eligible.length,
+    plannedAnalyzed:rows.filter(r=>!r.isAdHocCandidate).length,
+    parkWideAnalyzed:rows.filter(r=>r.isAdHocCandidate).length,
+    top:eligible.slice(0,PARK_WIDE_BRIDGE_RULES_V3861.maxDiagnosticCandidates).map(r=>({
+      title:r.activity?.title||r.entry?.name||null,
+      bridgeScore:r.bridgeScore,
+      band:r.originalBand||r.meta?.band||null,
+      margin:r.bridgeMargin,
+      walkMinutes:r.meta?.walk?.minutes??null,
+      operationalMinutes:r.bridgeOperationalMinutes??null,
+      source:r.isAdHocCandidate?'park-live':'planned'
+    }))
+  };
+  return {rows,eligible,stats,protectedPriority};
+}
+
+// Substitui apenas a origem do pool. O algoritmo de score/margem da v38.6 é preservado.
+bestSmartBridgeV386=function(day,livePayload,weatherPayload,timing,nowMinute,priorities=[]){
+  if(!day||!livePayload?.liveData?.length) return null;
+  const pool=smartBridgePoolV3861(day,livePayload,weatherPayload,timing,nowMinute,priorities);
+  const best=pool.eligible[0]||null;
+  return best?{...best,bridgePoolStats:pool.stats}:null;
+};
+
+function materializeAdHocBridgeActivityV3861(day,row,nowParts=getOrlandoParts()){
+  if(!day||!row?.entry) return null;
+  const title=row.entry.name||row.activity?.title||'Atração';
+  const key=normalizeName(title);
+  const existing=(day.activities||[]).find(a=>a.adHoc===true&&normalizeName(a.title||a.entityName||'')===key&&!isDone(a.id)&&!isSkipped(a.id));
+  if(existing) return existing;
+
+  const zone=zoneForActivityV37(row.activity,day.park,row.entry);
+  const currentMinute=Number(nowParts.hour||0)*60+Number(nowParts.minute||0);
+  const activity={
+    id:`adhoc-${day.date}-${stableBridgeHashV3861(`${title}|${Date.now()}`)}`,
+    time:minutesToTime(currentMinute),
+    title,
+    entityName:title,
+    type:'attraction',
+    duration:Math.max(5,Number(row.meta?.activity?.duration||row.activity?.duration||8)),
+    priority:Number(row.meta?.activity?.priority||3),
+    flexible:true,
+    area:zone?zoneLabelV37(day.park,zone):(row.activity?.area||''),
+    plannedWait:Number.isFinite(Number(row.meta?.wait))?Number(row.meta.wait):null,
+    adHoc:true,
+    spontaneous:true,
+    source:'park-wide-smart-bridge'
+  };
+  if(!Array.isArray(day.activities)) day.activities=[];
+  let index=day.activities.findIndex(a=>!isDone(a.id)&&timeToMinutes(a.time)>currentMinute);
+  if(index<0) index=day.activities.length;
+  day.activities.splice(index,0,activity);
+  return activity;
+}
+
+function startParkWideBridgeV3861(liveName){
+  const day=getSelectedDay();
+  const live=state.liveCache?.[day?.park||state.selectedPark];
+  if(!day||!live?.liveData?.length) return;
+  const entry=(live.liveData||[]).find(x=>normalizeName(x.name||'')===normalizeName(liveName||''));
+  if(!entry){toast('A atração não está mais disponível nos dados ao vivo.');return;}
+  const now=getOrlandoParts(), minute=now.hour*60+now.minute;
+  const row=parkWideBridgeRowsV3861(day,live,state.weatherCache?.[day.park],minute).find(r=>normalizeName(r.entry?.name||r.activity?.title||'')===normalizeName(entry.name||''));
+  if(!row){toast('Essa atividade não está mais elegível neste momento.');return;}
+  const activity=materializeAdHocBridgeActivityV3861(day,row,now);
+  if(!activity) return;
+  startActivity(activity.id);
+}
+
+document.addEventListener('click',e=>{
+  const button=e.target.closest('[data-start-park-bridge]');
+  if(!button) return;
+  e.preventDefault();
+  startParkWideBridgeV3861(button.dataset.startParkBridge||'');
+});
+
+// A v38.6 já sabe renderizar smart-bridge. Para candidatos fora do roteiro,
+// trocamos apenas o comando do botão Iniciar e removemos Pass até a atividade existir.
+const v386RenderNextV36DecisionV3861=renderNextV36Decision;
+renderNextV36Decision=function(decision,day,livePayload,weatherPayload){
+  v386RenderNextV36DecisionV3861(decision,day,livePayload,weatherPayload);
+  if(decision?.kind!=='smart-bridge'||!decision.isAdHocCandidate) return;
+  const card=$('#nextCard'); if(!card) return;
+  const start=card.querySelector('[data-start]');
+  if(start){
+    start.removeAttribute('data-start');
+    start.setAttribute('data-start-park-bridge',decision.entry?.name||decision.activity?.title||'');
+  }
+  const pass=card.querySelector('[data-pass]');
+  if(pass) pass.remove();
+};
+
+// Acrescenta estatísticas do parque inteiro tanto quando há ponte quanto quando
+// o motor permanece em strategic-hold; isso facilita depurar exclusões reais.
+const v386DecisionOrchestratorV3861=decisionOrchestratorV36;
+decisionOrchestratorV36=function(day,livePayload,weatherPayload){
+  const decision=v386DecisionOrchestratorV3861(day,livePayload,weatherPayload);
+  if(!day||!livePayload?.liveData?.length||!decision) return decision;
+  if(decision.kind==='smart-bridge') return decision;
+  if(decision.kind!=='strategic-hold') return decision;
+  const now=getOrlandoParts(), minute=now.hour*60+now.minute;
+  if(day.date!==now.date) return decision;
+  const timing=decision.upcomingAnchor||nextAnchorTimingV385(day,minute);
+  if(timing&&timing.status!=='protected') return decision;
+  const pool=smartBridgePoolV3861(day,livePayload,weatherPayload,timing,minute,decision.priorities||[]);
+  return {...decision,bridgePoolStats:pool.stats};
+};
+
+const v386DiagnosticDecisionMetaV3861=diagnosticDecisionMetaV38;
+diagnosticDecisionMetaV38=function(decision){
+  const meta=v386DiagnosticDecisionMetaV3861(decision);
+  const stats=decision?.bridgePoolStats||null;
+  if(!stats) return meta;
+  return {...meta,
+    bridgeCandidateSource:decision?.isAdHocCandidate?'park-live':decision?.kind==='smart-bridge'?'planned':null,
+    bridgePool:{analyzed:stats.analyzed,eligible:stats.eligible,plannedAnalyzed:stats.plannedAnalyzed,parkWideAnalyzed:stats.parkWideAnalyzed,top:stats.top}
+  };
+};
+
+const v386RenderDiagnosticSnapshotHtmlV3861=renderDiagnosticSnapshotHtmlV38;
+renderDiagnosticSnapshotHtmlV38=function(snapshot){
+  const base=v386RenderDiagnosticSnapshotHtmlV3861(snapshot);
+  const pool=snapshot?.decision?.bridgePool;
+  if(!pool) return base;
+  const top=(pool.top||[]).map((x,i)=>`${i+1}. ${x.title} · ${x.bridgeScore} · ${x.source==='park-live'?'fora do roteiro':'roteiro'}${x.margin!=null?` · margem ${x.margin} min`:''}`).join('<br>');
+  return `${base}<p class="engine-diagnostic-note"><b>Smart Bridge parque inteiro:</b> ${escapeHtml(String(pool.analyzed))} analisadas (${escapeHtml(String(pool.parkWideAnalyzed))} fora do roteiro) · ${escapeHtml(String(pool.eligible))} elegíveis.${top?`<br>${top}`:''}</p>`;
+};
+
+const v386RunEngineSelfTestsV3861=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v386RunEngineSelfTestsV3861();
+  const additions=[];
+  addSelfTestV38(additions,'Atração fora do roteiro entra no pool Park-wide',()=>{
+    const now=getOrlandoParts();
+    const day={date:now.date,park:'epcot',activities:[]};
+    const live={liveData:[{name:'Teste Park Wide',status:'OPERATING',queue:{STANDBY:{waitTime:10}}}]};
+    const rows=parkWideBridgeRowsV3861(day,live,null,now.hour*60+now.minute);
+    const row=rows.find(r=>r.entry?.name==='Teste Park Wide');
+    assertSelfTestV38(row?.isAdHocCandidate===true,'candidata externa não entrou no pool');
+    assertSelfTestV38(day.activities.length===0,'consulta não deve alterar o roteiro');
+    return 'candidata externa analisada sem mutação';
+  });
+  addSelfTestV38(additions,'Recomendação Park-wide não adiciona atividade ao roteiro',()=>{
+    const now=getOrlandoParts();
+    const day={date:now.date,park:'epcot',activities:[]};
+    const live={liveData:[{name:'Teste Sem Mutação',status:'OPERATING',queue:{STANDBY:{waitTime:5}}}]};
+    parkWideBridgeRowsV3861(day,live,null,now.hour*60+now.minute);
+    assertSelfTestV38(day.activities.length===0,`atividades=${day.activities.length}`);
+    return 'somente leitura até Iniciar';
+  });
+  addSelfTestV38(additions,'Iniciar ponte espontânea materializa atividade ad hoc',()=>{
+    const now=getOrlandoParts();
+    const day={date:now.date,park:'epcot',activities:[]};
+    const row={entry:{name:'Teste Ad Hoc'},activity:{title:'Teste Ad Hoc',type:'attraction',duration:8},meta:{activity:{duration:8,priority:3},wait:10}};
+    const a=materializeAdHocBridgeActivityV3861(day,row,now);
+    assertSelfTestV38(Boolean(a?.adHoc&&a?.spontaneous),'atividade ad hoc ausente');
+    assertSelfTestV38(day.activities.length===1,'atividade não foi materializada');
+    assertSelfTestV38(a.source==='park-wide-smart-bridge','fonte incorreta');
+    return 'atividade criada somente no aceite';
+  });
+  report.results.push(...additions);
+  report.total=report.results.length;
+  report.passed=report.results.filter(x=>x.ok).length;
+  report.failed=report.total-report.passed;
+  report.ok=report.failed===0;
+  report.build=ENGINE_BUILD_V38;
+  report.version=ENGINE_DIAGNOSTICS_VERSION_V38;
+  return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v38.6.3 — Bridge Copy UX
+   - Usa um único deadline para aprovar e explicar Smart Bridges.
+   - Inclui deslocamento ponte → âncora mesmo quando a âncora não tem coordenada.
+   - bridgeMargin passa a significar folga SEGURA adicional, depois da reserva mínima.
+   ============================================================ */
+const SMART_BRIDGE_DEADLINE_RULES_V3862 = Object.freeze({
+  minimumReserveMinutes: SMART_BRIDGE_RULES_V386.minMarginMinutes,
+  anchorFallbackMinimumMinutes: 4
+});
+
+function anchorZoneForBridgeV3862(activity,day){
+  if(!activity) return null;
+  const parkKey=day?.park||state.selectedPark;
+  let zone=null;
+  try{ zone=zoneForActivityV37(activity,parkKey,liveEntryForActivity(activity,state.liveCache?.[parkKey]?.liveData||[])); }catch{}
+  if(zone) return zone;
+  const area=normalizeZoneTextV37(activity.area||'');
+  const name=normalizeZoneTextV37(activity.title||activity.entityName||'');
+  if(parkKey==='epcot'&&(area.includes('world showcase')||/(luminous|harmonious|illuminations)/.test(name))) return 'showcase-gateway';
+  if(parkKey==='magic-kingdom'&&/(happily ever after|firework|castle)/.test(name)) return 'hub';
+  if(parkKey==='hollywood-studios'&&/(fantasmic)/.test(name)) return 'sunset-boulevard';
+  return null;
+}
+
+function bridgeTransitionToAnchorV3862(activity,timing,day){
+  if(!activity||!timing?.activity) return {minutes:0,source:'none',known:false};
+  let direct=null;
+  try{ direct=routeWalkBetweenActivities(activity,timing.activity,day); }catch{}
+  if(Number(direct?.minutes)>0) return {...direct,minutes:Math.max(1,Math.round(Number(direct.minutes)))};
+
+  const parkKey=day?.park||state.selectedPark;
+  let fromZone=null;
+  try{ fromZone=zoneForActivityV37(activity,parkKey,liveEntryForActivity(activity,state.liveCache?.[parkKey]?.liveData||[])); }catch{}
+  const toZone=anchorZoneForBridgeV3862(timing.activity,day);
+  const route=fromZone&&toZone?zoneShortestPathV37(parkKey,fromZone,toZone):null;
+  if(route?.minutes>0){
+    return {minutes:Math.max(1,Math.round(route.minutes)),source:'zone-graph-anchor',known:true,fromZone,toZone,zonePath:route.path||null};
+  }
+
+  // Se a âncora não puder ser georreferenciada, reutiliza a caminhada já
+  // estimada pelo Anchor Timing. É mais conservador que assumir zero.
+  const fallback=Math.max(0,Math.round(Number(timing.walkMinutes||0)));
+  if(fallback>0) return {minutes:fallback,source:'anchor-walk-fallback',known:false};
+  return {minutes:SMART_BRIDGE_DEADLINE_RULES_V3862.anchorFallbackMinimumMinutes,source:'anchor-minimum-fallback',known:false};
+}
+
+function bridgeDeadlineFitV3862(operationalMinutes,transitionMinutes,timing,nowMinute){
+  const operational=Math.max(0,Number(operationalMinutes||0));
+  const transition=Math.max(0,Number(transitionMinutes||0));
+  const deadline=Number(timing?.arrivalTarget);
+  if(!Number.isFinite(deadline)) return {fits:true,finish:Number(nowMinute)+operational+transition,rawMargin:Infinity,safeMargin:Infinity,deadline:null};
+  const finish=Number(nowMinute)+operational+transition+SMART_BRIDGE_RULES_V386.finishSafetyMinutes;
+  const rawMargin=deadline-finish;
+  const safeMargin=rawMargin-SMART_BRIDGE_DEADLINE_RULES_V3862.minimumReserveMinutes;
+  return {deadline,finish,rawMargin,safeMargin,fits:Number.isFinite(safeMargin)&&safeMargin>=0};
+}
+
+// Recalcula integralmente o Smart Bridge para que score, guard, diagnóstico e
+// texto usem exatamente a mesma matemática de deadline.
+smartBridgeMetricsV386=function(row,timing,day,nowMinute,weatherPayload,protectedPriority=null){
+  if(!row?.activity||!row?.meta) return null;
+  const meta=row.meta;
+  if(meta.blocked||meta.band==='EVITE AGORA'||Number(meta.score||0)<SMART_BRIDGE_RULES_V386.minTacticalScore) return null;
+  if(protectedPriority?.activity&&sameActivityV384(row.activity,protectedPriority.activity)) return null;
+
+  const operational=Math.max(1,Number(meta.experienceCost?.operationalMinutes??meta.totalMinutes??60));
+  if(operational>SMART_BRIDGE_RULES_V386.maxOperationalMinutes) return null;
+  const walk=Math.max(0,Number(meta.walk?.minutes||0));
+  if(walk>SMART_BRIDGE_RULES_V386.maxWalkMinutes&&Number(meta.score||0)<68) return null;
+
+  let transitionMeta={minutes:0,source:'none',known:false};
+  let transition=0, rawMargin=Infinity, safeMargin=Infinity, finish=Number(nowMinute)+operational;
+  let availableBridgeMinutes=null, bridgeDeadlineMinutes=null, anchorDepartureMinutes=null, deadlineLabel=null;
+
+  if(timing?.activity){
+    transitionMeta=bridgeTransitionToAnchorV3862(row.activity,timing,day);
+    transition=Math.max(0,Number(transitionMeta.minutes||0));
+    const fit=bridgeDeadlineFitV3862(operational,transition,timing,nowMinute);
+    if(!fit.fits) return null;
+    ({rawMargin,safeMargin,finish}=fit);
+    bridgeDeadlineMinutes=Math.max(0,Math.round(Number(timing.arrivalTarget)-Number(nowMinute)));
+    anchorDepartureMinutes=Math.max(0,Math.round(Number(timing.leaveAt)-Number(nowMinute)));
+    availableBridgeMinutes=anchorDepartureMinutes;
+    deadlineLabel=`${timing.activity.title} às ${timing.activity.time}`;
+  }else if(protectedPriority?.window?.leaveAt!=null){
+    try{transitionMeta=routeWalkBetweenActivities(row.activity,protectedPriority.activity,day)||transitionMeta;}catch{}
+    transition=Math.max(0,Number(transitionMeta.minutes||0));
+    const target=Number(protectedPriority.window.leaveAt)+transition;
+    const finishCandidate=Number(nowMinute)+operational+transition+SMART_BRIDGE_RULES_V386.finishSafetyMinutes;
+    rawMargin=target-finishCandidate;
+    safeMargin=rawMargin-SMART_BRIDGE_DEADLINE_RULES_V3862.minimumReserveMinutes;
+    if(!Number.isFinite(safeMargin)||safeMargin<0) return null;
+    finish=finishCandidate;
+    availableBridgeMinutes=Math.max(0,Math.round(Number(protectedPriority.window.leaveAt)-Number(nowMinute)));
+    bridgeDeadlineMinutes=availableBridgeMinutes;
+    deadlineLabel=protectedPriority.activity.title;
+  }
+
+  const costScore=Number(meta.experienceCost?.score??clamp(105-operational*.85,5,100));
+  const proximityScore=clamp(100-walk*4,12,100);
+  const tacticalScore=Number(meta.score||0);
+  const priorityScore=Number(meta.priority?.score||60);
+  const qualityScore=Number(meta.dataQuality?.overall||62);
+  const fitScore=Number.isFinite(safeMargin)?clamp(55+Math.max(0,safeMargin)*1.15,55,100):76;
+  let paceScore=82;
+  try{
+    const fatigue=fatigueMetaForDay(day,weatherPayload);
+    const fatigueValue=Number(fatigue?.fatigue||0);
+    if(fatigueValue>=SMART_BRIDGE_RULES_V386.highFatigueThreshold){
+      paceScore=operational<=32?94:operational<=SMART_BRIDGE_RULES_V386.longExperienceMinutes?76:48;
+    }else paceScore=operational<=38?90:72;
+  }catch{}
+
+  let bridgeScore=tacticalScore*.28+costScore*.22+proximityScore*.16+fitScore*.19+priorityScore*.05+qualityScore*.05+paceScore*.05;
+  if(meta.band==='FAÇA AGORA') bridgeScore+=5;
+  if(meta.band==='ESPERE'&&walk<=6&&operational<=36) bridgeScore+=4;
+  if(Number.isFinite(safeMargin)&&safeMargin>=25) bridgeScore+=3;
+  bridgeScore=Math.round(clamp(bridgeScore,0,100));
+  if(bridgeScore<SMART_BRIDGE_RULES_V386.minBridgeScore) return null;
+
+  return {
+    ...row,
+    bridgeScore,
+    bridgeMargin:Number.isFinite(safeMargin)?Math.max(0,Math.round(safeMargin)):null,
+    safeBridgeMargin:Number.isFinite(safeMargin)?Math.max(0,Math.round(safeMargin)):null,
+    bridgeRawMargin:Number.isFinite(rawMargin)?Math.round(rawMargin):null,
+    bridgeSafetyReserveMinutes:SMART_BRIDGE_DEADLINE_RULES_V3862.minimumReserveMinutes,
+    availableBridgeMinutes,
+    bridgeDeadlineMinutes,
+    anchorDepartureMinutes,
+    bridgeOperationalMinutes:Math.round(operational),
+    transitionToAnchorMinutes:Math.round(transition),
+    transitionToAnchorSource:transitionMeta.source||'unknown',
+    bridgeFinishMinute:Math.round(finish),
+    deadlineLabel,
+    originalBand:meta.band
+  };
+};
+
+smartBridgeReasonV386=function(decision){
+  const a=decision?.activity, timing=decision?.anchorTiming;
+  const margin=Math.max(0,Number(decision?.safeBridgeMargin??decision?.bridgeMargin??0));
+  if(timing?.activity){
+    const proximity=Number(decision?.meta?.walk?.minutes||0)<=6?'está perto, ':'';
+    return `Não é uma janela excepcional para ${a?.title||'esta atração'}, mas ela ${proximity}usa bem este intervalo. Ela cabe com segurança antes de ${timing.activity.title} e ainda preserva uma pequena folga extra.`;
+  }
+  if(decision?.priority?.activity) return `É uma boa atividade ponte para avançar no roteiro sem perder a próxima janela de ${decision.priority.activity.title}.`;
+  return 'É a melhor atividade ponte disponível para usar este intervalo sem comprometer o restante do dia.';
+};
+
+smartBridgeFactorsV386=function(decision,day,weatherPayload){
+  const factors=[];
+  const meta=decision?.meta||{};
+  if(meta.walk?.minutes!=null) factors.push({icon:'⌖',text:`${meta.walk.known?'Apenas':'Cerca de'} ${Math.round(meta.walk.minutes)} min de caminhada até a atração.`});
+  if(decision?.bridgeOperationalMinutes!=null) factors.push({icon:'⏱',text:`Custo operacional de cerca de ${Math.round(decision.bridgeOperationalMinutes)} min.`});
+  if(decision?.transitionToAnchorMinutes!=null&&decision?.anchorTiming?.activity) factors.push({icon:'→',text:`Depois, cerca de ${Math.round(decision.transitionToAnchorMinutes)} min até ${decision.anchorTiming.activity.title}.`});
+  if(decision?.safeBridgeMargin!=null&&decision?.anchorTiming?.activity) factors.push({icon:'✓',text:`Ainda sobram cerca de ${Math.round(decision.safeBridgeMargin)} min além da margem de segurança protegida.`});
+  if(decision?.anchorTiming?.activity) factors.push({icon:'✦',text:`${decision.anchorTiming.activity.title} continua protegido para ${decision.anchorTiming.activity.time}.`});
+  if(meta.priority?.score>=82) factors.push({icon:'♥',text:`${meta.priority.label} no seu roteiro.`});
+  return factors.slice(0,6);
+};
+
+// Enriquece o ranking diagnóstico com a mesma matemática usada para aprovar a ponte.
+const v3861SmartBridgePoolV3862=smartBridgePoolV3861;
+smartBridgePoolV3861=function(day,livePayload,weatherPayload,timing,nowMinute,priorities=[]){
+  const pool=v3861SmartBridgePoolV3862(day,livePayload,weatherPayload,timing,nowMinute,priorities);
+  pool.stats.top=(pool.eligible||[]).slice(0,PARK_WIDE_BRIDGE_RULES_V3861.maxDiagnosticCandidates).map(r=>({
+    title:r.activity?.title||r.entry?.name||null,
+    bridgeScore:r.bridgeScore,
+    band:r.originalBand||r.meta?.band||null,
+    margin:r.safeBridgeMargin??r.bridgeMargin??null,
+    rawMargin:r.bridgeRawMargin??null,
+    transitionToAnchorMinutes:r.transitionToAnchorMinutes??null,
+    transitionSource:r.transitionToAnchorSource??null,
+    walkMinutes:r.meta?.walk?.minutes??null,
+    operationalMinutes:r.bridgeOperationalMinutes??null,
+    source:r.isAdHocCandidate?'park-live':'planned'
+  }));
+  return pool;
+};
+
+const v3861DiagnosticDecisionMetaV3862=diagnosticDecisionMetaV38;
+diagnosticDecisionMetaV38=function(decision){
+  const meta=v3861DiagnosticDecisionMetaV3862(decision);
+  if(decision?.kind!=='smart-bridge') return meta;
+  return {...meta,
+    safeBridgeMargin:decision.safeBridgeMargin??decision.bridgeMargin??null,
+    bridgeRawMargin:decision.bridgeRawMargin??null,
+    bridgeSafetyReserveMinutes:decision.bridgeSafetyReserveMinutes??SMART_BRIDGE_DEADLINE_RULES_V3862.minimumReserveMinutes,
+    bridgeDeadlineMinutes:decision.bridgeDeadlineMinutes??null,
+    anchorDepartureMinutes:decision.anchorDepartureMinutes??null,
+    transitionToAnchorMinutes:decision.transitionToAnchorMinutes??null,
+    transitionToAnchorSource:decision.transitionToAnchorSource??null
+  };
+};
+
+const v3861RenderDiagnosticSnapshotHtmlV3862=renderDiagnosticSnapshotHtmlV38;
+renderDiagnosticSnapshotHtmlV38=function(snapshot){
+  const base=v3861RenderDiagnosticSnapshotHtmlV3862(snapshot);
+  const d=snapshot?.decision;
+  if(d?.kind!=='smart-bridge') return base;
+  return `${base}<p class="engine-diagnostic-note"><b>Deadline da ponte:</b> transição para a âncora ${escapeHtml(String(d.transitionToAnchorMinutes??'--'))} min · reserva mínima ${escapeHtml(String(d.bridgeSafetyReserveMinutes??'--'))} min · folga segura ${escapeHtml(String(d.safeBridgeMargin??'--'))} min.</p>`;
+};
+
+const v3861RunEngineSelfTestsV3862=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v3861RunEngineSelfTestsV3862();
+  const additions=[];
+  addSelfTestV38(additions,'Transição ponte → âncora entra no deadline',()=>{
+    const day={park:'epcot',activities:[]};
+    const anchor={title:'Luminous The Symphony of Us',type:'fireworks',area:'World Showcase Lagoon'};
+    const candidate={title:'Canada Far and Wide in Circle-Vision 360',type:'attraction',area:'Canada'};
+    const transition=bridgeTransitionToAnchorV3862(candidate,{activity:anchor,walkMinutes:10},day);
+    assertSelfTestV38(Number(transition.minutes)>0,`transição=${transition.minutes}`);
+    return `${transition.minutes} min via ${transition.source}`;
+  });
+  addSelfTestV38(additions,'Folga segura usa a mesma conta da aprovação',()=>{
+    const timing={arrivalTarget:1220};
+    const fit=bridgeDeadlineFitV3862(31,4,timing,1158);
+    assertSelfTestV38(fit.fits===true,'ponte deveria caber');
+    assertSelfTestV38(Math.round(fit.rawMargin)===23,`raw=${fit.rawMargin}`);
+    assertSelfTestV38(Math.round(fit.safeMargin)===11,`safe=${fit.safeMargin}`);
+    return '23 min brutos → 11 min de folga segura';
+  });
+  addSelfTestV38(additions,'Ponte é rejeitada quando transição consome a reserva',()=>{
+    const timing={arrivalTarget:1220};
+    const fit=bridgeDeadlineFitV3862(45,10,timing,1158);
+    assertSelfTestV38(fit.fits===false,'ponte longa não deveria caber');
+    return `folga segura ${Math.round(fit.safeMargin)} min`;
+  });
+  report.results.push(...additions);
+  report.total=report.results.length;
+  report.passed=report.results.filter(x=>x.ok).length;
+  report.failed=report.total-report.passed;
+  report.ok=report.failed===0;
+  report.build=ENGINE_BUILD_V38;
+  report.version=ENGINE_DIAGNOSTICS_VERSION_V38;
+  return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v38.6.4 — Reopening State Guard
+   - CLOSED/DOWN/null -> OPERATING/wait é reabertura, nunca queue spike.
+   - Queue spike exige duas observações OPERATING com filas numéricas válidas.
+   - Reabertura volta imediatamente ao pool do orquestrador.
+   - Só interrompe o usuário quando o motor confirma uma Oportunidade real.
+   ============================================================ */
+
+let lastReopeningEventV3864 = null;
+let lastReopeningFingerprintV3864 = '';
+
+function validQueueWaitV3864(value){
+  if(value===null || value===undefined || value==='') return false;
+  const n=Number(value);
+  return Number.isFinite(n) && n>=0;
+}
+
+function previousQueueObservationV3864(parkKey,entry,payloadFetchedAt=Date.now()){
+  const fetched=Number(payloadFetchedAt||Date.now());
+  const cutoff=Number.isFinite(fetched)?fetched-1000:Date.now()-1000;
+  return queueSamples(parkKey,entry?.name||'',false)
+    .filter(x=>Number(x?.t||0)>0 && Number(x.t)<cutoff)
+    .sort((a,b)=>Number(b.t||0)-Number(a.t||0))[0]||null;
+}
+
+// A Oportunidade v2 usa esta observação. A v38.6.4 passa a buscar a
+// observação imediatamente anterior ao payload, inclusive quando a fila era null.
+priorStatusObservation=function(parkKey,entry,payloadFetchedAt=Date.now()){
+  return previousQueueObservationV3864(parkKey,entry,payloadFetchedAt);
+};
+
+function classifyQueueTransitionV3864(prev,entry){
+  const priorStatus=String(prev?.status||'').toUpperCase();
+  const currentStatus=String(entry?.status||'').toUpperCase();
+  const priorWait=validQueueWaitV3864(prev?.wait)?Number(prev.wait):null;
+  const rawCurrentWait=extractStandby(entry);
+  const currentWait=validQueueWaitV3864(rawCurrentWait)?Number(rawCurrentWait):null;
+  const unavailable=new Set(['DOWN','CLOSED','REFURBISHMENT']);
+
+  if(unavailable.has(priorStatus) && currentStatus==='OPERATING'){
+    return {kind:'reopen',priorStatus,currentStatus,priorWait,currentWait};
+  }
+  if(priorStatus==='OPERATING' && unavailable.has(currentStatus)){
+    return {kind:'closure',priorStatus,currentStatus,priorWait,currentWait};
+  }
+  if(priorStatus==='OPERATING' && currentStatus==='OPERATING' && priorWait!=null && currentWait!=null && priorWait>=5){
+    const jump=currentWait-priorWait;
+    const ratio=currentWait/Math.max(1,priorWait);
+    if(jump>=Number(state.settings.emergencyWaitJump||30) && ratio>=1.45){
+      return {kind:'queue-spike',priorStatus,currentStatus,priorWait,currentWait,jump,ratio};
+    }
+  }
+  return {kind:'none',priorStatus,currentStatus,priorWait,currentWait};
+}
+
+function reopeningTransitionsV3864(day,livePayload){
+  if(!day||day.date!==getOrlandoParts().date||!livePayload?.liveData?.length) return [];
+  return (day.activities||[])
+    .filter(a=>a.type==='attraction'&&!a.replanDeferred&&!isDone(a.id)&&!isSkipped(a.id))
+    .map(activity=>{
+      const entry=findLiveMatch(activity,livePayload.liveData||[]);
+      if(!entry) return null;
+      const prev=previousQueueObservationV3864(day.park,entry,livePayload.fetchedAt);
+      const transition=classifyQueueTransitionV3864(prev,entry);
+      return transition.kind==='reopen'?{activity,entry,prev,transition}:null;
+    })
+    .filter(Boolean);
+}
+
+function legacyQueueSpikeInvalidV3864(e){
+  if(String(e?.type||'')!=='queue-spike') return false;
+  if(validQueueWaitV3864(e?.priorWait) && validQueueWaitV3864(e?.currentWait)) return false;
+  const detail=String(e?.detail||'');
+  if(/\b(null|undefined|nan)\b/i.test(detail)) return true;
+  const m=detail.match(/Subiu de\s+(-?\d+(?:[.,]\d+)?)\s+para\s+(-?\d+(?:[.,]\d+)?)/i);
+  if(m) return !(Number(m[1].replace(',','.'))>=0 && Number(m[2].replace(',','.'))>=0);
+  return false;
+}
+
+// Substitui o detector legado para que um null de fila nunca seja convertido em 0.
+detectEmergency=function(day,livePayload,weatherPayload){
+  if(!day||day.date!==getOrlandoParts().date||!livePayload) return null;
+  const pending=(day.activities||[]).filter(a=>a.type==='attraction'&&!isDone(a.id)&&!isSkipped(a.id));
+  for(const activity of pending){
+    const entry=findLiveMatch(activity,livePayload.liveData||[]);
+    if(!entry) continue;
+    const prev=previousQueueObservationV3864(day.park,entry,livePayload.fetchedAt);
+    const transition=classifyQueueTransitionV3864(prev,entry);
+
+    if(transition.kind==='closure'){
+      return {
+        type:'closure',severity:'high',activityId:activity.id,
+        label:`${activity.title} fechou`,
+        detail:'A atração ficou indisponível e o motor retirou temporariamente essa opção da sequência.',
+        priorStatus:transition.priorStatus,currentStatus:transition.currentStatus
+      };
+    }
+    // Reabertura é um sinal positivo. Ela NÃO pertence ao Modo Emergência.
+    if(transition.kind==='reopen') continue;
+
+    if(transition.kind==='queue-spike'){
+      return {
+        type:'queue-spike',severity:'high',activityId:activity.id,
+        label:`Fila de ${activity.title} disparou`,
+        detail:`Subiu de ${transition.priorWait} para ${transition.currentWait} min.`,
+        priorWait:transition.priorWait,currentWait:transition.currentWait,
+        priorStatus:transition.priorStatus,currentStatus:transition.currentStatus
+      };
+    }
+  }
+
+  const rel=relevantWeather(weatherPayload);
+  const now=getOrlandoParts(); const nowMin=now.hour*60+now.minute;
+  if(rel.nextRisk){
+    const riskMin=timeToMinutes(rel.nextRisk.time.slice(11,16));
+    const highPending=pending.filter(a=>weatherImpactForActivity(a)==='high');
+    if(highPending.length&&riskMin>=nowMin&&riskMin-nowMin<=30&&weatherRiskForHour(rel.nextRisk).level==='high'){
+      return {type:'storm',severity:'high',label:`Tempestade possível em ${riskMin-nowMin} min`,detail:`${highPending.length} atração(ões) de alto impacto climático ainda estão pendentes.`};
+    }
+  }
+  return null;
+};
+
+function emergencyResolvedV3864(e,day,livePayload){
+  if(!e||!day) return false;
+  if(legacyQueueSpikeInvalidV3864(e)) return true;
+  if(e.type==='closure'&&e.activityId&&livePayload){
+    const activity=(day.activities||[]).find(a=>a.id===e.activityId);
+    const entry=activity?findLiveMatch(activity,livePayload.liveData||[]):null;
+    if(entry&&String(entry.status||'').toUpperCase()==='OPERATING') return true;
+  }
+  return false;
+}
+
+// Estados falsos salvos por versões anteriores deixam de bloquear o app.
+const v3863ActiveEmergencyForV3864=activeEmergencyFor;
+activeEmergencyFor=function(day){
+  const e=v3863ActiveEmergencyForV3864(day);
+  if(!e) return null;
+  if(legacyQueueSpikeInvalidV3864(e)) return null;
+  return e;
+};
+
+updateEmergencyState=function(day,livePayload,weatherPayload){
+  ensureCopilotState();
+  const emergency=detectEmergency(day,livePayload,weatherPayload);
+  if(!emergency){
+    if(emergencyResolvedV3864(state.emergencyState,day,livePayload)){
+      state.emergencyState=null;
+      saveState();
+    }
+    return;
+  }
+  const key=`${day.date}|${emergency.type}|${emergency.activityId||''}|${emergency.label}`;
+  if(state.emergencyState?.key===key&&Date.now()-Number(state.emergencyState.createdAt||0)<45*60_000) return;
+  state.emergencyState={...emergency,key,dayDate:day.date,createdAt:Date.now(),dismissed:false};
+  state.emergencyLog.push({...state.emergencyState});
+  state.emergencyLog=state.emergencyLog.slice(-50);
+  forceReplanAnalysis=true;
+  saveState();
+  notifyOnce(`emergency-${key}`,'Orlando Flow · Modo emergência',`${emergency.label}. Novo roteiro recalculado; abra Ao vivo para revisar e aplicar.`);
+};
+
+// Uma reabertura sempre invalida a hipótese de indisponibilidade e força o motor
+// a recalcular. O alerta positivo continua dependendo das regras da Oportunidade v2.
+const v3863UpdateOpportunityStateV3864=updateOpportunityState;
+updateOpportunityState=function(day,livePayload,weatherPayload){
+  const reopenings=reopeningTransitionsV3864(day,livePayload);
+  if(reopenings.length){
+    const r=reopenings[0];
+    const fingerprint=`${day.date}|${r.activity.id}|${Number(livePayload.fetchedAt||0)}|${r.transition.currentWait??'na'}`;
+    if(fingerprint!==lastReopeningFingerprintV3864){
+      lastReopeningFingerprintV3864=fingerprint;
+      lastReopeningEventV3864={
+        at:Date.now(),activityId:r.activity.id,title:r.activity.title,
+        previousStatus:r.transition.priorStatus,currentStatus:r.transition.currentStatus,
+        currentWait:r.transition.currentWait
+      };
+      forceReplanAnalysis=true;
+      if(state.emergencyState?.activityId===r.activity.id && ['closure','queue-spike'].includes(state.emergencyState.type)){
+        state.emergencyState=null;
+      }
+      saveState();
+    }
+  }
+  return v3863UpdateOpportunityStateV3864(day,livePayload,weatherPayload);
+};
+
+// Diagnóstico: registra a última reabertura observada sem transformar isso em alerta.
+const v3863EngineDiagnosticSnapshotV3864=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){
+  const snapshot=v3863EngineDiagnosticSnapshotV3864();
+  if(lastReopeningEventV3864 && Date.now()-Number(lastReopeningEventV3864.at||0)<=30*60_000){
+    snapshot.context=snapshot.context||{};
+    snapshot.context.reopening={...lastReopeningEventV3864};
+  }
+  return snapshot;
+};
+
+const v3863RunEngineSelfTestsV3864=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v3863RunEngineSelfTestsV3864();
+  const additions=[];
+
+  addSelfTestV38(additions,'CLOSED/null → OPERATING/35 é reabertura, não spike',()=>{
+    const prev={status:'CLOSED',wait:null};
+    const entry={status:'OPERATING',queue:{STANDBY:{waitTime:35}}};
+    const t=classifyQueueTransitionV3864(prev,entry);
+    assertSelfTestV38(t.kind==='reopen',`classificou ${t.kind}`);
+    assertSelfTestV38(t.priorWait===null,'null não pode virar 0');
+    return 'reopen preservado; fila anterior permanece null';
+  });
+
+  addSelfTestV38(additions,'Spike exige OPERATING → OPERATING com filas válidas',()=>{
+    const prev={status:'OPERATING',wait:20};
+    const entry={status:'OPERATING',queue:{STANDBY:{waitTime:55}}};
+    const t=classifyQueueTransitionV3864(prev,entry);
+    assertSelfTestV38(t.kind==='queue-spike',`classificou ${t.kind}`);
+    return '20 → 55 min classificado como spike real';
+  });
+
+  addSelfTestV38(additions,'Reabertura volta ao pool de planejamento',()=>{
+    const before=forceReplanAnalysis;
+    try{
+      const t=classifyQueueTransitionV3864({status:'DOWN',wait:null},{status:'OPERATING',queue:{STANDBY:{waitTime:30}}});
+      assertSelfTestV38(t.kind==='reopen','transição não reconhecida');
+      forceReplanAnalysis=true;
+      assertSelfTestV38(forceReplanAnalysis===true,'replanejamento não foi armado');
+      return 'reopening força nova análise do orquestrador';
+    } finally { forceReplanAnalysis=before; }
+  });
+
+  addSelfTestV38(additions,'Reabertura relevante pode gerar Oportunidade',()=>{
+    const now=Date.now();
+    const park='epcot', name='Teste Reabertura Boa';
+    const old=structuredClone(state.queueHistory||{});
+    try{
+      state.queueHistory={...state.queueHistory,[park]:{...(state.queueHistory?.[park]||{}),[normalizeName(name)]:[{t:now-120000,wait:null,status:'CLOSED'}]}};
+      const activity={id:'reopen-good',title:name,type:'attraction',priority:5,flexible:true};
+      const entry={name,status:'OPERATING',queue:{STANDBY:{waitTime:35}}};
+      const meta={wait:35,score:82,priority:{code:'must'},climate:{impact:'low',score:100}};
+      const trigger=opportunityTriggerFor(activity,entry,meta,{park}, {fetchedAt:now,liveData:[entry]}, null, null);
+      assertSelfTestV38(trigger?.type==='reopen',`gatilho=${trigger?.type||'nenhum'}`);
+      return 'reabertura importante reconhecida como gatilho positivo';
+    } finally { state.queueHistory=old; }
+  });
+
+  addSelfTestV38(additions,'Reabertura ruim não interrompe o usuário',()=>{
+    const now=Date.now();
+    const park='epcot', name='Teste Reabertura Ruim';
+    const old=structuredClone(state.queueHistory||{});
+    try{
+      state.queueHistory={...state.queueHistory,[park]:{...(state.queueHistory?.[park]||{}),[normalizeName(name)]:[{t:now-120000,wait:null,status:'CLOSED'}]}};
+      const activity={id:'reopen-bad',title:name,type:'attraction',priority:3,flexible:true};
+      const entry={name,status:'OPERATING',queue:{STANDBY:{waitTime:90}}};
+      const meta={wait:90,score:55,priority:{code:'normal'},climate:{impact:'low',score:100},walk:{minutes:10}};
+      const trigger=opportunityTriggerFor(activity,entry,meta,{park}, {fetchedAt:now,liveData:[entry]}, null, null);
+      assertSelfTestV38(trigger?.type!=='reopen',`gatilho=${trigger?.type}`);
+      return 'volta ao pool sem alerta de reabertura';
+    } finally { state.queueHistory=old; }
+  });
+
+  report.results.push(...additions);
+  report.total=report.results.length;
+  report.passed=report.results.filter(x=>x.ok).length;
+  report.failed=report.total-report.passed;
+  report.ok=report.failed===0;
+  report.build=ENGINE_BUILD_V38;
+  report.version=ENGINE_DIAGNOSTICS_VERSION_V38;
+  return report;
+};
+
+
 async function init() {
   await loadState();
   applyParkTheme();
   applyTheme();
   bindEvents();
+  installDiagnosticEventsV38();
+  exposeDiagnosticsApiV38();
   renderAll();
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
-  refreshExternal(false);
-  setInterval(()=>{ renderHeader(); renderStatus(); renderNext(); }, 60_000);
-  alertTimer = setInterval(()=>{ if(document.visibilityState==='visible' && navigator.onLine) refreshExternal(false); else evaluateAlerts(); }, 5*60_000);
+  window.__orlandoFlowBootReady=true;
+  if(isHeadlessSelfTestV38()){runHeadlessSelfTestV38();return;}
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(error=>recordRuntimeDiagnosticV38('service-worker',error));
+  refreshExternal(false).catch(error=>recordRuntimeDiagnosticV38('initial-refresh',error));
+  setInterval(()=>{try{renderHeader();renderStatus();renderNext();}catch(error){recordRuntimeDiagnosticV38('minute-render',error);}},60_000);
+  alertTimer=setInterval(()=>{if(document.visibilityState==='visible'&&navigator.onLine)refreshExternal(false).catch(error=>recordRuntimeDiagnosticV38('background-refresh',error));else evaluateAlerts();},5*60_000);
 }
 
-init();
+init().catch(error=>{
+  recordRuntimeDiagnosticV38('init',error);
+  console.error('[Orlando Flow] Falha ao iniciar',error);
+  window.__orlandoFlowBootFailed=true;
+  const card=document.querySelector('#nextCard');
+  if(card){card.className='next-card next-step-card empty';card.innerHTML='<strong>Não foi possível iniciar o Orlando Flow.</strong><p>Abra F12 → Console para ver o erro de inicialização.</p>';}
+});

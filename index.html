@@ -273,98 +273,119 @@
           <section class="report-tier report-tier-overall">
             <div class="report-tier-heading">
               <div>
-                <span class="kicker">Orlando Flow</span>
-                <h3>Resumo geral</h3>
+                <span class="kicker" id="reportOverallKicker">Visão geral</span>
+                <h3>Melhores de todos</h3>
               </div>
-              <span class="report-tier-chip">todos os parques</span>
+              <span class="report-tier-badge" id="reportOverallBadge">ALL PARKS</span>
             </div>
-            <div id="reportOverallStats" class="report-tier-grid"></div>
+            <div class="report-section">
+              <h3>Ranking das atrações</h3>
+              <div id="rankingList"></div>
+            </div>
+            <div class="report-section">
+              <h3>Ranking de restaurantes & pratos</h3>
+              <div id="mealRankingList"></div>
+            </div>
+            <div class="report-section">
+              <h3>Custo da fila</h3>
+              <div id="queueCostReport"></div>
+            </div>
+            <div class="report-section">
+              <h3>Insights da viagem</h3>
+              <div id="insightsGrid" class="insights-grid"></div>
+            </div>
+            <div class="report-section">
+              <h3>Momentos divertidos</h3>
+              <div id="funStats" class="fun-grid"></div>
+            </div>
           </section>
 
-          <section class="report-tier report-tier-franchise">
+          <section class="report-tier">
             <div class="report-tier-heading">
               <div>
-                <span class="kicker">Recap por complexo</span>
-                <h3>Disney × Universal</h3>
+                <span class="kicker">Comparativo</span>
+                <h3>Por franquia</h3>
               </div>
             </div>
-            <div id="reportFranchiseGrid" class="report-franchise-grid"></div>
+            <div id="franchiseReportSections" class="report-group-list"></div>
           </section>
 
-          <section class="report-tier report-tier-park">
+          <section class="report-tier">
             <div class="report-tier-heading">
               <div>
-                <span class="kicker">Detalhe por parque</span>
-                <h3>Parques visitados</h3>
+                <span class="kicker">Detalhes</span>
+                <h3>Por parque</h3>
               </div>
             </div>
-            <div id="reportParkGrid" class="report-park-grid"></div>
+            <div id="parkReportSections" class="report-group-list"></div>
           </section>
 
-          <div class="report-actions">
-            <button class="secondary-btn" id="shareCardBtn">Compartilhar card</button>
-            <button class="primary-btn" id="exportReportBtn">Exportar report</button>
+          <div class="action-grid">
+            <button class="primary-btn" id="shareCardBtn">Compartilhar card</button>
+            <button class="secondary-btn" id="exportReportBtn">Exportar report HTML</button>
           </div>
         </section>
       </section>
 
       <section class="view" data-view="settings">
         <section class="section-block top-section">
-          <span class="kicker">Preferências</span>
-          <h2>Ajustes</h2>
+          <div>
+            <span class="kicker">Configuração</span>
+            <h2>Roteiro & preferências</h2>
+          </div>
 
           <div class="settings-card">
             <label>Nome da viagem
-              <input type="text" id="tripNameInput" />
+              <input id="tripNameInput" type="text" placeholder="Orlando 2026" />
             </label>
-            <label>Passada média (cm)
-              <input type="number" min="35" max="110" step="1" id="strideInput" />
+            <label>Limite de atraso para alerta
+              <div class="range-row"><input id="delayThreshold" type="range" min="5" max="45" step="5" /><span id="delayThresholdValue">15 min</span></div>
             </label>
-            <label>Peso aproximado (kg)
-              <input type="number" min="30" max="250" step="1" id="weightInput" />
+            <label>Fila considerada “longa”
+              <div class="range-row"><input id="longWaitThreshold" type="range" min="30" max="120" step="5" /><span id="longWaitThresholdValue">60 min</span></div>
             </label>
-            <label>Velocidade de caminhada
-              <select id="walkingSpeedSelect">
-                <option value="60">Tranquila</option>
-                <option value="75">Normal</option>
-                <option value="90">Rápida</option>
+            <div class="settings-subsection">
+              <h3>Movimento por GPS</h3>
+              <p class="muted">O app guarda apenas os totais de distância; coordenadas não são salvas no histórico.</p>
+              <label>Passada média (cm)
+                <input id="strideCmInput" type="number" inputmode="decimal" min="40" max="120" step="1" placeholder="75" />
+              </label>
+              <label>Peso de referência para calorias (kg, opcional)
+                <input id="weightKgInput" type="number" inputmode="decimal" min="30" max="250" step="0.5" placeholder="Ex.: 70" />
+              </label>
+              <div class="settings-inline-actions">
+                <button class="secondary-btn" id="gpsSettingsBtn" type="button">Iniciar GPS</button>
+                <button class="ghost-btn" id="resetMovementBtn" type="button">Zerar movimento do dia</button>
+              </div>
+              <small class="help-text">Passos e calorias são estimativas a partir da distância GPS. Para melhor resultado, mantenha o app ativo durante os deslocamentos.</small>
+            </div>
+            <button class="secondary-btn" id="notificationBtn">Ativar notificações</button>
+            <small class="help-text">No MVP, os alertas automáticos são confiáveis enquanto o app está aberto ou ativo. Push real em segundo plano exige um serviço de push/backend.</small>
+          </div>
+
+          <div class="settings-card">
+            <h3>Modo do copiloto</h3>
+            <label>Modo
+              <select id="optimizationMode" class="wide-select">
+                <option value="max">Express 🔥</option>
+                <option value="experience">Experiência ❤️</option>
+                <option value="relax">Relax 🧘🏻</option>
               </select>
             </label>
           </div>
 
           <div class="settings-card">
-            <div class="setting-heading">
-              <div>
-                <b>Modo do Copiloto</b>
-                <small>Escolha o que o motor deve proteger durante o dia.</small>
-              </div>
-            </div>
-            <label>Estratégia
-              <select id="copilotModeSelect">
-                <option value="express">🔥 Express · fazer mais</option>
-                <option value="experience">❤️ Experiência · priorizar imperdíveis</option>
-                <option value="relax">🧘🏻 Relax · ritmo confortável</option>
-              </select>
+            <h3>Atrações obrigatórias</h3>
+            <p class="muted">Defina preferências pessoais antes da viagem. Multi Pass e Single Pass agora são aplicados diretamente na Linha do tempo, em Hoje.</p>
+            <label>Parque
+              <select id="preferenceParkSelect" class="wide-select"></select>
             </label>
-            <small class="help-text">No modo Relax, o próprio app ajusta o ritmo entre 1–2 atrações por hora conforme o dia avança, compromissos fixos e o que ainda falta fazer.</small>
-          </div>
-
-          <div class="settings-card">
-            <div class="setting-heading">
-              <div>
-                <b>Preferências por atração</b>
-                <small>Prioridade, repetição e sensibilidade ao clima por parque. Passes são aplicados operacionalmente no Hoje.</small>
-              </div>
-            </div>
-            <div class="attraction-pref-controls">
-              <label>Parque
-                <select id="prefParkSelect"></select>
-              </label>
-              <label>Atração
-                <input id="prefAttractionInput" type="search" list="attractionSuggestions" autocomplete="off" placeholder="Ex.: Guardians of the Galaxy" />
-              </label>
+            <label>Atração
+              <input id="preferenceAttractionInput" type="search" list="preferenceAttractionSuggestions" autocomplete="off" placeholder="Selecione primeiro o parque" />
+            </label>
+            <div class="two-col-settings">
               <label>Importância
-                <select id="prefPrioritySelect">
+                <select id="preferencePriority">
                   <option value="must">Imperdível</option>
                   <option value="want">Quero muito</option>
                   <option value="normal" selected>Normal</option>
@@ -372,150 +393,162 @@
                   <option value="empty">Só se estiver vazio</option>
                 </select>
               </label>
-              <label>Repetir se houver boa janela?
-                <select id="prefRepeatSelect"><option value="no" selected>Não</option><option value="yes">Sim</option></select>
+              <label>Quero repetir
+                <select id="preferenceRepeat"><option value="no">Não</option><option value="yes">Sim</option></select>
               </label>
-              <label>Impacto do clima
-                <select id="prefWeatherSelect"><option value="auto" selected>Automático</option><option value="high">Alto · externa</option><option value="low">Baixo · interna</option></select>
+              <label>Impacto climático
+                <select id="preferenceWeatherImpact"><option value="auto">Automático</option><option value="high">Alto</option><option value="medium">Médio</option><option value="low">Baixo / indoor</option></select>
               </label>
-              <button class="secondary-btn" id="saveAttractionPrefBtn" type="button">Salvar preferência</button>
             </div>
-            <div id="attractionPrefList" class="attraction-pref-list"></div>
+            <button class="secondary-btn" id="savePreferenceBtn" type="button">Salvar preferência</button>
+            <div id="preferenceList" class="preference-list"></div>
           </div>
 
           <div class="settings-card">
-            <label>Alerta de atraso acima de
-              <select id="delayThresholdSelect"><option>10</option><option selected>15</option><option>20</option><option>30</option></select>
-              minutos
-            </label>
-            <label>Fila longa acima de
-              <select id="waitThresholdSelect"><option>45</option><option selected>60</option><option>75</option><option>90</option></select>
-              minutos
-            </label>
-            <label>Emergência: salto de fila acima de
-              <select id="emergencyWaitJumpSelect"><option>20</option><option selected>30</option><option>40</option><option>50</option></select>
-              minutos
-            </label>
-            <small class="help-text">Modo emergência também pode aparecer quando uma atração do plano fecha ou quando há chuva/temporal com risco alto e atividades externas pendentes. O alerta só aparece no dia de hoje em Orlando e expira automaticamente.</small>
+            <h3>Eventos & horários fixos</h3>
+            <p class="muted">Shows, desfiles, fogos, reservas e Early Entry viram âncoras. O motor protege o tempo de chegada antes deles; se você pular a âncora, a sequência é liberada e recalculada.</p>
+            <button class="secondary-btn" id="addAnchorBtn" type="button">Adicionar evento fixo</button>
           </div>
 
           <div class="settings-card">
-            <b>Importar ou exportar roteiro</b>
-            <div class="settings-inline-actions">
-              <label class="file-btn">Importar JSON<input type="file" id="importInput" accept="application/json" /></label>
-              <button class="secondary-btn" id="exportDataBtn">Exportar backup</button>
-              <button class="ghost-btn" id="loadDemoBtn">Carregar exemplo</button>
-            </div>
-            <small class="help-text">O app abre com um roteiro de demonstração apenas na primeira execução. Depois, seus dados ficam salvos neste navegador.</small>
-          </div>
-
-          <div class="settings-card install-card" id="installCard">
-            <b>Instalar no celular</b>
-            <p>Abra este app por HTTPS e adicione à tela inicial para usar como um app comum.</p>
-            <button class="primary-btn" id="installBtn" hidden>Instalar app</button>
-            <small id="installHelp">No iPhone: Compartilhar → Adicionar à Tela de Início.</small>
+            <h3>Importar ou exportar roteiro</h3>
+            <p class="muted">Use o JSON de exemplo como modelo. O app salva tudo localmente no aparelho.</p>
+            <label class="file-btn">Importar JSON<input id="importInput" type="file" accept="application/json,.json" hidden /></label>
+            <button class="secondary-btn" id="exportDataBtn">Exportar backup JSON</button>
+            <button class="ghost-btn" id="loadDemoBtn">Restaurar roteiro de demonstração</button>
           </div>
 
           <div class="settings-card">
-            <b>Fontes de dados</b>
-            <p>Filas: ThemeParks.wiki · Clima: Open‑Meteo · Histórico global: Orlando Flow History (Cloudflare Worker + D1) · Movimento: GPS do dispositivo. Horários e dados podem mudar; confirme informações críticas no app oficial de cada parque.</p>
+            <h3>Instalar no celular</h3>
+            <p class="muted">Quando publicado em HTTPS, o app pode ser adicionado à tela inicial e abrir sem a barra do navegador.</p>
+            <button class="secondary-btn" id="installBtn" hidden>Instalar aplicativo</button>
+          </div>
+
+          <div class="settings-card">
+            <h3>Fontes de dados</h3>
+            <p class="source-note">Filas: ThemeParks.wiki · Clima: Open-Meteo. Os dados ao vivo dependem de internet e da disponibilidade dos provedores.</p>
           </div>
         </section>
       </section>
     </main>
 
     <nav class="bottom-nav" aria-label="Navegação principal">
-      <button data-target="today" class="active"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5M9.5 20v-6h5v6"/></svg></span><span>Hoje</span></button>
-      <button data-target="live"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 18V6m5 12V10m5 8V3m5 15v-7"/><path d="M2 21h20"/></svg></span><span>Ao vivo</span></button>
-      <button data-target="history"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3.5 2"/></svg></span><span>Histórico</span></button>
-      <button data-target="report"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M5 21V4h14v17"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span><span>Report</span></button>
-      <button data-target="settings"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg></span><span>Ajustes</span></button>
+      <button class="nav-item active" data-target="today" aria-label="Hoje">
+        <span class="nav-icon themed-home-icon" id="homeParkIcon" aria-hidden="true"><svg viewBox="0 0 36 36" aria-hidden="true"><path d="M4 31V19l4-2.5V11l3 1.5V8l3 1.5L18 3l4 6.5L25 8v4.5l3-1.5v5.5l4 2.5v12H4Z"/><path d="M13 31v-8h10v8M9 20h18M14 13h8M18 3V1.5"/></svg></span><small>Hoje</small>
+      </button>
+      <button class="nav-item" data-target="live" aria-label="Ao vivo">
+        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 28 28"><circle cx="14" cy="14" r="3"/><path d="M8.3 8.3a8 8 0 0 0 0 11.4m11.4 0a8 8 0 0 0 0-11.4M4.8 4.8a13 13 0 0 0 0 18.4m18.4 0a13 13 0 0 0 0-18.4"/></svg></span><small>Ao vivo</small>
+      </button>
+      <button class="nav-item" data-target="history" aria-label="Histórico">
+        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M7 4h14M7 24h14M9 5v4c0 2.7 1.8 4.2 5 5-3.2.8-5 2.3-5 5v4m10-18v4c0 2.7-1.8 4.2-5 5 3.2.8 5 2.3 5 5v4"/><path d="M10.5 9.2h7L14 13l-3.5-3.8Zm0 9.6h7L14 15l-3.5 3.8Z" opacity=".72"/></svg></span><small>Histórico</small>
+      </button>
+      <button class="nav-item" data-target="report" aria-label="Report">
+        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M5 5h18v18H5z"/><path d="M9 18v-4m5 4V9m5 9v-7"/></svg></span><small>Report</small>
+      </button>
+      <button class="nav-item" data-target="settings" aria-label="Ajustes">
+        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 28 28"><circle cx="14" cy="14" r="3.3"/><path d="M14 3.5v2.4m0 16.2v2.4M3.5 14h2.4m16.2 0h2.4M6.6 6.6l1.7 1.7m11.4 11.4 1.7 1.7M6.6 21.4l1.7-1.7M19.7 8.3l1.7-1.7"/><circle cx="14" cy="14" r="8"/></svg></span><small>Ajustes</small>
+      </button>
     </nav>
   </div>
 
-  <dialog id="activityDialog" class="sheet-dialog">
-    <form method="dialog" id="activityForm">
-      <div class="dialog-handle"></div>
-      <h3 id="activityDialogTitle">Adicionar atividade</h3>
-      <input type="hidden" id="activityIdInput" />
-      <label>Horário <input type="time" id="activityTimeInput" required /></label>
-      <label>Atividade <input type="text" id="activityTitleInput" required /></label>
-      <label>Tipo
-        <select id="activityTypeInput">
-          <option value="attraction">Atração</option><option value="meal">Refeição</option><option value="break">Pausa</option><option value="show">Show</option><option value="reservation">Reserva</option><option value="other">Outro</option>
-        </select>
-      </label>
-      <div class="autocomplete-row">
-        <label class="autocomplete-field grow">Restaurante
-          <input type="search" id="activityRestaurantInput" list="restaurantSuggestions" autocomplete="off" placeholder="Ex.: Sci-Fi Dine-In Theater" />
-        </label>
-        <label class="autocomplete-field grow">Prato
-          <input type="search" id="activityDishInput" list="dishSuggestions" autocomplete="off" placeholder="Ex.: Ronto Wrap" />
-        </label>
-      </div>
-      <label>Nota da refeição <input type="range" min="0" max="5" step="0.5" id="activityRatingInput" value="0" /></label>
-      <div id="activityRatingPreview" class="rating-preview" aria-live="polite"></div>
-      <label>Duração (min) <input type="number" id="activityDurationInput" min="5" max="240" step="5" required /></label>
-      <label>Fila planejada (min) <input type="number" id="activityWaitInput" min="0" max="300" step="5" /></label>
-      <label><input type="checkbox" id="activityFlexibleInput" checked /> Pode ser reordenada</label>
-      <label><input type="checkbox" id="activityFixedAnchorInput" /> Compromisso fixo / âncora</label>
-      <label>Chegar com antecedência (min) <input type="number" id="activityArrivalBufferInput" min="0" max="120" step="5" value="0" /></label>
-      <div class="dialog-actions">
-        <button value="cancel" class="ghost-btn">Cancelar</button>
-        <button value="default" class="primary-btn" id="saveActivityBtn">Salvar</button>
-      </div>
-    </form>
-  </dialog>
+  <div id="toast" class="toast" role="status"></div>
 
   <dialog id="completeDialog" class="sheet-dialog">
     <form method="dialog" id="completeForm">
-      <div class="dialog-handle"></div>
-      <h3 id="completeTitle">Concluir atividade</h3>
+      <div class="sheet-handle"></div>
+      <h3 id="completeTitle">Registrar atividade</h3>
+      <p id="completeHint" class="muted completion-hint"></p>
       <input type="hidden" id="completeActivityId" />
-      <div class="actual-grid">
-        <label>Início real <input type="time" id="actualStartInput" /></label>
-        <label>Fim real <input type="time" id="actualEndInput" /></label>
+
+      <div id="attractionCompletionFields" class="completion-fields" hidden>
+        <label>Tempo real de fila (min)
+          <input id="actualWaitInput" type="number" min="0" step="1" inputmode="numeric" placeholder="0" />
+        </label>
       </div>
-      <label>Fila real (min) <input type="number" id="actualWaitInput" min="0" max="300" step="1" /></label>
-      <label>Nota <input type="range" min="0" max="5" step="0.5" id="ratingInput" value="0" /></label>
-      <div id="ratingPreview" class="rating-preview" aria-live="polite"></div>
-      <label>Comentário <textarea id="commentInput" rows="3" placeholder="Ex.: Valeu esperar, ótima atração."></textarea></label>
+
+      <div id="mealCompletionFields" class="completion-fields" hidden>
+        <label>Restaurante / local
+          <input id="restaurantNameInput" type="text" maxlength="100" autocomplete="off" list="restaurantSuggestions" placeholder="Ex.: Columbia Harbour House" />
+        </label>
+        <label>Prato / refeição <span class="muted">(opcional)</span>
+          <input id="mealItemInput" type="text" maxlength="100" autocomplete="off" list="mealSuggestions" placeholder="Ex.: cheeseburger, pizza, combo..." />
+        </label>
+      </div>
+
+      <fieldset id="ratingFieldset">
+        <legend>Nota <span class="muted">(de 0,5 em 0,5)</span></legend>
+        <div class="rating-control">
+          <div class="rating-visual" aria-hidden="true">
+            <span class="rating-empty">★★★★★</span>
+            <span class="rating-fill" id="ratingFill">★★★★★</span>
+          </div>
+          <strong class="rating-value" id="ratingValue">Sem nota</strong>
+          <input id="ratingSlider" type="range" min="0" max="5" step="0.5" value="0" aria-label="Nota da experiência, de zero a cinco estrelas em incrementos de meia estrela" />
+          <div class="rating-scale" aria-hidden="true"><span>0</span><span>2,5</span><span>5</span></div>
+        </div>
+      </fieldset>
+
+      <label id="commentField">Comentário rápido
+        <input id="commentInput" type="text" maxlength="100" placeholder="Valeu repetir? Momento favorito?" />
+      </label>
+
       <div class="dialog-actions">
         <button value="cancel" class="ghost-btn">Cancelar</button>
-        <button value="default" class="primary-btn" id="saveCompletionBtn">Salvar</button>
+        <button value="default" id="saveCompletionBtn" class="primary-btn">Salvar</button>
       </div>
     </form>
   </dialog>
 
+
   <dialog id="passDialog" class="sheet-dialog">
     <form method="dialog" id="passForm">
-      <div class="dialog-handle"></div>
+      <div class="sheet-handle"></div>
+      <span class="kicker">Decisão do dia</span>
       <h3 id="passDialogTitle">Aplicar Pass</h3>
-      <p class="muted" id="passDialogActivityName"></p>
-      <input type="hidden" id="passActivityId" />
-      <label>Tipo de Pass
-        <select id="passTypeInput">
-          <option value="none">Sem Pass</option>
+      <p class="muted">Registre a reserva que você realmente possui. O motor recalcula o restante do roteiro imediatamente.</p>
+      <input id="passActivityId" type="hidden" />
+      <label>Tipo
+        <select id="dayPassType">
+          <option value="none">Sem Pass / remover</option>
           <option value="multi">Multi Pass</option>
           <option value="single">Single Pass</option>
         </select>
       </label>
-      <label>Início da janela <input type="time" id="passStartInput" /></label>
-      <label>Duração da janela (min) <input type="number" id="passWindowInput" min="15" max="180" step="5" value="60" /></label>
-      <small class="help-text">Use o horário da janela confirmada no app oficial. O Orlando Flow considera essa reserva no replanejamento e na recomendação do momento.</small>
+      <div id="dayPassWindowFields" class="two-col-settings">
+        <label>Início da janela <span class="muted">(opcional)</span><input id="dayPassTime" type="time" /></label>
+        <label>Duração da janela (min)<input id="dayPassWindow" type="number" min="15" max="180" step="15" value="60" /></label>
+      </div>
+      <small class="help-text">Se ainda não souber o horário, você pode marcar apenas Multi Pass ou Single Pass e informar a janela depois.</small>
       <div class="dialog-actions">
-        <button type="button" class="ghost-btn" id="removePassBtn">Remover</button>
         <button value="cancel" class="ghost-btn">Cancelar</button>
-        <button value="default" class="primary-btn" id="savePassBtn">Salvar</button>
+        <button value="default" id="saveDayPassBtn" class="primary-btn">Aplicar ao roteiro</button>
       </div>
     </form>
   </dialog>
 
-  <datalist id="restaurantSuggestions"></datalist>
-  <datalist id="dishSuggestions"></datalist>
-  <datalist id="attractionSuggestions"></datalist>
+  <dialog id="anchorDialog" class="sheet-dialog">
+    <form method="dialog" id="anchorForm">
+      <span class="kicker">Âncora do roteiro</span>
+      <h3>Adicionar evento fixo</h3>
+      <p class="muted">Ex.: Fantasmic 21:00 com 40 min de chegada reserva automaticamente 20:20–21:00.</p>
+      <label>Dia<select id="anchorDateInput"></select></label>
+      <label>Nome<input id="anchorTitleInput" type="text" maxlength="100" placeholder="Fantasmic!" /></label>
+      <div class="two-col-settings">
+        <label>Tipo<select id="anchorTypeInput"><option value="show">Show</option><option value="fireworks">Fogos</option><option value="parade">Desfile</option><option value="early-entry">Early Entry</option><option value="reservation">Reserva</option><option value="entertainment">Entretenimento</option></select></label>
+        <label>Horário<input id="anchorTimeInput" type="time" /></label>
+        <label>Duração (min)<input id="anchorDurationInput" type="number" min="5" max="240" step="5" value="30" /></label>
+        <label>Reserva para chegada (min)<input id="anchorBufferInput" type="number" min="0" max="120" step="5" value="40" /></label>
+      </div>
+      <label class="check-line"><input id="anchorSkippableInput" type="checkbox" checked /> Permitir pular durante o dia</label>
+      <div class="dialog-actions"><button value="cancel" class="ghost-btn">Cancelar</button><button value="default" id="saveAnchorBtn" class="primary-btn">Adicionar</button></div>
+    </form>
+  </dialog>
 
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <datalist id="restaurantSuggestions"></datalist>
+  <datalist id="mealSuggestions"></datalist>
+  <datalist id="attractionSuggestions"></datalist>
+  <datalist id="preferenceAttractionSuggestions"></datalist>
+
   <script type="module" src="./app.js"></script>
 </body>
 </html>

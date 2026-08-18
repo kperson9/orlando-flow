@@ -1,5 +1,5 @@
-const STATIC_CACHE = 'orlando-flow-static-v32';
-const RUNTIME_CACHE = 'orlando-flow-runtime-v32';
+const STATIC_CACHE = 'orlando-flow-static-v38-6-4';
+const RUNTIME_CACHE = 'orlando-flow-runtime-v38-6-4';
 const STATIC_ASSETS = [
   './', './index.html', './styles.css', './app.js', './manifest.webmanifest', './data/sample-itinerary.json', './icons/icon-192.png', './icons/icon-512.png', './icons/hollywood-studios-reference-clean.png', './icons/animal-kingdom-reference-clean.png', './icons/universal-studios-globe-clean.png', './icons/islands-of-adventure-hp-clean.png', './icons/epic-universe-reference-clean.png'
 ];
