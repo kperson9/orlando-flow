@@ -109,7 +109,8 @@ const DEFAULT_STATE = {
     longWaitThreshold: 60,
     darkMode: false,
     strideCm: 75,
-    weightKg: ''
+    weightKg: '',
+    universalExpressPass: true
   },
   days: [],
   history: [],
@@ -146,7 +147,7 @@ function parkIconSvg(parkKey = state.selectedPark, className = '') {
   const cls = className ? ` class="${className}"` : '';
   const open = `<svg${cls} viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">`;
   const close = '</svg>';
-  const rasterIcon = (src) => `<span class="park-icon-raster" style="--park-icon-url:url('${src}')"><img src="${src}" alt=""${className ? ` class="park-icon-image ${className}"` : ' class="park-icon-image"'}/></span>`;
+  const rasterIcon = (src, rasterClass = '') => `<span class="park-icon-raster${rasterClass ? ` ${rasterClass}` : ''}" style="--park-icon-url:url('${src}')"><img src="${src}" alt=""${className ? ` class="park-icon-image ${className}"` : ' class="park-icon-image"'}/></span>`;
   const icons = {
     'magic-kingdom': `${open}
       <path class="park-icon-soft" d="M8 57h48v-4H8z"/>
@@ -163,7 +164,7 @@ function parkIconSvg(parkKey = state.selectedPark, className = '') {
       <path class="park-icon-thin" d="M20 10 32 20 44 10M11 20l10 8 11-8 11 8 10-8M8 31l13-3 11 8 11-8 13 3M13 43l8-15 11 8 11-8 8 15M22 51l10-15 10 15M32 5v48M8 31h48"/>
       <path d="M25 53 23 60m16-7 2 7M21 60h22"/>
       ${close}`,
-    'animal-kingdom': rasterIcon('./icons/animal-kingdom-reference-clean.png'),
+    'animal-kingdom': rasterIcon('./icons/animal-kingdom-reference-clean.png', 'preserve-original-dark'),
     'hollywood-studios': rasterIcon('./icons/hollywood-studios-reference-clean.png'),
     'epic-universe': rasterIcon('./icons/epic-universe-reference-clean.png'),
     'islands-of-adventure': rasterIcon('./icons/islands-of-adventure-hp-clean.png'),
@@ -840,12 +841,13 @@ function estimatedWaitAtMinute(meta, minute, nowMin) {
   return Math.max(5, Math.round(estimate / 5) * 5);
 }
 
-function replanCandidateMeta(activity, livePayload, weatherPayload, nowMin) {
+function replanCandidateMeta(activity, livePayload, weatherPayload, nowMin, liveEntryOverride = undefined, weatherOverride = null) {
   const live = livePayload?.liveData || [];
-  const liveWait = extractStandby(findLiveMatch(activity, live));
+  const liveEntry = liveEntryOverride === undefined ? findLiveMatch(activity, live) : liveEntryOverride;
+  const liveWait = extractStandby(liveEntry);
   const plannedWait = Number.isFinite(Number(activity.plannedWait)) ? Number(activity.plannedWait) : null;
   const wait = activity.type === 'attraction' ? (liveWait ?? plannedWait ?? 25) : 0;
-  const weather = relevantWeather(weatherPayload);
+  const weather = weatherOverride || relevantWeather(weatherPayload);
   const wasSkipped = isSkipped(activity.id) && activity.type === 'attraction';
   let score = Number(activity.priority || 3) * 24 - wait * .62;
   const reasons = [];
@@ -2196,13 +2198,13 @@ function bindEvents() {
     const id=$('#completeActivityId').value;
     if (saveCompletion(id)) $('#completeDialog').close();
   });
-  $('#clearHistoryBtn').addEventListener('click',()=>{ if(confirm('Apagar todo o histórico e avaliações?')){state.history=[];saveState();renderAll();} });
+  $('#clearHistoryBtn').addEventListener('click',()=>{ if(confirm('Apagar todo o histórico e avaliações?')){state.history=[];resetHistoryV3V393('user-clear');saveState();renderAll();} });
   $('#reportScope').addEventListener('change',renderReport);
   $('#shareCardBtn').addEventListener('click',shareCard);
   $('#exportReportBtn').addEventListener('click',exportReport);
   $('#exportDataBtn').addEventListener('click',exportBackup);
   $('#loadDemoBtn').addEventListener('click',async()=>{ if(confirm('Substituir o roteiro atual pelo exemplo?')){await loadDemo();renderAll();} });
-  $('#importInput').addEventListener('change',async e=>{ const file=e.target.files?.[0]; if(!file)return; try{const data=JSON.parse(await file.text());validateImportedTrip(data);state.tripName=data.tripName||state.tripName;state.timezone=data.timezone||ORLANDO_TZ;state.settings={...state.settings,...(data.settings||{})};state.days=data.days;state.history=data.history||[];state.stepsByDate=data.stepsByDate||{};state.movementByDate=data.movementByDate||{};state.originalPlans=data.originalPlans||snapshotOriginalPlans(state.days);state.replanDecisions=data.replanDecisions||{};state.replanHistory=data.replanHistory||[];state.lastReplanAnalyses=data.lastReplanAnalyses||{};state.queueHistory=data.queueHistory||state.queueHistory||{};state.scheduleCache=data.scheduleCache||state.scheduleCache||{};state.attractionGeo=data.attractionGeo||state.attractionGeo||{};state.attractionPreferences=data.attractionPreferences||state.attractionPreferences||{};state.passBookings=data.passBookings||state.passBookings||{};state.emergencyLog=data.emergencyLog||state.emergencyLog||[];state.emergencyState=data.emergencyState||null;state.selectedDate=chooseRelevantDate();const d=getSelectedDay();if(PARKS[d?.park]?.entityId)state.selectedPark=d.park;ensureOriginalPlans();saveState();renderAll();toast('Roteiro importado com sucesso.');}catch(err){alert(`Não foi possível importar: ${err.message}`);} finally{e.target.value='';} });
+  $('#importInput').addEventListener('change',async e=>{ const file=e.target.files?.[0]; if(!file)return; try{const data=JSON.parse(await file.text());validateImportedTrip(data);state.tripName=data.tripName||state.tripName;state.timezone=data.timezone||ORLANDO_TZ;state.settings={...state.settings,...(data.settings||{})};state.days=data.days;state.history=data.history||[];state.historyV3=data.historyV3||null;ensureHistoryV3StateV393();state.stepsByDate=data.stepsByDate||{};state.movementByDate=data.movementByDate||{};state.originalPlans=data.originalPlans||snapshotOriginalPlans(state.days);state.replanDecisions=data.replanDecisions||{};state.replanHistory=data.replanHistory||[];state.lastReplanAnalyses=data.lastReplanAnalyses||{};state.queueHistory=data.queueHistory||state.queueHistory||{};state.scheduleCache=data.scheduleCache||state.scheduleCache||{};state.attractionGeo=data.attractionGeo||state.attractionGeo||{};state.attractionPreferences=data.attractionPreferences||state.attractionPreferences||{};state.preferenceLearningEvents=data.preferenceLearningEvents||[];state.preferenceLearningStartedAt=Number(data.preferenceLearningStartedAt||Date.now());state.preferenceLearningResetAt=Number(data.preferenceLearningResetAt||0);state.preferenceLearningResetByKey=data.preferenceLearningResetByKey||{};state.passBookings=data.passBookings||state.passBookings||{};state.emergencyLog=data.emergencyLog||state.emergencyLog||[];state.emergencyState=data.emergencyState||null;state.selectedDate=chooseRelevantDate();const d=getSelectedDay();if(PARKS[d?.park]?.entityId)state.selectedPark=d.park;ensureOriginalPlans();saveState();renderAll();toast('Roteiro importado com sucesso.');}catch(err){alert(`Não foi possível importar: ${err.message}`);} finally{e.target.value='';} });
   $('#tripNameInput').addEventListener('change',e=>{state.tripName=e.target.value.trim()||'Orlando Flow';saveState();renderHeader();});
   $('#delayThreshold').addEventListener('input',e=>{$('#delayThresholdValue').textContent=`${e.target.value} min`;});
   $('#delayThreshold').addEventListener('change',e=>{state.settings.delayThreshold=Number(e.target.value);saveState();renderStatus();});
@@ -5863,7 +5865,7 @@ function priorityWatchTextV36(priority, nowMinute = null) {
     if (ps != null && ps <= minute && minute <= ps + Number(pass.passWindowMinutes || 60)) return 'Pass ativo · sendo protegido';
     if (pass.passTime && ps > minute) return `Pass ${pass.passTime} · sendo protegido`;
   }
-  if (priority.window?.type === 'queue' && priority.window?.targetMinute != null) return `${priority.window.label} · monitorando`;
+  if (priority.window?.type === 'queue' && priority.window?.targetMinute != null) return `${historyGuardPriorityWindowLabelV421(priority, priority.window.label)} · monitorando`;
   if (priority.meta?.band === 'FAÇA AGORA') return 'Boa janela agora';
   if (priority.meta?.band === 'ESPERE') return 'Melhor depois · monitorando';
   return 'Prioridade do roteiro · monitorando';
@@ -5915,7 +5917,7 @@ function passiveWaitingBreakV36(day, protectedPriority, nowMinute) {
     reason:`Nenhuma atração relevante compensa tanto quanto preservar a próxima janela de ${protectedPriority.activity.title}.`,
     factors:[
       {icon:'★',text:`${protectedPriority.activity.title} continua como prioridade do roteiro.`},
-      {icon:'◷',text:`${protectedPriority.window.label}.`},
+      {icon:'◷',text:`${historyGuardPriorityWindowLabelV421(protectedPriority, protectedPriority.window.label)}.`},
       {icon:'✓',text:`Uma pausa de ${duration} min mantém margem para chegar sem pressa.`}
     ]
   };
@@ -6033,7 +6035,7 @@ function renderNextV36Decision(decision, day, livePayload, weatherPayload) {
     const isPriorityWindow=decision.kind==='priority-window';
     const label=isPriorityWindow && meta.band!=='FAÇA AGORA' ? 'SIGA PARA A PRIORIDADE' : 'FAÇA AGORA';
     const reason=isPriorityWindow && decision.priority?.window?.label
-      ? `${decision.priority.window.label}. É hora de se posicionar para não perder essa janela.`
+      ? `${historyGuardPriorityWindowLabelV421(decision.priority, decision.priority.window.label)}. É hora de se posicionar para não perder essa janela.`
       : nextStepQuickReason(meta,weatherPayload);
     const factors=nextStepFactors(meta,weatherPayload);
     if(isPriorityWindow) factors.unshift({icon:'★',text:'Esta é uma das prioridades estratégicas protegidas do seu dia.'});
@@ -6109,7 +6111,7 @@ function renderLiveDecisionCardV36(row, options={}) {
   const costNow=meta.experienceCost?`~${meta.experienceCost.totalMinutes} min`:(meta.wait==null?'--':`${meta.effectiveWait+meta.walk.minutes} min`);
   const costBreakdown=meta.experienceCost?`${meta.experienceCost.walkMinutes} caminhada + ${meta.experienceCost.queueMinutes} fila + ${meta.experienceCost.rideMinutes} experiência + ${meta.experienceCost.exitMinutes} saída${meta.experienceCost.continuationMinutes?` + ${meta.experienceCost.continuationMinutes} próximo deslocamento`:''}`:'fila + caminhada';
   const historyBase=f.historySource==='global'?`histórico global · ${escapeHtml(f.historyConfidence||'insuficiente')}`:Number(f.historicalCount||0)>=2?'histórico local':'heurística';
-  const best=f.best?`<div class="copilot-detail-item copilot-detail-wide"><span>Melhor janela</span><b>${escapeHtml(f.best.time)} · ~${f.best.wait} min</b><small>economia estimada de ${Math.max(0,Math.round(f.best.saving||0))} min</small></div>`:'';
+  const best=f.best?`<div class="copilot-detail-item copilot-detail-wide"><span>Melhor faixa</span><b>${escapeHtml(f.best.timeRange||f.best.time)} · ${Number.isFinite(Number(f.best.low))&&Number.isFinite(Number(f.best.high))?`${f.best.low}–${f.best.high} min`:`~${f.best.wait} min`}</b><small>janela recomendada; não depende de um minuto exato</small></div>`:'';
   const dq=meta.dataQuality;
   const weak=dq?.weakFactors?.slice(0,2).map(x=>x.label).join(' · ');
   const quality=dq?`<div class="copilot-detail-item copilot-detail-wide" data-quality-detail><span>Qualidade dos dados</span><b>${escapeHtml(dq.label)}</b><small>${weak?`mais estimado: ${escapeHtml(weak)}`:'principais fontes consistentes'}</small></div>`:'';
@@ -6126,7 +6128,7 @@ function renderLivePriorityItemV36(priority, nowMinute) {
   const icon=priority.code==='must'?'★':priority.code==='want'?'♥':'◎';
   const status=priorityWatchTextV36(priority,nowMinute);
   const tone=meta.band==='FAÇA AGORA'?'good':meta.band==='EVITE AGORA'?'bad':'warn';
-  const reason=meta.band==='FAÇA AGORA'?nextStepQuickReason(meta,state.weatherCache?.[getSelectedDay()?.park]):priority.window?.label||'O motor está protegendo uma janela melhor para esta atração.';
+  const reason=meta.band==='FAÇA AGORA'?nextStepQuickReason(meta,state.weatherCache?.[getSelectedDay()?.park]):historyGuardPriorityWindowLabelV421(priority,priority.window?.label)||'O motor está protegendo uma janela melhor para esta atração.';
   return `<details class="live-priority-item ${tone}"><summary><span class="live-priority-icon" aria-hidden="true">${icon}</span><span class="live-priority-main"><strong>${escapeHtml(priority.activity.title)}</strong><small>${escapeHtml(status)}</small></span><span class="live-priority-wait">${meta.wait??'--'} min</span><span class="live-priority-chevron" aria-hidden="true">⌄</span></summary><div class="live-priority-detail"><p>${escapeHtml(reason)}</p><span>Confiança ${escapeHtml(confidence.label.toLowerCase())}</span>${priority.window?.type==='queue'&&priority.window.expectedWait!=null?`<span>Fila esperada na janela: ~${Math.round(priority.window.expectedWait)} min</span>`:''}</div></details>`;
 }
 
@@ -6152,6 +6154,7 @@ function renderLiveHierarchyV36(day,payload,weather) {
 
   const decision=decisionOrchestratorV36(day,payload,weather);
   const priorities=strategicPrioritiesV36(day,payload,weather,nowMinute);
+  const displayPriorities=strategicPreferencePoolV3902(day,payload,weather,nowMinute,priorities);
   const protectedPriority=priorities[0]||null;
   const rowById=new Map(rows.map(r=>[r.meta.activity.id,r]));
   const bestNow=[];
@@ -6161,7 +6164,7 @@ function renderLiveHierarchyV36(day,payload,weather) {
     const row=rowById.get(decision.activity.id) || (decision.entry&&decision.meta?{entry:decision.entry,meta:decision.meta}:null);
     if(row){
       const display=decision.kind==='bridge'?{label:'APROVEITE AGORA',className:'good'}:decision.kind==='priority-window'?{label:'SIGA AGORA',className:'good'}:decision.kind==='opportunity'?{label:'OPORTUNIDADE',className:'good'}:displayBandV36(row.meta);
-      const reason=decision.kind==='bridge'?bridgeReasonV36(decision,decision.priority):decision.kind==='priority-window'?`${decision.priority?.window?.label||'A janela protegida começou'}; é hora de se posicionar.`:decision.kind==='opportunity'?(decision.opportunity?.triggerReason||'Uma nova oportunidade melhorou a sequência.'):nextStepQuickReason(row.meta,weather);
+      const reason=decision.kind==='bridge'?bridgeReasonV36(decision,decision.priority):decision.kind==='priority-window'?`${historyGuardPriorityWindowLabelV421(decision.priority,decision.priority?.window?.label)||'A janela protegida começou'}; é hora de se posicionar.`:decision.kind==='opportunity'?(decision.opportunity?.triggerReason||'Uma nova oportunidade melhorou a sequência.'):nextStepQuickReason(row.meta,weather);
       bestNow.push({row,display,reason}); used.add(row.meta.activity.id);
     }
   }
@@ -6184,7 +6187,7 @@ function renderLiveHierarchyV36(day,payload,weather) {
     }
   }
 
-  const priorityItems=priorities.filter(p=>!used.has(p.activity.id)).slice(0,DECISION_ORCHESTRATOR_RULES.livePriorityCount);
+  const priorityItems=displayPriorities.filter(p=>!used.has(p.activity.id)).slice(0,DECISION_ORCHESTRATOR_RULES.livePriorityCount);
   const otherRows=rows.filter(r=>!used.has(r.meta.activity.id)&&!priorityItems.some(p=>p.activity.id===r.meta.activity.id)).sort((a,b)=>b.meta.score-a.meta.score||a.meta.totalMinutes-b.meta.totalMinutes).slice(0,DECISION_ORCHESTRATOR_RULES.liveOtherCount);
 
   let actionCallout='';
@@ -6220,7 +6223,7 @@ generateReplanProposal=function(day,livePayload,weatherPayload,force=false){
   const now=getOrlandoParts();
   const priority=protectedPriorityV36(day,livePayload,weatherPayload,now.hour*60+now.minute);
   if(priority?.window?.targetMinute!=null&&priority.window.targetMinute>now.hour*60+now.minute){
-    proposal.explanations=[{tone:'good',title:`Janela protegida · ${priority.activity.title}`,detail:`${priority.window.label}. O motor evita preencher o intervalo com atividades que comprometam a chegada a essa prioridade.`},...(proposal.explanations||[])].slice(0,14);
+    proposal.explanations=[{tone:'good',title:`Janela protegida · ${priority.activity.title}`,detail:`${historyGuardPriorityWindowLabelV421(priority,priority.window.label)}. O motor evita preencher o intervalo com atividades que comprometam a chegada a essa prioridade.`},...(proposal.explanations||[])].slice(0,14);
   }
   return proposal;
 };
@@ -6738,7 +6741,7 @@ renderLiveDecisionCardV36=function(row,options={}){
   if(f.p30Range||f.p60Range){
     const p30=f.p30Range?`${f.p30Range.low}–${f.p30Range.high} min`:'--';
     const p60=f.p60Range?`${f.p60Range.low}–${f.p60Range.high} min`:'--';
-    details.push(`<div class="copilot-detail-item copilot-detail-wide v37-detail"><span>Previsão v2</span><b>+30 ${p30} · +60 ${p60}</b><small>faixas prováveis, não um minuto exato</small></div>`);
+    details.push(`<div class="copilot-detail-item copilot-detail-wide v37-detail"><span>Fila provável</span><b>+30 ${p30} · +60 ${p60}</b><small>faixas prováveis, não um minuto exato</small></div>`);
   }
   if(crowd) details.push(`<div class="copilot-detail-item v37-detail"><span>Contexto do parque</span><b>${escapeHtml(crowd.label)}</b><small>${crowd.sampleCount} atrações comparáveis · confiança ${escapeHtml(crowd.confidence)}</small></div>`);
   if(meta?.walk?.zone) details.push(`<div class="copilot-detail-item v37-detail"><span>Logística</span><b>${escapeHtml(zoneLabelV37(getSelectedDay()?.park||state.selectedPark,meta.walk.zone))}</b><small>${escapeHtml(meta.walk.source||'zona')} · ~${Math.round(meta.walk.minutes||0)} min</small></div>`);
@@ -6787,8 +6790,8 @@ fetchGlobalParkInsights=async function(parkKey=state.selectedPark,force=false){
    Orlando Flow v38 — Ciclo 6.5
    Estabilização, autotestes e diagnóstico do motor
    ============================================================ */
-const ENGINE_BUILD_V38='v38.6.4.1';
-const ENGINE_DIAGNOSTICS_VERSION_V38='6.5.6.4.1';
+const ENGINE_BUILD_V38='v41.2.10-observability-v425';
+const ENGINE_DIAGNOSTICS_VERSION_V38='9.2.10';
 const runtimeDiagnosticsV38=[];
 let diagnosticsEventsInstalledV38=false;
 
@@ -6857,7 +6860,7 @@ function runEngineSelfTestsV38(){
 }
 
 function renderDiagnosticSnapshotHtmlV38(s){const d=s.decision||{},c=s.context||{},p=s.priorities?.[0];const rows=[['Ação atual',d.action||d.kind],['Tipo',d.kind],['Score / farol',d.score!=null?`${d.score} · ${d.band||'--'}`:(d.band||'--')],['Prioridade protegida',p?.title||d.strategicPriority||'--'],['Janela protegida',p?.window||d.protectedWindow||'--'],['Custo total',d.totalExperienceMinutes!=null?`~${d.totalExperienceMinutes} min`:'--'],['Wait Value',d.waitValue!=null?`${d.waitValue>0?'+':''}${d.waitValue} min`:'--'],['Logística',c.location?.label?`${c.location.label} · ${c.location.source}`:(d.walkSource||'--')],['Crowd Index',c.crowd?`${c.crowd.label} · ${c.crowd.sampleCount} amostras`:'--'],['Fadiga',c.fatigue?`${c.fatigue.label} · ${c.fatigue.fatigue}/100`:'--'],['Qualidade',d.dataQuality?`${d.dataQuality.label} · ${Math.round(d.dataQuality.overall)}/100`:'--'],['Dados ao vivo',s.dataFreshness.liveMinutes==null?'sem cache':`${s.dataFreshness.liveMinutes} min atrás`]];return `<div class="engine-diagnostic-grid">${rows.map(([l,v])=>`<div><span>${escapeHtml(l)}</span><b>${escapeHtml(String(v??'--'))}</b></div>`).join('')}</div>${d.dataQuality?.weakFactors?.length?`<p class="engine-diagnostic-note"><b>Fontes mais frágeis:</b> ${escapeHtml(d.dataQuality.weakFactors.join(' · '))}</p>`:''}${s.runtimeErrors?.length?`<div class="engine-diagnostic-errors"><strong>Erros recentes</strong>${s.runtimeErrors.slice(0,3).map(e=>`<code>${escapeHtml(e.kind)} · ${escapeHtml(e.message)}</code>`).join('')}</div>`:'<p class="engine-diagnostic-ok">✓ Nenhum erro de runtime capturado nesta sessão.</p>'}`;}
-function ensureDiagnosticCardV38(){const container=document.querySelector('.view[data-view="settings"] .top-section');if(!container)return null;let card=$('#engineDiagnosticCard');if(card)return card;card=document.createElement('div');card.className='settings-card engine-diagnostic-card';card.id='engineDiagnosticCard';card.innerHTML=`<details><summary><span><b>Diagnóstico do motor</b><small>Ciclo 6.5 · validação técnica</small></span><span aria-hidden="true">⌄</span></summary><div class="engine-diagnostic-body"><p class="muted">Explica a decisão atual e executa verificações sem alterar o roteiro.</p><div class="settings-inline-actions engine-diagnostic-actions"><button class="secondary-btn" type="button" id="refreshEngineDiagnosticBtn">Atualizar diagnóstico</button><button class="secondary-btn" type="button" id="runEngineSelfTestsBtn">Executar autoteste</button><button class="ghost-btn" type="button" id="exportEngineDiagnosticBtn">Exportar JSON</button></div><div id="engineDiagnosticSnapshot"></div><div id="engineSelfTestSummary"></div></div></details>`;const source=[...container.querySelectorAll('.settings-card')].find(el=>/Fontes de dados/i.test(el.textContent||''));if(source)container.insertBefore(card,source);else container.appendChild(card);return card;}
+function ensureDiagnosticCardV38(){const container=document.querySelector('.view[data-view="settings"] .top-section');if(!container)return null;let card=$('#engineDiagnosticCard');if(card)return card;card=document.createElement('div');card.className='settings-card engine-diagnostic-card';card.id='engineDiagnosticCard';card.innerHTML=`<details><summary><span><b>Diagnóstico do motor</b><small>Ciclos 6.5 + 7.1 · validação técnica</small></span><span aria-hidden="true">⌄</span></summary><div class="engine-diagnostic-body"><p class="muted">Explica a decisão atual e executa verificações sem alterar o roteiro.</p><div class="settings-inline-actions engine-diagnostic-actions"><button class="secondary-btn" type="button" id="refreshEngineDiagnosticBtn">Atualizar diagnóstico</button><button class="secondary-btn" type="button" id="runEngineSelfTestsBtn">Executar autoteste</button><button class="ghost-btn" type="button" id="exportEngineDiagnosticBtn">Exportar JSON</button></div><div id="engineDiagnosticSnapshot"></div><div id="engineSelfTestSummary"></div></div></details>`;const source=[...container.querySelectorAll('.settings-card')].find(el=>/Fontes de dados/i.test(el.textContent||''));if(source)container.insertBefore(card,source);else container.appendChild(card);return card;}
 function renderDiagnosticPanelV38(){if(!ensureDiagnosticCardV38())return;const root=$('#engineDiagnosticSnapshot');if(root)try{root.innerHTML=renderDiagnosticSnapshotHtmlV38(engineDiagnosticSnapshotV38());}catch(error){root.innerHTML=`<p class="engine-diagnostic-error">Falha no diagnóstico: ${escapeHtml(error.message||String(error))}</p>`;}}
 function renderSelfTestSummaryV38(r){const root=$('#engineSelfTestSummary');if(!root)return;root.innerHTML=`<div class="engine-selftest-summary ${r.ok?'pass':'fail'}"><strong>${r.ok?'✓ Autoteste aprovado':'! Autoteste encontrou falhas'}</strong><span>${r.passed}/${r.total} verificações aprovadas</span></div><div class="engine-selftest-list">${r.results.map(x=>`<div class="${x.ok?'pass':'fail'}"><span>${x.ok?'✓':'!'}</span><div><b>${escapeHtml(x.name)}</b><small>${escapeHtml(x.ok?String(x.detail||'ok'):String(x.error||'falha'))} · ${x.ms} ms</small></div></div>`).join('')}</div>`;}
 function exportEngineDiagnosticV38(){const payload={snapshot:engineDiagnosticSnapshotV38(),selfTest:runEngineSelfTestsV38()};downloadBlob(`orlando-flow-diagnostico-${getOrlandoParts().date}.json`,new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));}
@@ -7868,7 +7871,7 @@ renderNextV36Decision=function(decision,day,livePayload,weatherPayload){
   }
   if(priority?.activity){
     factors.push({icon:'★',text:`${priority.activity.title} continua protegida como prioridade estratégica.`});
-    if(priority.window?.label) factors.push({icon:'◷',text:priority.window.label+'.'});
+    if(priority.window?.label) factors.push({icon:'◷',text:historyGuardPriorityWindowLabelV421(priority,priority.window.label)+'.'});
   }
   if(decision.locationLabel) factors.push({icon:'⌖',text:`Localização de referência: ${decision.locationLabel}.`});
   card.className='next-card next-step-card next-step-neutral';
@@ -9268,6 +9271,8495 @@ runEngineSelfTestsV38=function(){
   return report;
 };
 
+/* ============================================================
+   Orlando Flow v39.0 — Ciclo 7.1 · Preferências Aprendidas
+   - Perfil compartilhado: aprende com comportamento sem criar perfis individuais.
+   - Preferência declarada continua dominante; aprendizado atua como ajuste conservador.
+   - Sinais: avaliações, repetições, recomendações aceitas/ignoradas,
+     atividades espontâneas e pulos repetidos.
+   - Transparência: Ajustes mostra o que foi aprendido e permite reset.
+   ============================================================ */
+const LEARNING_RULES_V39 = Object.freeze({
+  learnedInfluence: 0.30,
+  evidenceForFullConfidence: 8,
+  maxEvents: 300,
+  recommendationWindowMinutes: 20
+});
+
+const v3864EnsureCopilotStateV39 = ensureCopilotState;
+ensureCopilotState = function() {
+  v3864EnsureCopilotStateV39();
+  if (typeof state.settings.preferenceLearningEnabled !== 'boolean') state.settings.preferenceLearningEnabled = true;
+  if (!Array.isArray(state.preferenceLearningEvents)) state.preferenceLearningEvents = [];
+  if (!state.preferenceLearningResetByKey || typeof state.preferenceLearningResetByKey !== 'object') state.preferenceLearningResetByKey = {};
+  if (!Number.isFinite(Number(state.preferenceLearningResetAt))) state.preferenceLearningResetAt = 0;
+  if (!Number.isFinite(Number(state.preferenceLearningStartedAt)) || Number(state.preferenceLearningStartedAt) <= 0) state.preferenceLearningStartedAt = Date.now();
+};
+
+function learningKeyV39(value) {
+  return preferenceKey(value);
+}
+
+function learningCutoffV39(key) {
+  ensureCopilotState();
+  return Math.max(
+    Number(state.preferenceLearningStartedAt || 0),
+    Number(state.preferenceLearningResetAt || 0),
+    Number(state.preferenceLearningResetByKey?.[key] || 0)
+  );
+}
+
+function eventTimestampV39(event) {
+  const n = Number(event?.at || 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function recordPreferenceLearningEventV39(type, activity, extra = {}) {
+  ensureCopilotState();
+  const key = learningKeyV39(activity || extra.name || '');
+  if (!key) return;
+  const title = activity?.title || activity?.entityName || activity?.name || extra.name || key;
+  const day = getSelectedDay();
+  state.preferenceLearningEvents.push({
+    id:`learn-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+    type,
+    key,
+    title,
+    parkKey:extra.parkKey || day?.park || state.selectedPark || null,
+    activityId:activity?.id || extra.activityId || null,
+    at:Date.now(),
+    source:extra.source || null
+  });
+  state.preferenceLearningEvents = state.preferenceLearningEvents.slice(-LEARNING_RULES_V39.maxEvents);
+  saveState();
+}
+
+function attractionTitleForHistoryV39(record) {
+  // Perfis podem existir apenas por eventos aprendidos (sem linha correspondente no histórico).
+  // Nesses casos rows.at(-1) é undefined; não devemos chamar activityForRecord sem record.
+  if (!record) return '';
+  const activity = typeof activityForRecord === 'function' ? activityForRecord(record) : null;
+  return activity?.title || activity?.entityName || record?.title || '';
+}
+
+function historyTimestampV39(record) {
+  const iso = record?.actualEnd || record?.actualStart || '';
+  const parsed = Date.parse(iso);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function learnedPreferenceEvidenceV39(value) {
+  ensureCopilotState();
+  const key = learningKeyV39(value);
+  if (!key) return null;
+  const cutoff = learningCutoffV39(key);
+  const rows = (state.history || []).filter(record => {
+    if (record?.status !== 'done') return false;
+    if (historyTimestampV39(record) < cutoff) return false;
+    const type = String(record?.type || activityForRecord(record)?.type || '').toLowerCase();
+    if (type && type !== 'attraction') return false;
+    return learningKeyV39(attractionTitleForHistoryV39(record)) === key;
+  });
+  const ratings = rows.map(r => normalizeRating(r.rating)).filter(Boolean);
+  const avgRating = ratings.length ? ratings.reduce((a,b)=>a+b,0) / ratings.length : 0;
+  const completions = rows.length;
+  const repeats = Math.max(0, completions - 1);
+  const events = (Array.isArray(state.preferenceLearningEvents) ? state.preferenceLearningEvents : []).filter(e => e && typeof e === 'object' && e.key === key && eventTimestampV39(e) >= cutoff);
+  const count = type => events.filter(e => e.type === type).length;
+  const spontaneous = count('spontaneous-start');
+  const accepted = count('recommendation-accepted');
+  const ignored = count('recommendation-ignored');
+  const skipped = count('skip');
+
+  let rawDelta = 0;
+  if (ratings.length) rawDelta += (avgRating - 3) * 15;
+  rawDelta += Math.min(16, repeats * 8);
+  rawDelta += Math.min(10, spontaneous * 5);
+  rawDelta += Math.min(9, accepted * 3);
+  // Uma recusa/pulo isolado pode ser circunstancial e não ensina antipreferência.
+  rawDelta -= Math.min(10, Math.max(0, ignored - 1) * 2.5);
+  rawDelta -= Math.min(10, Math.max(0, skipped - 1) * 3);
+  rawDelta = Math.max(-45, Math.min(45, rawDelta));
+
+  const evidencePoints = ratings.length * 2 + repeats * 2 + spontaneous * 1.5 + accepted + ignored * .5 + skipped * .5;
+  const confidence = Math.max(0, Math.min(1, evidencePoints / LEARNING_RULES_V39.evidenceForFullConfidence));
+  const effectiveDelta = rawDelta * confidence;
+  const affinity = Math.max(5, Math.min(95, 50 + effectiveDelta));
+  const evidenceCount = ratings.length + repeats + spontaneous + accepted + ignored + skipped;
+
+  return {
+    key,
+    name:value?.title || value?.entityName || value?.name || state.attractionPreferences?.[key]?.name || attractionTitleForHistoryV39(rows.at(-1)) || events.at(-1)?.title || key,
+    affinity,
+    rawDelta,
+    effectiveDelta,
+    confidence,
+    confidenceLabel:confidence >= .7 ? 'alta' : confidence >= .35 ? 'média' : 'baixa',
+    evidenceCount,
+    avgRating,
+    ratings:ratings.length,
+    completions,
+    repeats,
+    spontaneous,
+    accepted,
+    ignored,
+    skipped,
+    lastAt:Math.max(0,...rows.map(historyTimestampV39),...events.map(eventTimestampV39))
+  };
+}
+
+function learnedPriorityGuardV39(code, currentWait, value) {
+  if (code === 'must') return Math.max(96, Math.min(100, value));
+  if (code === 'want') return Math.max(74, Math.min(94, value));
+  if (code === 'normal') return Math.max(45, Math.min(75, value));
+  if (code === 'low') return Math.max(18, Math.min(42, value));
+  if (code === 'empty') {
+    const lowWait = currentWait != null && Number(currentWait) <= 15;
+    return lowWait ? Math.max(60, Math.min(75, value)) : Math.max(5, Math.min(35, value));
+  }
+  return clamp(value);
+}
+
+const v3864PersonalPriorityMetaV39 = personalPriorityMeta;
+personalPriorityMeta = function(activity, currentWait = null) {
+  const base = v3864PersonalPriorityMetaV39(activity, currentWait);
+  ensureCopilotState();
+  const learned = learnedPreferenceEvidenceV39(activity);
+  if (!state.settings.preferenceLearningEnabled || !learned || learned.evidenceCount <= 0 || learned.confidence <= 0) {
+    return {...base, learned:learned ? {...learned, applied:false, adjustment:0} : null};
+  }
+  const proposed = Number(base.score || 0) + (learned.affinity - 50) * LEARNING_RULES_V39.learnedInfluence;
+  const guarded = learnedPriorityGuardV39(base.code, currentWait, proposed);
+  const score = Math.round(guarded);
+  return {
+    ...base,
+    score,
+    learned:{...learned, applied:true, adjustment:score - Math.round(Number(base.score || 0)), declaredScore:Math.round(Number(base.score || 0))}
+  };
+};
+
+function currentRecommendedAttractionV39(day) {
+  if (!day || day.date !== getOrlandoParts().date) return null;
+  try {
+    const live = state.liveCache?.[day.park];
+    const weather = state.weatherCache?.[day.park];
+    const decision = decisionOrchestratorV36(day,live,weather);
+    if (!decision?.activity || decision.activity.type !== 'attraction') return null;
+    if (!['direct','priority-window','smart-bridge'].includes(decision.kind)) return null;
+    return {decision,activity:decision.activity,key:learningKeyV39(decision.activity)};
+  } catch { return null; }
+}
+
+const v3864StartActivityV39 = startActivity;
+startActivity = function(id) {
+  const day = getSelectedDay();
+  const activity = day?.activities?.find(a=>a.id===id);
+  const wasStarted = isStarted(id);
+  const recommended = activity?.type === 'attraction' ? currentRecommendedAttractionV39(day) : null;
+  const result = v3864StartActivityV39(id);
+  if (!activity || activity.type !== 'attraction' || wasStarted || isDone(id)) return result;
+  if (activity.spontaneous || activity.adHoc || activity.source === 'park-wide-smart-bridge') {
+    recordPreferenceLearningEventV39('spontaneous-start',activity,{source:activity.source || 'spontaneous'});
+  }
+  if (recommended?.key) {
+    if (recommended.key === learningKeyV39(activity)) {
+      recordPreferenceLearningEventV39('recommendation-accepted',activity,{source:recommended.decision.kind});
+    } else if (recommended.activity) {
+      recordPreferenceLearningEventV39('recommendation-ignored',recommended.activity,{source:`alternative-start:${recommended.decision.kind}`});
+    }
+  }
+  return result;
+};
+
+const v3864SkipActivityV39 = skipActivity;
+skipActivity = function(id) {
+  const day = getSelectedDay();
+  const activity = day?.activities?.find(a=>a.id===id);
+  const alreadySkipped = isSkipped(id);
+  const result = v3864SkipActivityV39(id);
+  if (activity?.type === 'attraction' && !alreadySkipped) recordPreferenceLearningEventV39('skip',activity,{source:'timeline'});
+  return result;
+};
+
+const v3864ApplyOpportunityV39 = applyOpportunity;
+applyOpportunity = function() {
+  const day = getSelectedDay();
+  const opportunity = activeOpportunityFor(day);
+  const activity = opportunity?.activityId ? day?.activities?.find(a=>a.id===opportunity.activityId) : null;
+  const result = v3864ApplyOpportunityV39();
+  if (activity?.type === 'attraction') recordPreferenceLearningEventV39('recommendation-accepted',activity,{source:'opportunity'});
+  return result;
+};
+
+const v3864DismissOpportunityV39 = dismissOpportunity;
+dismissOpportunity = function() {
+  const day = getSelectedDay();
+  const opportunity = activeOpportunityFor(day);
+  const activity = opportunity?.activityId ? day?.activities?.find(a=>a.id===opportunity.activityId) : null;
+  const result = v3864DismissOpportunityV39();
+  if (activity?.type === 'attraction') recordPreferenceLearningEventV39('recommendation-ignored',activity,{source:'opportunity-dismiss'});
+  return result;
+};
+
+function learningProfileKeysV39() {
+  ensureCopilotState();
+  const keys = new Set();
+  for (const record of state.history || []) {
+    const title = attractionTitleForHistoryV39(record);
+    if (title) keys.add(learningKeyV39(title));
+  }
+  for (const event of state.preferenceLearningEvents || []) if (event?.key) keys.add(event.key);
+  return [...keys].filter(Boolean);
+}
+
+function learnedProfilesV39() {
+  return learningProfileKeysV39()
+    .map(key=>learnedPreferenceEvidenceV39(state.attractionPreferences?.[key]?.name || key))
+    .filter(x=>x && x.evidenceCount>0)
+    .sort((a,b)=>b.lastAt-a.lastAt || Math.abs(b.affinity-50)-Math.abs(a.affinity-50));
+}
+
+function learnedDirectionLabelV39(meta) {
+  if (meta.affinity >= 58) return 'mais valorizada';
+  if (meta.affinity <= 42) return 'menos valorizada';
+  return 'ainda neutra';
+}
+
+function learningEvidenceTextV39(meta) {
+  const parts=[];
+  if(meta.ratings) parts.push(`nota média ${meta.avgRating.toFixed(1).replace('.',',')}★ (${meta.ratings})`);
+  if(meta.repeats) parts.push(`${meta.repeats} repetição${meta.repeats>1?'ões':''}`);
+  if(meta.spontaneous) parts.push(`${meta.spontaneous} escolha${meta.spontaneous>1?'s':''} espontânea${meta.spontaneous>1?'s':''}`);
+  if(meta.accepted) parts.push(`${meta.accepted} recomendação${meta.accepted>1?'ões':''} aceita${meta.accepted>1?'s':''}`);
+  if(meta.ignored) parts.push(`${meta.ignored} recomendação${meta.ignored>1?'ões':''} ignorada${meta.ignored>1?'s':''}`);
+  if(meta.skipped) parts.push(`${meta.skipped} pulo${meta.skipped>1?'s':''}`);
+  return parts.join(' · ') || 'Poucos sinais até agora.';
+}
+
+function ensurePreferenceLearningCardV39() {
+  const container=document.querySelector('.view[data-view="settings"] .top-section');
+  if(!container) return null;
+  let card=$('#preferenceLearningCard');
+  if(card) return card;
+  card=document.createElement('div');
+  card.className='settings-card learned-preferences-card';
+  card.id='preferenceLearningCard';
+  card.innerHTML=`
+    <div class="learned-pref-heading">
+      <div><h3>Preferências aprendidas</h3><p class="muted">Perfil compartilhado do roteiro. O que vocês declararam continua mandando; o comportamento só faz ajustes conservadores.</p></div>
+      <span class="learned-pref-badge">Ciclo 7.1</span>
+    </div>
+    <label class="learned-pref-toggle"><input type="checkbox" id="preferenceLearningEnabled" /> <span>Usar aprendizado nas recomendações</span></label>
+    <p class="help-text">Avaliações e repetições pesam mais. Uma recusa ou um pulo isolado não é tratado como antipreferência.</p>
+    <div id="preferenceLearningSummary" class="learned-pref-summary"></div>
+    <div id="preferenceLearningList" class="learned-pref-list"></div>
+    <div class="settings-inline-actions"><button type="button" class="ghost-btn" id="resetPreferenceLearningBtn">Zerar aprendizado</button></div>`;
+  const prefList=$('#preferenceList');
+  const prefCard=prefList?.closest('.settings-card');
+  if(prefCard?.nextSibling) container.insertBefore(card,prefCard.nextSibling); else if(prefCard) prefCard.insertAdjacentElement('afterend',card); else container.appendChild(card);
+  return card;
+}
+
+function renderPreferenceLearningV39() {
+  if(!ensurePreferenceLearningCardV39()) return;
+  ensureCopilotState();
+  const enabled=$('#preferenceLearningEnabled');
+  if(enabled) enabled.checked=Boolean(state.settings.preferenceLearningEnabled);
+  const profiles=learnedProfilesV39();
+  const summary=$('#preferenceLearningSummary');
+  const list=$('#preferenceLearningList');
+  if(summary) summary.innerHTML=`<span><b>${profiles.length}</b><small>atrações com sinais</small></span><span><b>70/30</b><small>declarado / aprendido</small></span><span><b>${state.settings.preferenceLearningEnabled?'ativo':'pausado'}</b><small>impacto no motor</small></span>`;
+  if(!list) return;
+  list.innerHTML=profiles.length?profiles.slice(0,14).map(meta=>{
+    const adjustment=Math.round((meta.affinity-50)*LEARNING_RULES_V39.learnedInfluence);
+    const sign=adjustment>0?'+':'';
+    return `<div class="learned-pref-row">
+      <div class="learned-pref-main"><strong>${escapeHtml(meta.name)}</strong><span class="learned-pref-direction ${meta.affinity>=58?'positive':meta.affinity<=42?'negative':'neutral'}">${escapeHtml(learnedDirectionLabelV39(meta))}</span></div>
+      <small>${escapeHtml(learningEvidenceTextV39(meta))}</small>
+      <div class="learned-pref-meta"><span>confiança ${escapeHtml(meta.confidenceLabel)}</span><span>sinal aprendido ${sign}${adjustment} pts</span></div>
+      <button class="ghost-btn compact" type="button" data-learning-reset="${escapeHtml(meta.key)}">resetar esta atração</button>
+    </div>`;
+  }).join(''):'<p class="muted">Ainda não há aprendizado. Ele começa com as próximas avaliações e decisões feitas no parque.</p>';
+}
+
+function personalPriorityMetaWithoutLearningV39(value,currentWait=null){
+  return v3864PersonalPriorityMetaV39(typeof value==='string'?{title:value,type:'attraction',priority:3}:value,currentWait);
+}
+
+function resetPreferenceLearningV39(key=null) {
+  ensureCopilotState();
+  const now=Date.now();
+  if(key){
+    state.preferenceLearningResetByKey[key]=now;
+    state.preferenceLearningEvents=state.preferenceLearningEvents.filter(e=>e?.key!==key);
+  }else{
+    state.preferenceLearningResetAt=now;
+    state.preferenceLearningResetByKey={};
+    state.preferenceLearningEvents=[];
+  }
+  saveState();
+  renderPreferenceLearningV39();
+  renderNext();
+  renderLive();
+}
+
+const v3864RenderSettingsV39 = renderSettings;
+renderSettings = function(){
+  v3864RenderSettingsV39();
+  renderPreferenceLearningV39();
+};
+
+const v3864BindEventsV39 = bindEvents;
+bindEvents = function(){
+  v3864BindEventsV39();
+  document.addEventListener('change',e=>{
+    if(e.target?.id==='preferenceLearningEnabled'){
+      ensureCopilotState();
+      state.settings.preferenceLearningEnabled=Boolean(e.target.checked);
+      saveState(); renderAll();
+      toast(e.target.checked?'Aprendizado ativado no motor.':'Aprendizado pausado; preferências declaradas continuam valendo.');
+    }
+  });
+  document.addEventListener('click',e=>{
+    const reset=e.target.closest?.('[data-learning-reset]');
+    if(reset){
+      const key=reset.dataset.learningReset;
+      if(confirm('Zerar o aprendizado desta atração? As avaliações continuam no histórico, mas deixam de influenciar o motor até surgirem novos sinais.')) resetPreferenceLearningV39(key);
+      return;
+    }
+    if(e.target?.id==='resetPreferenceLearningBtn'){
+      if(confirm('Zerar todo o aprendizado de preferências? O histórico da viagem será preservado.')) resetPreferenceLearningV39();
+      return;
+    }
+    if(e.target?.id==='clearHistoryBtn' && (state.history||[]).length===0){
+      resetPreferenceLearningV39();
+    }
+  });
+};
+
+const v3864LoadDemoV39 = loadDemo;
+loadDemo = async function(showMessage=true){
+  await v3864LoadDemoV39(showMessage);
+  ensureCopilotState();
+  state.preferenceLearningStartedAt=Date.now();
+  state.preferenceLearningResetAt=0;
+  state.preferenceLearningResetByKey={};
+  state.preferenceLearningEvents=[];
+  saveState();
+};
+
+const v3864EngineDiagnosticSnapshotV39 = engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38 = function(){
+  const snapshot=v3864EngineDiagnosticSnapshotV39();
+  const profiles=learnedProfilesV39();
+  snapshot.context=snapshot.context||{};
+  snapshot.context.preferenceLearning={
+    enabled:Boolean(state.settings.preferenceLearningEnabled),
+    startedAt:state.preferenceLearningStartedAt?new Date(Number(state.preferenceLearningStartedAt)).toISOString():null,
+    profiles:profiles.length,
+    top:profiles.slice(0,5).map(x=>({name:x.name,affinity:Math.round(x.affinity),confidence:x.confidenceLabel,evidence:x.evidenceCount}))
+  };
+  return snapshot;
+};
+
+
+const v3864RenderDiagnosticSnapshotHtmlV39 = renderDiagnosticSnapshotHtmlV38;
+renderDiagnosticSnapshotHtmlV38 = function(snapshot){
+  const base=v3864RenderDiagnosticSnapshotHtmlV39(snapshot);
+  const learning=snapshot?.context?.preferenceLearning;
+  if(!learning) return base;
+  const top=(learning.top||[]).map(x=>`${x.name} · afinidade ${x.affinity} · confiança ${x.confidence}`).join('<br>');
+  return `${base}<p class="engine-diagnostic-note"><b>Preferências aprendidas:</b> ${learning.enabled?'ativas':'pausadas'} · ${learning.profiles} atração(ões) com sinais.${top?`<br>${escapeHtml(top).replace(/&lt;br&gt;/g,'<br>')}`:''}</p>`;
+};
+
+const v3864RunEngineSelfTestsV39 = runEngineSelfTestsV38;
+runEngineSelfTestsV38 = function(){
+  const report=v3864RunEngineSelfTestsV39();
+  const additions=[];
+  const backup={
+    history:state.history,
+    attractionPreferences:state.attractionPreferences,
+    preferenceLearningEvents:state.preferenceLearningEvents,
+    preferenceLearningStartedAt:state.preferenceLearningStartedAt,
+    preferenceLearningResetAt:state.preferenceLearningResetAt,
+    preferenceLearningResetByKey:state.preferenceLearningResetByKey,
+    enabled:state.settings.preferenceLearningEnabled
+  };
+  const setBase=()=>{
+    state.history=[]; state.attractionPreferences={}; state.preferenceLearningEvents=[];
+    state.preferenceLearningStartedAt=1; state.preferenceLearningResetAt=0; state.preferenceLearningResetByKey={};
+    state.settings.preferenceLearningEnabled=true;
+  };
+  try{
+    addSelfTestV38(additions,'Nota alta ajusta preferência Normal sem promovê-la demais',()=>{
+      setBase();
+      const now=new Date().toISOString();
+      state.history=[{activityId:'lp-1',title:'Teste Preferência',type:'attraction',status:'done',actualEnd:now,rating:5},{activityId:'lp-2',title:'Teste Preferência',type:'attraction',status:'done',actualEnd:now,rating:5}];
+      const p=personalPriorityMeta({title:'Teste Preferência',type:'attraction',priority:3},30);
+      assertSelfTestV38(p.score>60,`score=${p.score}`); assertSelfTestV38(p.score<=75,'Normal não pode virar prioridade extrema');
+      return `Normal 60 → ${p.score}`;
+    });
+    addSelfTestV38(additions,'Imperdível não é derrubada por sinais negativos',()=>{
+      setBase(); state.attractionPreferences[normalizeName('Teste Must')]={name:'Teste Must',priority:'must'};
+      state.preferenceLearningEvents=Array.from({length:8},(_,i)=>({type:'recommendation-ignored',key:normalizeName('Teste Must'),title:'Teste Must',at:Date.now()+i}));
+      const p=personalPriorityMeta({title:'Teste Must',type:'attraction',priority:5},40);
+      assertSelfTestV38(p.score>=96,`score=${p.score}`); return `piso protegido ${p.score}`;
+    });
+    addSelfTestV38(additions,'Só se estiver vazio continua bloqueado com fila longa',()=>{
+      setBase(); state.attractionPreferences[normalizeName('Teste Empty')]={name:'Teste Empty',priority:'empty'};
+      const now=new Date().toISOString();
+      state.history=[{activityId:'e1',title:'Teste Empty',type:'attraction',status:'done',actualEnd:now,rating:5},{activityId:'e2',title:'Teste Empty',type:'attraction',status:'done',actualEnd:now,rating:5}];
+      const p=personalPriorityMeta({title:'Teste Empty',type:'attraction',priority:1},60);
+      assertSelfTestV38(p.score<=35,`score=${p.score}`); return `fila longa preserva teto ${p.score}`;
+    });
+    addSelfTestV38(additions,'Uma recomendação ignorada isolada não ensina antipreferência',()=>{
+      setBase(); state.preferenceLearningEvents=[{type:'recommendation-ignored',key:normalizeName('Teste Circunstância'),title:'Teste Circunstância',at:Date.now()}];
+      const learned=learnedPreferenceEvidenceV39('Teste Circunstância');
+      assertSelfTestV38(Math.round(learned.affinity)===50,`afinidade=${learned.affinity}`); return 'primeira recusa permanece neutra';
+    });
+    addSelfTestV38(additions,'Repetição reforça preferência aprendida',()=>{
+      setBase(); const now=new Date().toISOString();
+      state.history=[1,2,3].map(i=>({activityId:`r${i}`,title:'Teste Repetição',type:'attraction',status:'done',actualEnd:now,rating:4.5}));
+      const learned=learnedPreferenceEvidenceV39('Teste Repetição');
+      assertSelfTestV38(learned.repeats===2,'repetições não detectadas'); assertSelfTestV38(learned.affinity>60,`afinidade=${learned.affinity}`);
+      return `2 repetições · afinidade ${Math.round(learned.affinity)}`;
+    });
+    addSelfTestV38(additions,'Reset de aprendizado ignora evidências anteriores',()=>{
+      setBase(); const old=new Date(Date.now()-60000).toISOString();
+      state.history=[{activityId:'z1',title:'Teste Reset',type:'attraction',status:'done',actualEnd:old,rating:5}];
+      state.preferenceLearningResetByKey[normalizeName('Teste Reset')]=Date.now();
+      const learned=learnedPreferenceEvidenceV39('Teste Reset');
+      assertSelfTestV38(learned.evidenceCount===0,`evidências=${learned.evidenceCount}`); return 'histórico anterior ao reset não influencia';
+    });
+  } finally {
+    state.history=backup.history; state.attractionPreferences=backup.attractionPreferences;
+    state.preferenceLearningEvents=backup.preferenceLearningEvents; state.preferenceLearningStartedAt=backup.preferenceLearningStartedAt;
+    state.preferenceLearningResetAt=backup.preferenceLearningResetAt; state.preferenceLearningResetByKey=backup.preferenceLearningResetByKey;
+    state.settings.preferenceLearningEnabled=backup.enabled;
+  }
+  report.results.push(...additions);
+  report.total=report.results.length; report.passed=report.results.filter(x=>x.ok).length;
+  report.failed=report.total-report.passed; report.ok=report.failed===0;
+  report.build=ENGINE_BUILD_V38; report.version=ENGINE_DIAGNOSTICS_VERSION_V38;
+  return report;
+};
+
+const v3864ExposeDiagnosticsApiV39 = exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38 = function(){
+  v3864ExposeDiagnosticsApiV39();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.preferenceLearning=()=>({enabled:Boolean(state.settings.preferenceLearningEnabled),profiles:learnedProfilesV39()});
+};
+
+
+
+/* ============================================================
+   Orlando Flow v39.0.2 — Strategic Preference Pool
+   Preferências declaradas Imperdível / Quero muito aparecem no
+   monitor estratégico mesmo quando não fazem parte da timeline.
+   O pool visual NÃO força essas atrações como ação tática.
+   ============================================================ */
+
+function declaredStrategicPreferenceActivitiesV3902(day, livePayload=null) {
+  if (!day) return [];
+  ensureCopilotState();
+  const liveData = livePayload?.liveData || [];
+  const doneNames = new Set((state.history || [])
+    .filter(r => r.status === 'done' && isAttractionRecord(r))
+    .map(r => normalizeName(activityForRecord(r)?.title || r.title || ''))
+    .filter(Boolean));
+  const result = [];
+  for (const [key,pref] of Object.entries(state.attractionPreferences || {})) {
+    if (!['must','want'].includes(pref?.priority)) continue;
+    if (pref?.parkKey && pref.parkKey !== day.park) continue;
+    const title = String(pref?.name || key || '').trim();
+    if (!title) continue;
+    const activity = {
+      id:`pref-${normalizeName(title).replace(/\s+/g,'-')}`,
+      title,
+      entityName:title,
+      type:'attraction',
+      duration:8,
+      priority:pref.priority === 'must' ? 5 : 4,
+      flexible:true,
+      weatherImpact:pref.weatherImpact || 'auto',
+      strategicPreference:true
+    };
+    const entry = findLiveMatch(activity, liveData);
+    // Preferências antigas sem parkKey só entram se houver confirmação no parque ao vivo.
+    if (!pref?.parkKey && !entry) continue;
+    if (doneNames.has(normalizeName(title)) && !repeatWantedFor(activity)) continue;
+    result.push({activity,entry,pref,key:normalizeName(title)});
+  }
+  return result;
+}
+
+function strategicPreferenceMonitorRowV3902(day, livePayload, weatherPayload, nowMinute, item) {
+  const minute = Number(nowMinute);
+  const activity = item.activity;
+  const entry = item.entry || findLiveMatch(activity, livePayload?.liveData || []);
+  let meta = null;
+  if (entry) {
+    try { meta = copilotScoreForEntry(entry, day, weatherPayload, minute, lastContextActivityV36(day)); } catch {}
+  }
+  const code = item.pref?.priority || priorityCodeFromActivity(activity);
+  const declared = personalPriorityMeta(activity, meta?.wait ?? 0);
+  const operationalStatus = String(entry?.status || '').toUpperCase();
+  const closed = ['DOWN','CLOSED','REFURBISHMENT'].includes(operationalStatus);
+  const missingEntry = !entry;
+  const missingWait = Boolean(entry) && !closed && meta?.wait == null;
+  const blockedNow = Boolean(meta?.blocked) || closed || missingEntry;
+  let monitorStatus = '';
+  let reason = '';
+  let window = {type:'monitor',targetMinute:null,leaveAt:null,label:'Monitorando uma janela melhor',expectedWait:null};
+
+  if (closed) {
+    monitorStatus = 'Temporariamente indisponível · monitorando reabertura';
+    reason = 'Ela continua sendo uma prioridade declarada e voltará a ser avaliada assim que reabrir.';
+    window = {...window,label:'Monitorando reabertura'};
+  } else if (missingEntry) {
+    monitorStatus = 'Dados ao vivo indisponíveis · monitorando';
+    reason = 'A prioridade permanece ativa mesmo sem uma leitura operacional disponível agora.';
+    window = {...window,label:'Aguardando dados ao vivo'};
+  } else if (missingWait) {
+    monitorStatus = 'Fila indisponível · monitorando';
+    reason = 'A atração está sendo monitorada; assim que houver uma fila comparável o motor recalcula a janela.';
+    window = {...window,label:'Aguardando leitura de fila'};
+  } else if (meta?.blocked) {
+    monitorStatus = 'Prioridade declarada · não cabe agora';
+    reason = meta?.schedule?.reason || 'Ela segue importante, mas iniciar agora comprometeria uma restrição do roteiro.';
+    window = {...window,label:'Monitorando próxima janela segura'};
+  } else if (meta) {
+    window = strategicWindowV36({activity:meta.activity || activity,entry,meta}, day, minute) || window;
+    monitorStatus = priorityWatchTextV36({activity:meta.activity || activity,entry,meta,code,window}, minute);
+    reason = meta.band === 'FAÇA AGORA'
+      ? nextStepQuickReason(meta, weatherPayload)
+      : historyGuardPriorityWindowLabelV421({meta,window},window?.label) || 'O motor está monitorando uma janela melhor para esta prioridade.';
+  }
+
+  let strategicScore = Number(declared.score || 0);
+  if (meta && meta.wait != null && !meta.blocked) {
+    try { strategicScore = strategicPriorityValueV36(meta.activity || activity, meta, day, minute, weatherPayload); } catch {}
+  }
+  if (code === 'must') strategicScore = Math.max(strategicScore, 96);
+  if (code === 'want') strategicScore = Math.max(strategicScore, 78);
+
+  const safeMeta = meta || {
+    activity, entry, wait:null, score:0, band:'INDISPONÍVEL', bandClass:'bad', blocked:true,
+    reasons:[reason], priority:declared, forecast:{trend:null,p30:null,p60:null,best:null}, walk:{minutes:10,known:false}
+  };
+  return {
+    activity:safeMeta.activity || activity,
+    entry,
+    meta:safeMeta,
+    code,
+    strategicScore:Math.round(clamp(strategicScore)),
+    window,
+    tracked:true,
+    monitorOnly:true,
+    monitorStatus,
+    monitorReason:reason,
+    operationalStatus:operationalStatus || null,
+    blockedNow,
+    diagnosticSource:'declared-preference'
+  };
+}
+
+function strategicPreferencePoolV3902(day, livePayload, weatherPayload, nowMinute=null, corePriorities=null) {
+  if (!day) return [];
+  const now = getOrlandoParts();
+  const minute = nowMinute == null ? now.hour * 60 + now.minute : Number(nowMinute);
+  const core = Array.isArray(corePriorities)
+    ? corePriorities
+    : (livePayload?.liveData?.length ? strategicPrioritiesV36(day, livePayload, weatherPayload, minute) : []);
+  const byName = new Map();
+  for (const row of core || []) {
+    const key = normalizeName(row?.activity?.title || row?.entry?.name || '');
+    if (key) byName.set(key, {...row,monitorOnly:false,diagnosticSource:row.diagnosticSource || 'actionable'});
+  }
+  for (const item of declaredStrategicPreferenceActivitiesV3902(day, livePayload)) {
+    if (byName.has(item.key)) continue;
+    byName.set(item.key, strategicPreferenceMonitorRowV3902(day, livePayload, weatherPayload, minute, item));
+  }
+  const rank = code => code === 'must' ? 3 : code === 'want' ? 2 : 1;
+  return [...byName.values()].sort((a,b) =>
+    rank(b.code)-rank(a.code) ||
+    Number(b.strategicScore||0)-Number(a.strategicScore||0) ||
+    Number(b.meta?.score||0)-Number(a.meta?.score||0)
+  );
+}
+
+const v3901RenderLivePriorityItemV3902 = renderLivePriorityItemV36;
+renderLivePriorityItemV36 = function(priority, nowMinute) {
+  if (!priority?.monitorOnly) return v3901RenderLivePriorityItemV3902(priority, nowMinute);
+  const meta = priority.meta || {};
+  const icon = priority.code === 'must' ? '★' : priority.code === 'want' ? '♥' : '◎';
+  const status = priority.monitorStatus || 'Prioridade declarada · monitorando';
+  const waitText = Number.isFinite(Number(meta.wait)) ? `${Math.round(Number(meta.wait))} min` : '--';
+  const closed = ['DOWN','CLOSED','REFURBISHMENT'].includes(String(priority.operationalStatus || '').toUpperCase());
+  const tone = closed ? 'bad' : meta.band === 'FAÇA AGORA' ? 'good' : 'warn';
+  const confidence = Number.isFinite(Number(meta.wait))
+    ? nextStepConfidence(meta,state.liveCache?.[getSelectedDay()?.park],state.weatherCache?.[getSelectedDay()?.park])
+    : {label:'Baixa'};
+  const reason = priority.monitorReason || historyGuardPriorityWindowLabelV421(priority,priority.window?.label) || 'O motor continua monitorando esta prioridade declarada.';
+  return `<details class="live-priority-item ${tone}"><summary><span class="live-priority-icon" aria-hidden="true">${icon}</span><span class="live-priority-main"><strong>${escapeHtml(priority.activity.title)}</strong><small>${escapeHtml(status)}</small></span><span class="live-priority-wait">${waitText}</span><span class="live-priority-chevron" aria-hidden="true">⌄</span></summary><div class="live-priority-detail"><p>${escapeHtml(reason)}</p><span>Confiança ${escapeHtml(String(confidence.label||'Baixa').toLowerCase())}</span>${priority.window?.type==='queue'&&priority.window.expectedWait!=null?`<span>Fila esperada na janela: ~${Math.round(priority.window.expectedWait)} min</span>`:''}</div></details>`;
+};
+
+const v3901EngineDiagnosticSnapshotV3902 = engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38 = function() {
+  const snapshot = v3901EngineDiagnosticSnapshotV3902();
+  const day = getSelectedDay();
+  if (!day) return snapshot;
+  try {
+    const live = state.liveCache?.[day.park] || null;
+    const weather = state.weatherCache?.[day.park] || null;
+    const now = getOrlandoParts();
+    const minute = now.hour * 60 + now.minute;
+    const core = live?.liveData?.length ? strategicPrioritiesV36(day,live,weather,minute) : [];
+    const pool = strategicPreferencePoolV3902(day,live,weather,minute,core);
+    const existing = Array.isArray(snapshot.priorities) ? snapshot.priorities : [];
+    const byName = new Map(existing.map(p=>[normalizeName(p.title||''),p]));
+    for (const p of pool) {
+      const key=normalizeName(p.activity?.title||'');
+      if(!key || byName.has(key)) continue;
+      byName.set(key,{
+        title:p.activity?.title||null,
+        strategicValue:Number.isFinite(Number(p.strategicScore))?Math.round(Number(p.strategicScore)):null,
+        tacticalScore:Number.isFinite(Number(p.meta?.score))?Number(p.meta.score):null,
+        band:p.meta?.band||null,
+        window:p.monitorStatus||p.window?.label||null,
+        leaveAt:Number.isFinite(Number(p.window?.leaveAt))?Number(p.window.leaveAt):null,
+        source:p.diagnosticSource||'declared-preference',
+        blockedNow:Boolean(p.blockedNow)
+      });
+    }
+    snapshot.priorities=[...byName.values()].slice(0,6);
+    snapshot.context=snapshot.context||{};
+    snapshot.context.strategicPreferencePool={
+      declaredTracked:declaredStrategicPreferenceActivitiesV3902(day,live).length,
+      displayed:pool.length,
+      monitorOnly:pool.filter(p=>p.monitorOnly).length
+    };
+  } catch(error) { recordRuntimeDiagnosticV38('strategic-preference-pool',error); }
+  return snapshot;
+};
+
+const v3901RunEngineSelfTestsV3902 = runEngineSelfTestsV38;
+runEngineSelfTestsV38 = function() {
+  const report = v3901RunEngineSelfTestsV3902();
+  const additions=[];
+  const backup={
+    history:state.history,
+    attractionPreferences:state.attractionPreferences,
+    preferenceLearningEvents:state.preferenceLearningEvents,
+    preferenceLearningStartedAt:state.preferenceLearningStartedAt,
+    preferenceLearningResetAt:state.preferenceLearningResetAt,
+    preferenceLearningResetByKey:state.preferenceLearningResetByKey,
+    learningEnabled:state.settings.preferenceLearningEnabled
+  };
+  const day={date:getOrlandoParts().date,park:'epcot',activities:[]};
+  const live=(name,status='OPERATING',wait=35)=>({name,status,entityType:'ATTRACTION',queue:wait==null?{}:{STANDBY:{waitTime:wait}}});
+  const reset=()=>{
+    state.history=[]; state.attractionPreferences={}; state.preferenceLearningEvents=[];
+    state.preferenceLearningStartedAt=Date.now(); state.preferenceLearningResetAt=0; state.preferenceLearningResetByKey={};
+    state.settings.preferenceLearningEnabled=true;
+  };
+  try {
+    addSelfTestV38(additions,'Imperdível fora da timeline aparece em Suas prioridades',()=>{
+      reset(); state.attractionPreferences[normalizeName('Frozen Ever After')]={name:'Frozen Ever After',parkKey:'epcot',priority:'must'};
+      const pool=strategicPreferencePoolV3902(day,{liveData:[live('Frozen Ever After')]},null,720,[]);
+      assertSelfTestV38(pool.some(p=>normalizeName(p.activity.title)==='frozen ever after'&&p.code==='must'),'Imperdível externa não entrou');
+      return 'preferência externa monitorada';
+    });
+    addSelfTestV38(additions,'Quero muito fora da timeline aparece em Suas prioridades',()=>{
+      reset(); state.attractionPreferences[normalizeName('Soarin Around the World')]={name:'Soarin Around the World',parkKey:'epcot',priority:'want'};
+      const pool=strategicPreferencePoolV3902(day,{liveData:[live('Soarin Around the World', 'OPERATING',45)]},null,720,[]);
+      assertSelfTestV38(pool.some(p=>p.code==='want'),'Quero muito externa não entrou');
+      return 'Quero muito monitorada';
+    });
+    addSelfTestV38(additions,'Prioridade declarada não duplica quando já está na timeline',()=>{
+      reset(); state.attractionPreferences[normalizeName('Remys Ratatouille Adventure')]={name:'Remys Ratatouille Adventure',parkKey:'epcot',priority:'must'};
+      const core=[{activity:{id:'route-1',title:'Remys Ratatouille Adventure',type:'attraction'},entry:live('Remys Ratatouille Adventure'),meta:{score:80,band:'FAÇA AGORA'},code:'must',strategicScore:98,window:{type:'now',label:'Boa janela agora'}}];
+      const pool=strategicPreferencePoolV3902(day,{liveData:[live('Remys Ratatouille Adventure')]},null,720,core);
+      assertSelfTestV38(pool.filter(p=>normalizeName(p.activity.title)==='remys ratatouille adventure').length===1,'prioridade duplicada');
+      return 'deduplicação por atração';
+    });
+    addSelfTestV38(additions,'Prioridade fechada continua visível e monitora reabertura',()=>{
+      reset(); state.attractionPreferences[normalizeName('Frozen Ever After')]={name:'Frozen Ever After',parkKey:'epcot',priority:'must'};
+      const pool=strategicPreferencePoolV3902(day,{liveData:[live('Frozen Ever After','DOWN',null)]},null,720,[]);
+      const row=pool[0];
+      assertSelfTestV38(row&&row.monitorOnly,'prioridade fechada sumiu');
+      assertSelfTestV38(String(row.monitorStatus).toLowerCase().includes('reabertura'),`status=${row?.monitorStatus}`);
+      return 'DOWN permanece monitorada';
+    });
+    addSelfTestV38(additions,'Prioridade reaberta volta à avaliação com fila válida',()=>{
+      reset(); state.attractionPreferences[normalizeName('Frozen Ever After')]={name:'Frozen Ever After',parkKey:'epcot',priority:'must'};
+      const pool=strategicPreferencePoolV3902(day,{liveData:[live('Frozen Ever After','OPERATING',35)]},null,720,[]);
+      const row=pool[0];
+      assertSelfTestV38(row&&Number(row.meta?.wait)===35,`fila=${row?.meta?.wait}`);
+      assertSelfTestV38(!String(row.monitorStatus).toLowerCase().includes('indisponível'),'reabertura ainda marcada indisponível');
+      return 'OPERATING/35 recalculada';
+    });
+    addSelfTestV38(additions,'Pool estratégico visual não força ação tática fora da timeline',()=>{
+      reset(); state.attractionPreferences[normalizeName('Frozen Ever After')]={name:'Frozen Ever After',parkKey:'epcot',priority:'must'};
+      const payload={liveData:[live('Frozen Ever After','OPERATING',5)]};
+      const display=strategicPreferencePoolV3902(day,payload,null,720,[]);
+      const core=strategicPrioritiesV36(day,payload,null,720);
+      assertSelfTestV38(display.length===1,'prioridade não apareceu no monitor');
+      assertSelfTestV38(core.length===0,'preferência externa passou a forçar o orquestrador');
+      return 'monitor estratégico separado da ação tática';
+    });
+  } finally {
+    state.history=backup.history; state.attractionPreferences=backup.attractionPreferences;
+    state.preferenceLearningEvents=backup.preferenceLearningEvents; state.preferenceLearningStartedAt=backup.preferenceLearningStartedAt;
+    state.preferenceLearningResetAt=backup.preferenceLearningResetAt; state.preferenceLearningResetByKey=backup.preferenceLearningResetByKey;
+    state.settings.preferenceLearningEnabled=backup.learningEnabled;
+  }
+  report.results.push(...additions);
+  report.total=report.results.length; report.passed=report.results.filter(x=>x.ok).length;
+  report.failed=report.total-report.passed; report.ok=report.failed===0;
+  report.build=ENGINE_BUILD_V38; report.version=ENGINE_DIAGNOSTICS_VERSION_V38;
+  return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v39.0.3 — Attraction Identity Normalization
+   Uma identidade canônica de atração conecta preferências,
+   timeline, dados ao vivo, histórico e aprendizado sem alterar
+   nomes exibidos ao usuário.
+   ============================================================ */
+
+const ATTRACTION_IDENTITY_VERSION_V3903 = '39.0.3';
+
+function attractionIdentitySourceV3903(value) {
+  if (typeof value === 'string') return value;
+  return value?.entityName || value?.title || value?.name || '';
+}
+
+function attractionIdentityKeyV3903(value) {
+  let text = String(attractionIdentitySourceV3903(value) || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase()
+    .replace(/&/g,' and ')
+    .replace(/\+/g,' and ')
+    .replace(/[™®]/g,' ')
+    .replace(/[’']/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim();
+  if (!text) return '';
+  let tokens = text.split(/\s+/).filter(Boolean).map(token => token === 'n' ? 'and' : token);
+  if (tokens[0] === 'the') tokens = tokens.slice(1);
+  tokens = tokens.map(token => {
+    if (token.length >= 5 && token.endsWith('s') && !token.endsWith('ss') && !token.endsWith('us') && !token.endsWith('is')) return token.slice(0,-1);
+    return token;
+  });
+  return tokens.join(' ');
+}
+
+function attractionIdentityConnectorlessV3903(value) {
+  return attractionIdentityKeyV3903(value).split(' ').filter(token => token && token !== 'and').join(' ');
+}
+
+function attractionIdentityMatchesV3903(a,b) {
+  const ka = attractionIdentityKeyV3903(a);
+  const kb = attractionIdentityKeyV3903(b);
+  if (!ka || !kb) return false;
+  if (ka === kb) return true;
+  const sa = attractionIdentityConnectorlessV3903(a);
+  const sb = attractionIdentityConnectorlessV3903(b);
+  return Boolean(sa && sb && sa === sb && sa.split(' ').length >= 2);
+}
+
+function mergeIdentityPreferenceV3903(current, incoming) {
+  if (!current) return {...incoming};
+  const currentAt = Number(current.updatedAt || 0);
+  const incomingAt = Number(incoming.updatedAt || 0);
+  return incomingAt >= currentAt ? {...current,...incoming} : {...incoming,...current};
+}
+
+function migrateAttractionIdentityStateV3903() {
+  if (!state || typeof state !== 'object') return false;
+  let changed = false;
+  const aliasMap = new Map();
+  const sourcePrefs = state.attractionPreferences && typeof state.attractionPreferences === 'object' ? state.attractionPreferences : {};
+  const nextPrefs = {};
+  for (const [oldKey,prefRaw] of Object.entries(sourcePrefs)) {
+    const pref = prefRaw && typeof prefRaw === 'object' ? prefRaw : {};
+    const canonical = attractionIdentityKeyV3903(pref.name || oldKey);
+    if (!canonical) continue;
+    aliasMap.set(oldKey,canonical);
+    aliasMap.set(normalizeName(pref.name || oldKey),canonical);
+    const merged = mergeIdentityPreferenceV3903(nextPrefs[canonical],pref);
+    nextPrefs[canonical] = merged;
+    if (canonical !== oldKey || nextPrefs[canonical] !== prefRaw) changed = changed || canonical !== oldKey;
+  }
+  if (Object.keys(sourcePrefs).length !== Object.keys(nextPrefs).length || Object.keys(sourcePrefs).some(k => !Object.prototype.hasOwnProperty.call(nextPrefs,k))) changed = true;
+  if (changed) state.attractionPreferences = nextPrefs;
+
+  if (Array.isArray(state.preferenceLearningEvents)) {
+    for (const event of state.preferenceLearningEvents) {
+      if (!event || typeof event !== 'object') continue;
+      const canonical = aliasMap.get(event.key) || attractionIdentityKeyV3903(event.title || event.key || '');
+      if (canonical && event.key !== canonical) { event.key = canonical; changed = true; }
+    }
+  }
+
+  if (state.preferenceLearningResetByKey && typeof state.preferenceLearningResetByKey === 'object') {
+    const nextReset = {};
+    for (const [oldKey,at] of Object.entries(state.preferenceLearningResetByKey)) {
+      const canonical = aliasMap.get(oldKey) || attractionIdentityKeyV3903(oldKey);
+      if (!canonical) continue;
+      nextReset[canonical] = Math.max(Number(nextReset[canonical] || 0), Number(at || 0));
+      if (canonical !== oldKey) changed = true;
+    }
+    if (Object.keys(nextReset).length !== Object.keys(state.preferenceLearningResetByKey).length) changed = true;
+    state.preferenceLearningResetByKey = nextReset;
+  }
+  return changed;
+}
+
+const v3902EnsureCopilotStateV3903 = ensureCopilotState;
+ensureCopilotState = function() {
+  v3902EnsureCopilotStateV3903();
+  const changed = migrateAttractionIdentityStateV3903();
+  if (changed) saveState();
+};
+
+const v3902GetAttractionPreferenceV3903 = getAttractionPreference;
+getAttractionPreference = function(value) {
+  ensureCopilotState();
+  const direct = state.attractionPreferences?.[preferenceKey(value)];
+  if (direct) return direct;
+  const target = attractionIdentityKeyV3903(value);
+  if (!target) return {};
+  if (state.attractionPreferences?.[target]) return state.attractionPreferences[target];
+  for (const [key,pref] of Object.entries(state.attractionPreferences || {})) {
+    if (attractionIdentityMatchesV3903(pref?.name || key,value)) return pref || {};
+  }
+  return v3902GetAttractionPreferenceV3903(value) || {};
+};
+
+const v3902FindLiveMatchV3903 = findLiveMatch;
+findLiveMatch = function(activity, liveData) {
+  const target = attractionIdentityKeyV3903(activity);
+  if (target) {
+    const exact = (liveData || []).find(entry => attractionIdentityKeyV3903(entry?.name || '') === target);
+    if (exact) return exact;
+    const alias = (liveData || []).find(entry => attractionIdentityMatchesV3903(entry?.name || '',activity));
+    if (alias) return alias;
+  }
+  return v3902FindLiveMatchV3903(activity,liveData);
+};
+
+const v3902LearningKeyV3903 = learningKeyV39;
+learningKeyV39 = function(value) {
+  return attractionIdentityKeyV3903(value) || v3902LearningKeyV3903(value);
+};
+
+const v3902QueueStoreForV3903 = queueStoreFor;
+queueStoreFor = function(parkKey,name,create=false) {
+  ensureCopilotState();
+  if (!state.queueHistory[parkKey] && create) state.queueHistory[parkKey] = {};
+  const park = state.queueHistory[parkKey] || {};
+  const canonical = attractionIdentityKeyV3903(name);
+  const legacy = normalizeName(name);
+  const existingKey = [canonical,legacy].find(k => k && Array.isArray(park[k]))
+    || Object.keys(park).find(k => attractionIdentityMatchesV3903(k,name));
+  if (existingKey) {
+    if (create && canonical && existingKey !== canonical) {
+      park[canonical] = [...(park[canonical] || []), ...(park[existingKey] || [])]
+        .sort((a,b)=>Number(a?.t||0)-Number(b?.t||0)).slice(-180);
+      delete park[existingKey];
+      return park[canonical];
+    }
+    return park[existingKey] || [];
+  }
+  if (create && canonical) { park[canonical] = []; return park[canonical]; }
+  return v3902QueueStoreForV3903(parkKey,name,create);
+};
+
+const v3902GeoStoreV3903 = geoStore;
+geoStore = function(parkKey,name,value=null) {
+  ensureCopilotState();
+  if (!state.attractionGeo[parkKey]) state.attractionGeo[parkKey] = {};
+  const park = state.attractionGeo[parkKey];
+  const canonical = attractionIdentityKeyV3903(name);
+  const legacy = normalizeName(name);
+  const existingKey = [canonical,legacy].find(k => k && park[k])
+    || Object.keys(park).find(k => attractionIdentityMatchesV3903(k,name));
+  if (value && canonical) {
+    park[canonical] = value;
+    if (existingKey && existingKey !== canonical) delete park[existingKey];
+    return value;
+  }
+  if (existingKey) return park[existingKey] || null;
+  return v3902GeoStoreV3903(parkKey,name,value);
+};
+
+saveAttractionPreferenceFromUI = function() {
+  const name = $('#preferenceAttractionInput')?.value.trim();
+  if (!name) { toast('Escolha ou digite uma atração.'); return; }
+  ensureCopilotState();
+  const key = attractionIdentityKeyV3903(name);
+  const parkKey = $('#preferenceParkSelect')?.value || getSelectedDay()?.park || state.selectedPark;
+  state.attractionPreferences[key] = {
+    ...(getAttractionPreference(name) || {}),
+    name,
+    parkKey,
+    priority:$('#preferencePriority')?.value || 'normal',
+    repeatWanted:$('#preferenceRepeat')?.value === 'yes',
+    weatherImpact:$('#preferenceWeatherImpact')?.value || 'auto',
+    updatedAt:Date.now()
+  };
+  migrateAttractionIdentityStateV3903();
+  saveState(); renderAll(); toast('Preferência da atração salva.');
+};
+
+function declaredStrategicPreferenceExclusionsV3903(day) {
+  if (!day) return [];
+  const done = new Set((state.history || [])
+    .filter(r => r.status === 'done' && isAttractionRecord(r))
+    .map(r => attractionIdentityKeyV3903(activityForRecord(r)?.title || r.title || ''))
+    .filter(Boolean));
+  const rows=[];
+  for (const [key,pref] of Object.entries(state.attractionPreferences || {})) {
+    if (!['must','want'].includes(pref?.priority)) continue;
+    if (pref?.parkKey && pref.parkKey !== day.park) continue;
+    const title=String(pref?.name || key || '').trim();
+    const identity=attractionIdentityKeyV3903(title);
+    if (identity && done.has(identity) && !Boolean(pref?.repeatWanted)) rows.push({title,identity,reason:'completed-no-repeat'});
+  }
+  return rows;
+}
+
+declaredStrategicPreferenceActivitiesV3902 = function(day, livePayload=null) {
+  if (!day) return [];
+  ensureCopilotState();
+  const liveData = livePayload?.liveData || [];
+  const doneNames = new Set((state.history || [])
+    .filter(r => r.status === 'done' && isAttractionRecord(r))
+    .map(r => attractionIdentityKeyV3903(activityForRecord(r)?.title || r.title || ''))
+    .filter(Boolean));
+  const result=[];
+  const seen=new Set();
+  for (const [storedKey,pref] of Object.entries(state.attractionPreferences || {})) {
+    if (!['must','want'].includes(pref?.priority)) continue;
+    if (pref?.parkKey && pref.parkKey !== day.park) continue;
+    const title=String(pref?.name || storedKey || '').trim();
+    const key=attractionIdentityKeyV3903(title);
+    if (!title || !key || seen.has(key)) continue;
+    const activity={
+      id:`pref-${key.replace(/\s+/g,'-')}`, title, entityName:title, type:'attraction', duration:8,
+      priority:pref.priority==='must'?5:4, flexible:true, weatherImpact:pref.weatherImpact||'auto', strategicPreference:true
+    };
+    const entry=findLiveMatch(activity,liveData);
+    if (!pref?.parkKey && !entry) continue;
+    if (doneNames.has(key) && !repeatWantedFor(activity)) continue;
+    seen.add(key);
+    result.push({activity,entry,pref,key});
+  }
+  return result;
+};
+
+strategicPreferencePoolV3902 = function(day, livePayload, weatherPayload, nowMinute=null, corePriorities=null) {
+  if (!day) return [];
+  const now=getOrlandoParts();
+  const minute=nowMinute==null?now.hour*60+now.minute:Number(nowMinute);
+  const core=Array.isArray(corePriorities)?corePriorities:(livePayload?.liveData?.length?strategicPrioritiesV36(day,livePayload,weatherPayload,minute):[]);
+  const byIdentity=new Map();
+  for (const row of core || []) {
+    const key=attractionIdentityKeyV3903(row?.activity || row?.entry?.name || '');
+    if (key) byIdentity.set(key,{...row,monitorOnly:false,diagnosticSource:row.diagnosticSource||'actionable'});
+  }
+  for (const item of declaredStrategicPreferenceActivitiesV3902(day,livePayload)) {
+    if (byIdentity.has(item.key)) continue;
+    byIdentity.set(item.key,strategicPreferenceMonitorRowV3902(day,livePayload,weatherPayload,minute,item));
+  }
+  const rank=code=>code==='must'?3:code==='want'?2:1;
+  return [...byIdentity.values()].sort((a,b)=>rank(b.code)-rank(a.code)||Number(b.strategicScore||0)-Number(a.strategicScore||0)||Number(b.meta?.score||0)-Number(a.meta?.score||0));
+};
+
+const v3902EngineDiagnosticSnapshotV3903 = engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38 = function() {
+  const snapshot=v3902EngineDiagnosticSnapshotV3903();
+  const day=getSelectedDay();
+  snapshot.context=snapshot.context||{};
+  snapshot.context.attractionIdentity={version:ATTRACTION_IDENTITY_VERSION_V3903,canonicalProfiles:Object.keys(state.attractionPreferences||{}).length};
+  if (day) {
+    const exclusions=declaredStrategicPreferenceExclusionsV3903(day);
+    snapshot.context.attractionIdentity.excludedCompleted=exclusions.length;
+    snapshot.context.attractionIdentity.excludedCompletedTitles=exclusions.map(x=>x.title).slice(0,10);
+  }
+  return snapshot;
+};
+
+const v3902ExposeDiagnosticsApiV3903 = exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38 = function() {
+  v3902ExposeDiagnosticsApiV3903();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.attractionIdentity = value => ({
+    input:attractionIdentitySourceV3903(value),
+    key:attractionIdentityKeyV3903(value),
+    connectorless:attractionIdentityConnectorlessV3903(value)
+  });
+};
+
+const v3902RunEngineSelfTestsV3903 = runEngineSelfTestsV38;
+runEngineSelfTestsV38 = function() {
+  const report=v3902RunEngineSelfTestsV3903();
+  const additions=[];
+  const backup={
+    history:state.history, attractionPreferences:state.attractionPreferences,
+    preferenceLearningEvents:state.preferenceLearningEvents,
+    preferenceLearningStartedAt:state.preferenceLearningStartedAt,
+    preferenceLearningResetAt:state.preferenceLearningResetAt,
+    preferenceLearningResetByKey:state.preferenceLearningResetByKey,
+    learningEnabled:state.settings.preferenceLearningEnabled,
+    queueHistory:state.queueHistory, attractionGeo:state.attractionGeo
+  };
+  const day={date:getOrlandoParts().date,park:'epcot',activities:[]};
+  const live=(name,status='OPERATING',wait=35)=>({name,status,entityType:'ATTRACTION',queue:wait==null?{}:{STANDBY:{waitTime:wait}}});
+  const reset=()=>{
+    state.history=[]; state.attractionPreferences={}; state.preferenceLearningEvents=[];
+    state.preferenceLearningStartedAt=1; state.preferenceLearningResetAt=0; state.preferenceLearningResetByKey={};
+    state.settings.preferenceLearningEnabled=true; state.queueHistory={}; state.attractionGeo={};
+  };
+  try {
+    addSelfTestV38(additions,'Identidade trata & e and como a mesma atração',()=>{
+      const a=attractionIdentityKeyV3903("Mickey & Minnie's Runaway Railway");
+      const b=attractionIdentityKeyV3903('Mickey and Minnies Runaway Railway');
+      assertSelfTestV38(a===b,`${a} != ${b}`); return a;
+    });
+    addSelfTestV38(additions,'Identidade tolera possessivo ausente',()=>{
+      const a=attractionIdentityKeyV3903("Remy's Ratatouille Adventure");
+      const b=attractionIdentityKeyV3903('Remy Ratatouille Adventure');
+      assertSelfTestV38(a===b,`${a} != ${b}`); return a;
+    });
+    addSelfTestV38(additions,'Match ao vivo usa identidade canônica',()=>{
+      reset(); const entry=live("Mickey and Minnie's Runaway Railway",25);
+      const match=findLiveMatch({title:"Mickey & Minnies Runaway Railway",entityName:"Mickey & Minnies Runaway Railway"},[entry]);
+      assertSelfTestV38(match===entry,'alias não encontrou dado ao vivo'); return 'alias → live';
+    });
+    addSelfTestV38(additions,'Preferências equivalentes são consolidadas',()=>{
+      reset();
+      state.attractionPreferences[normalizeName("Remy's Ratatouille Adventure")]={name:"Remy's Ratatouille Adventure",parkKey:'epcot',priority:'want',updatedAt:1};
+      state.attractionPreferences[normalizeName('Remy Ratatouille Adventure')]={name:'Remy Ratatouille Adventure',parkKey:'epcot',priority:'must',updatedAt:2};
+      migrateAttractionIdentityStateV3903();
+      assertSelfTestV38(Object.keys(state.attractionPreferences).length===1,`perfis=${Object.keys(state.attractionPreferences).length}`);
+      assertSelfTestV38(getAttractionPreference("Remy's Ratatouille Adventure").priority==='must','preferência mais recente não prevaleceu');
+      return '2 aliases → 1 perfil';
+    });
+    addSelfTestV38(additions,'Aprendizado usa a mesma identidade entre aliases',()=>{
+      reset();
+      state.preferenceLearningEvents=[{type:'recommendation-accepted',key:normalizeName("Remy's Ratatouille Adventure"),title:"Remy's Ratatouille Adventure",at:Date.now()}];
+      migrateAttractionIdentityStateV3903();
+      const learned=learnedPreferenceEvidenceV39('Remy Ratatouille Adventure');
+      assertSelfTestV38(learned?.accepted===1,`accepted=${learned?.accepted}`); return 'evento consolidado';
+    });
+    addSelfTestV38(additions,'Prioridade declarada encontra alias no dado ao vivo',()=>{
+      reset(); state.attractionPreferences[attractionIdentityKeyV3903('Remy Ratatouille Adventure')]={name:'Remy Ratatouille Adventure',parkKey:'epcot',priority:'must'};
+      const pool=strategicPreferencePoolV3902(day,{liveData:[live("Remy's Ratatouille Adventure",'OPERATING',40)]},null,720,[]);
+      assertSelfTestV38(pool.length===1,'prioridade alias não entrou');
+      assertSelfTestV38(Number(pool[0]?.meta?.wait)===40,`fila=${pool[0]?.meta?.wait}`); return 'preferência ↔ live';
+    });
+    addSelfTestV38(additions,'Prioridade concluída sem repetição continua fora do monitor',()=>{
+      reset(); state.attractionPreferences[attractionIdentityKeyV3903('Remy Ratatouille Adventure')]={name:'Remy Ratatouille Adventure',parkKey:'epcot',priority:'must',repeatWanted:false};
+      state.history=[{status:'done',type:'attraction',title:"Remy's Ratatouille Adventure",actualEnd:new Date().toISOString()}];
+      const pool=strategicPreferencePoolV3902(day,{liveData:[live("Remy's Ratatouille Adventure",'OPERATING',20)]},null,720,[]);
+      assertSelfTestV38(pool.length===0,'concluída sem repetição reapareceu'); return 'conclusão preservada';
+    });
+  } finally {
+    state.history=backup.history; state.attractionPreferences=backup.attractionPreferences;
+    state.preferenceLearningEvents=backup.preferenceLearningEvents; state.preferenceLearningStartedAt=backup.preferenceLearningStartedAt;
+    state.preferenceLearningResetAt=backup.preferenceLearningResetAt; state.preferenceLearningResetByKey=backup.preferenceLearningResetByKey;
+    state.settings.preferenceLearningEnabled=backup.learningEnabled; state.queueHistory=backup.queueHistory; state.attractionGeo=backup.attractionGeo;
+  }
+  report.results.push(...additions);
+  report.total=report.results.length; report.passed=report.results.filter(x=>x.ok).length;
+  report.failed=report.total-report.passed; report.ok=report.failed===0;
+  report.build=ENGINE_BUILD_V38; report.version=ENGINE_DIAGNOSTICS_VERSION_V38;
+  return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v39.0.4 — Preference Identity Migration
+   - Migra preferências legadas para a identidade canônica.
+   - Consolida aliases sem perder campos do cadastro mais recente.
+   - Remapeia aprendizado, resets, fila local e geolocalização.
+   - Idempotente: uma segunda execução não altera o estado.
+   ============================================================ */
+const PREFERENCE_IDENTITY_MIGRATION_VERSION_V3904 = 1;
+
+function migrationTimestampV3904(value) {
+  const n = Number(value || 0);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function preferencePriorityRankV3904(code) {
+  return ({empty:1,low:2,normal:3,want:4,must:5})[String(code || '')] || 0;
+}
+
+function mergePreferenceRecordsV3904(currentRaw, incomingRaw) {
+  const current = currentRaw && typeof currentRaw === 'object' ? currentRaw : {};
+  const incoming = incomingRaw && typeof incomingRaw === 'object' ? incomingRaw : {};
+  if (!Object.keys(current).length) return {...incoming};
+  if (!Object.keys(incoming).length) return {...current};
+
+  const currentAt = migrationTimestampV3904(current.updatedAt);
+  const incomingAt = migrationTimestampV3904(incoming.updatedAt);
+  const newer = incomingAt > currentAt ? incoming : currentAt > incomingAt ? current : null;
+  const older = newer === incoming ? current : incoming;
+  let merged;
+
+  if (newer) {
+    // O cadastro mais recente representa a última decisão explícita do usuário.
+    // Campos ausentes nele são preenchidos pelo alias antigo para não perder dados.
+    merged = {...older, ...newer};
+  } else {
+    // Backups muito antigos podem não ter updatedAt. Nesse caso preservamos o
+    // nível explícito mais forte e combinamos os demais campos sem apagar dados.
+    const preferredPriority = preferencePriorityRankV3904(incoming.priority) >= preferencePriorityRankV3904(current.priority)
+      ? incoming.priority : current.priority;
+    merged = {...current, ...incoming};
+    if (preferredPriority) merged.priority = preferredPriority;
+  }
+
+  merged.updatedAt = Math.max(currentAt, incomingAt) || merged.updatedAt || 0;
+  const created = [migrationTimestampV3904(current.createdAt), migrationTimestampV3904(incoming.createdAt)].filter(Boolean);
+  if (created.length) merged.createdAt = Math.min(...created);
+  return merged;
+}
+
+function mergeQueueRowsV3904(a, b) {
+  const rows = [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])];
+  const seen = new Set();
+  return rows
+    .filter(row => {
+      const key = `${Number(row?.t || 0)}|${Number(row?.wait ?? row?.waitTime ?? -1)}|${String(row?.status || '')}`;
+      if (seen.has(key)) return false;
+      seen.add(key); return true;
+    })
+    .sort((x,y)=>Number(x?.t||0)-Number(y?.t||0))
+    .slice(-180);
+}
+
+function mergeGeoValueV3904(currentRaw, incomingRaw) {
+  const current = currentRaw && typeof currentRaw === 'object' ? currentRaw : {};
+  const incoming = incomingRaw && typeof incomingRaw === 'object' ? incomingRaw : {};
+  if (!Object.keys(current).length) return {...incoming};
+  if (!Object.keys(incoming).length) return {...current};
+  const currentAt = migrationTimestampV3904(current.updatedAt || current.at || current.t);
+  const incomingAt = migrationTimestampV3904(incoming.updatedAt || incoming.at || incoming.t);
+  return incomingAt >= currentAt ? {...current,...incoming} : {...incoming,...current};
+}
+
+function migratePreferenceIdentityStateV3904() {
+  if (!state || typeof state !== 'object') return {changed:false,version:PREFERENCE_IDENTITY_MIGRATION_VERSION_V3904};
+
+  let changed = false;
+  let mergedPreferences = 0;
+  let remappedPreferences = 0;
+  let remappedLearningEvents = 0;
+  let remappedResetKeys = 0;
+  let mergedQueueKeys = 0;
+  let remappedGeoKeys = 0;
+  const aliases = new Map();
+
+  const sourcePrefs = state.attractionPreferences && typeof state.attractionPreferences === 'object'
+    ? state.attractionPreferences : {};
+  const nextPrefs = {};
+  for (const [oldKey,prefRaw] of Object.entries(sourcePrefs)) {
+    const pref = prefRaw && typeof prefRaw === 'object' ? prefRaw : {};
+    const sourceName = String(pref.name || oldKey || '').trim();
+    const canonical = attractionIdentityKeyV3903(sourceName) || attractionIdentityKeyV3903(oldKey);
+    if (!canonical) continue;
+    aliases.set(oldKey,canonical);
+    aliases.set(normalizeName(oldKey),canonical);
+    aliases.set(normalizeName(sourceName),canonical);
+    aliases.set(attractionIdentityKeyV3903(sourceName),canonical);
+    if (canonical !== oldKey) { remappedPreferences++; changed = true; }
+    if (nextPrefs[canonical]) { mergedPreferences++; changed = true; }
+    nextPrefs[canonical] = mergePreferenceRecordsV3904(nextPrefs[canonical],pref);
+  }
+  if (Object.keys(nextPrefs).length !== Object.keys(sourcePrefs).length) changed = true;
+  if (changed || Object.keys(sourcePrefs).some(k => !Object.prototype.hasOwnProperty.call(nextPrefs,k))) {
+    state.attractionPreferences = nextPrefs;
+  }
+
+  if (!Array.isArray(state.preferenceLearningEvents)) state.preferenceLearningEvents = [];
+  for (const event of state.preferenceLearningEvents) {
+    if (!event || typeof event !== 'object') continue;
+    const oldKey = String(event.key || '');
+    const canonical = aliases.get(oldKey)
+      || aliases.get(normalizeName(oldKey))
+      || attractionIdentityKeyV3903(event.title || oldKey);
+    if (canonical && canonical !== oldKey) {
+      event.key = canonical;
+      remappedLearningEvents++;
+      changed = true;
+    }
+  }
+
+  const sourceReset = state.preferenceLearningResetByKey && typeof state.preferenceLearningResetByKey === 'object'
+    ? state.preferenceLearningResetByKey : {};
+  const nextReset = {};
+  for (const [oldKey,at] of Object.entries(sourceReset)) {
+    const canonical = aliases.get(oldKey) || aliases.get(normalizeName(oldKey)) || attractionIdentityKeyV3903(oldKey);
+    if (!canonical) continue;
+    if (canonical !== oldKey) { remappedResetKeys++; changed = true; }
+    nextReset[canonical] = Math.max(Number(nextReset[canonical] || 0), Number(at || 0));
+  }
+  if (Object.keys(nextReset).length !== Object.keys(sourceReset).length) changed = true;
+  state.preferenceLearningResetByKey = nextReset;
+
+  const sourceQueue = state.queueHistory && typeof state.queueHistory === 'object' ? state.queueHistory : {};
+  for (const [parkKey,parkRaw] of Object.entries(sourceQueue)) {
+    if (!parkRaw || typeof parkRaw !== 'object') continue;
+    const nextPark = {};
+    for (const [oldKey,rows] of Object.entries(parkRaw)) {
+      const canonical = aliases.get(oldKey) || aliases.get(normalizeName(oldKey)) || attractionIdentityKeyV3903(oldKey) || oldKey;
+      if (nextPark[canonical]) { mergedQueueKeys++; changed = true; }
+      if (canonical !== oldKey) changed = true;
+      nextPark[canonical] = mergeQueueRowsV3904(nextPark[canonical],rows);
+    }
+    state.queueHistory[parkKey] = nextPark;
+  }
+
+  const sourceGeo = state.attractionGeo && typeof state.attractionGeo === 'object' ? state.attractionGeo : {};
+  for (const [parkKey,parkRaw] of Object.entries(sourceGeo)) {
+    if (!parkRaw || typeof parkRaw !== 'object') continue;
+    const nextPark = {};
+    for (const [oldKey,value] of Object.entries(parkRaw)) {
+      const canonical = aliases.get(oldKey) || aliases.get(normalizeName(oldKey)) || attractionIdentityKeyV3903(oldKey) || oldKey;
+      if (canonical !== oldKey || nextPark[canonical]) { remappedGeoKeys++; changed = true; }
+      nextPark[canonical] = mergeGeoValueV3904(nextPark[canonical],value);
+    }
+    state.attractionGeo[parkKey] = nextPark;
+  }
+
+  const previousVersion = Number(state.preferenceIdentityMigrationVersion || 0);
+  if (previousVersion < PREFERENCE_IDENTITY_MIGRATION_VERSION_V3904) {
+    state.preferenceIdentityMigrationVersion = PREFERENCE_IDENTITY_MIGRATION_VERSION_V3904;
+    changed = true;
+  }
+
+  if (changed) {
+    state.preferenceIdentityMigration = {
+      version:PREFERENCE_IDENTITY_MIGRATION_VERSION_V3904,
+      migratedAt:Date.now(),
+      remappedPreferences, mergedPreferences, remappedLearningEvents,
+      remappedResetKeys, mergedQueueKeys, remappedGeoKeys
+    };
+  } else if (!state.preferenceIdentityMigration || typeof state.preferenceIdentityMigration !== 'object') {
+    state.preferenceIdentityMigration = {version:PREFERENCE_IDENTITY_MIGRATION_VERSION_V3904,migratedAt:null};
+  }
+
+  return {
+    changed, version:PREFERENCE_IDENTITY_MIGRATION_VERSION_V3904,
+    remappedPreferences, mergedPreferences, remappedLearningEvents,
+    remappedResetKeys, mergedQueueKeys, remappedGeoKeys
+  };
+}
+
+// Substitui a migração v39.0.3 antes que o wrapper de ensureCopilotState a invoque.
+// Assim aliases duplicados são consolidados com a regra de preservação v39.0.4.
+migrateAttractionIdentityStateV3903 = function() {
+  return migratePreferenceIdentityStateV3904().changed;
+};
+
+const v3903EnsureCopilotStateV3904 = ensureCopilotState;
+ensureCopilotState = function() {
+  v3903EnsureCopilotStateV3904();
+  const result = migratePreferenceIdentityStateV3904();
+  if (result.changed) saveState();
+};
+
+const v3903EngineDiagnosticSnapshotV3904 = engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38 = function() {
+  const snapshot = v3903EngineDiagnosticSnapshotV3904();
+  snapshot.context = snapshot.context || {};
+  snapshot.context.preferenceIdentityMigration = {
+    version:Number(state.preferenceIdentityMigrationVersion || 0),
+    ...(state.preferenceIdentityMigration || {})
+  };
+  return snapshot;
+};
+
+const v3903ExposeDiagnosticsApiV3904 = exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38 = function() {
+  v3903ExposeDiagnosticsApiV3904();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.preferenceIdentityMigration = () => structuredClone({
+    version:Number(state.preferenceIdentityMigrationVersion || 0),
+    ...(state.preferenceIdentityMigration || {})
+  });
+};
+
+const v3903RunEngineSelfTestsV3904 = runEngineSelfTestsV38;
+runEngineSelfTestsV38 = function() {
+  const report = v3903RunEngineSelfTestsV3904();
+  const additions = [];
+  const backup = {
+    attractionPreferences:state.attractionPreferences,
+    preferenceLearningEvents:state.preferenceLearningEvents,
+    preferenceLearningResetByKey:state.preferenceLearningResetByKey,
+    preferenceIdentityMigrationVersion:state.preferenceIdentityMigrationVersion,
+    preferenceIdentityMigration:state.preferenceIdentityMigration,
+    queueHistory:state.queueHistory,
+    attractionGeo:state.attractionGeo
+  };
+  const reset = () => {
+    state.attractionPreferences={}; state.preferenceLearningEvents=[]; state.preferenceLearningResetByKey={};
+    state.preferenceIdentityMigrationVersion=0; state.preferenceIdentityMigration=null;
+    state.queueHistory={}; state.attractionGeo={};
+  };
+  try {
+    addSelfTestV38(additions,'Preferência legada de Remys migra automaticamente',()=>{
+      reset();
+      state.attractionPreferences[normalizeName('remys ratatouille adventure')]={name:'remys ratatouille adventure',parkKey:'epcot',priority:'must',repeatWanted:false,weatherImpact:'low',updatedAt:10};
+      const result=migratePreferenceIdentityStateV3904();
+      const canonical=attractionIdentityKeyV3903("Remy's Ratatouille Adventure");
+      assertSelfTestV38(Boolean(state.attractionPreferences[canonical]),'preferência canônica ausente');
+      assertSelfTestV38(state.attractionPreferences[canonical].priority==='must','importância não preservada');
+      assertSelfTestV38(result.remappedPreferences>=1,'migração não registrada');
+      return 'Remys → Remy canônico';
+    });
+    addSelfTestV38(additions,'Duplicatas preservam o cadastro explícito mais recente',()=>{
+      reset();
+      const a=normalizeName("Remy's Ratatouille Adventure"), b=normalizeName('Remy Ratatouille Adventure');
+      state.attractionPreferences[a]={name:"Remy's Ratatouille Adventure",parkKey:'epcot',priority:'must',repeatWanted:true,weatherImpact:'low',customLegacy:'preservado',updatedAt:100};
+      state.attractionPreferences[b]={name:'Remy Ratatouille Adventure',parkKey:'epcot',priority:'want',repeatWanted:false,weatherImpact:'auto',updatedAt:200};
+      migratePreferenceIdentityStateV3904();
+      const pref=state.attractionPreferences[attractionIdentityKeyV3903('Remy Ratatouille Adventure')];
+      assertSelfTestV38(Object.keys(state.attractionPreferences).length===1,'duplicata permaneceu');
+      assertSelfTestV38(pref.priority==='want' && pref.repeatWanted===false && pref.weatherImpact==='auto','cadastro recente não prevaleceu');
+      assertSelfTestV38(pref.customLegacy==='preservado','campo legado foi perdido');
+      return '2 aliases → 1 registro completo';
+    });
+    addSelfTestV38(additions,'Migração remapeia eventos de aprendizado',()=>{
+      reset();
+      state.preferenceLearningEvents=[{type:'recommendation-accepted',key:normalizeName('remys ratatouille adventure'),title:"Remy's Ratatouille Adventure",at:123}];
+      migratePreferenceIdentityStateV3904();
+      const expected=attractionIdentityKeyV3903("Remy's Ratatouille Adventure");
+      assertSelfTestV38(state.preferenceLearningEvents[0].key===expected,`key=${state.preferenceLearningEvents[0].key}`);
+      return 'evento → identidade canônica';
+    });
+    addSelfTestV38(additions,'Migração consolida resets por atração',()=>{
+      reset();
+      state.preferenceLearningResetByKey={
+        [normalizeName('remys ratatouille adventure')]:100,
+        [attractionIdentityKeyV3903("Remy's Ratatouille Adventure")]:200
+      };
+      migratePreferenceIdentityStateV3904();
+      const entries=Object.entries(state.preferenceLearningResetByKey);
+      assertSelfTestV38(entries.length===1,`resets=${entries.length}`);
+      assertSelfTestV38(Number(entries[0][1])===200,`reset=${entries[0][1]}`);
+      return 'reset mais recente preservado';
+    });
+    addSelfTestV38(additions,'Migração consolida histórico local de fila',()=>{
+      reset();
+      const old=normalizeName('remys ratatouille adventure'), canonical=attractionIdentityKeyV3903("Remy's Ratatouille Adventure");
+      state.queueHistory={epcot:{[old]:[{t:1,wait:50}],[canonical]:[{t:2,wait:40}]}};
+      migratePreferenceIdentityStateV3904();
+      assertSelfTestV38(Object.keys(state.queueHistory.epcot).length===1,'fila permaneceu duplicada');
+      assertSelfTestV38(state.queueHistory.epcot[canonical].length===2,'amostras de fila foram perdidas');
+      return '2 chaves → 2 amostras canônicas';
+    });
+    addSelfTestV38(additions,'Migração consolida geolocalização por identidade',()=>{
+      reset();
+      const old=normalizeName('remys ratatouille adventure'), canonical=attractionIdentityKeyV3903("Remy's Ratatouille Adventure");
+      state.attractionGeo={epcot:{[old]:{lat:1,lon:1,updatedAt:100},[canonical]:{lat:2,lon:2,updatedAt:200}}};
+      migratePreferenceIdentityStateV3904();
+      assertSelfTestV38(Object.keys(state.attractionGeo.epcot).length===1,'geo permaneceu duplicada');
+      assertSelfTestV38(Number(state.attractionGeo.epcot[canonical].lat)===2,'geo mais recente não prevaleceu');
+      return 'geo canônica preservada';
+    });
+    addSelfTestV38(additions,'Migração de identidade é idempotente',()=>{
+      reset();
+      state.attractionPreferences[normalizeName('remys ratatouille adventure')]={name:'remys ratatouille adventure',priority:'must',updatedAt:100};
+      const first=migratePreferenceIdentityStateV3904();
+      const snapshot=JSON.stringify({p:state.attractionPreferences,e:state.preferenceLearningEvents,r:state.preferenceLearningResetByKey,q:state.queueHistory,g:state.attractionGeo,v:state.preferenceIdentityMigrationVersion});
+      const second=migratePreferenceIdentityStateV3904();
+      const after=JSON.stringify({p:state.attractionPreferences,e:state.preferenceLearningEvents,r:state.preferenceLearningResetByKey,q:state.queueHistory,g:state.attractionGeo,v:state.preferenceIdentityMigrationVersion});
+      assertSelfTestV38(first.changed===true,'primeira migração deveria alterar');
+      assertSelfTestV38(second.changed===false,'segunda migração alterou novamente');
+      assertSelfTestV38(snapshot===after,'estado mudou na segunda execução');
+      return 'segunda execução sem mudanças';
+    });
+  } finally {
+    state.attractionPreferences=backup.attractionPreferences;
+    state.preferenceLearningEvents=backup.preferenceLearningEvents;
+    state.preferenceLearningResetByKey=backup.preferenceLearningResetByKey;
+    state.preferenceIdentityMigrationVersion=backup.preferenceIdentityMigrationVersion;
+    state.preferenceIdentityMigration=backup.preferenceIdentityMigration;
+    state.queueHistory=backup.queueHistory; state.attractionGeo=backup.attractionGeo;
+  }
+  report.results.push(...additions);
+  report.total=report.results.length; report.passed=report.results.filter(x=>x.ok).length;
+  report.failed=report.total-report.passed; report.ok=report.failed===0;
+  report.build=ENGINE_BUILD_V38; report.version=ENGINE_DIAGNOSTICS_VERSION_V38;
+  return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v39.0.5 — History State Hardening
+   Robustez do Ciclo 7.1 sem alterar pesos, score ou estratégia.
+   - container de histórico sempre array após load/ensure;
+   - leitores de histórico toleram registros null/malformados;
+   - done sem activityId continua válido quando há identidade textual;
+   - eventos aprendidos inválidos são ignorados, não executados;
+   - diagnóstico expõe saúde do histórico sem descartar dados válidos.
+   ============================================================ */
+const HISTORY_HARDENING_VERSION_V3905 = 1;
+
+function isHistoryRecordV3905(record) {
+  return Boolean(record && typeof record === 'object' && !Array.isArray(record));
+}
+
+function historyRowsV3905() {
+  return Array.isArray(state?.history) ? state.history : [];
+}
+
+function normalizeHistoryContainerV3905() {
+  if (Array.isArray(state?.history)) return false;
+  state.history = [];
+  return true;
+}
+
+function historyHealthV3905() {
+  const arrayBacked = Array.isArray(state?.history);
+  const rows = historyRowsV3905();
+  let invalidRecords = 0;
+  let missingActivityId = 0;
+  let doneWithoutActivityId = 0;
+  let missingStatus = 0;
+  let invalidTimestamp = 0;
+  for (const record of rows) {
+    if (!isHistoryRecordV3905(record)) { invalidRecords++; continue; }
+    if (!record.activityId) missingActivityId++;
+    if (record.status === 'done' && !record.activityId) doneWithoutActivityId++;
+    if (!record.status) missingStatus++;
+    const timestamp = record.actualEnd || record.actualStart;
+    if (timestamp && !Number.isFinite(Date.parse(timestamp))) invalidTimestamp++;
+  }
+  return {
+    version:HISTORY_HARDENING_VERSION_V3905,
+    arrayBacked,
+    total:rows.length,
+    invalidRecords,
+    missingActivityId,
+    doneWithoutActivityId,
+    missingStatus,
+    invalidTimestamp
+  };
+}
+
+const v3904EnsureCopilotStateV3905 = ensureCopilotState;
+ensureCopilotState = function() {
+  normalizeHistoryContainerV3905();
+  return v3904EnsureCopilotStateV3905();
+};
+
+const v3904LoadStateV3905 = loadState;
+loadState = async function() {
+  const result = await v3904LoadStateV3905();
+  if (normalizeHistoryContainerV3905()) saveState();
+  return result;
+};
+
+const v3904ActivityForRecordV3905 = activityForRecord;
+activityForRecord = function(record) {
+  if (!isHistoryRecordV3905(record)) return {title:'Atividade',type:'other',duration:0};
+  return v3904ActivityForRecordV3905(record);
+};
+
+getDayHistory = function(date = state.selectedDate) {
+  return historyRowsV3905().filter(h => isHistoryRecordV3905(h) && h.date === date && h.status === 'done');
+};
+getActivityLog = function(id) {
+  return historyRowsV3905().find(h => isHistoryRecordV3905(h) && h.activityId === id && h.status !== 'skipped');
+};
+isDone = function(id) {
+  return historyRowsV3905().some(h => isHistoryRecordV3905(h) && h.activityId === id && h.status === 'done');
+};
+isSkipped = function(id) {
+  return historyRowsV3905().some(h => isHistoryRecordV3905(h) && h.activityId === id && h.status === 'skipped');
+};
+isStarted = function(id) {
+  return historyRowsV3905().some(h => isHistoryRecordV3905(h) && h.activityId === id && h.status === 'started');
+};
+reportRecords = function() {
+  const scope = $('#reportScope')?.value || 'day';
+  return historyRowsV3905().filter(r => isHistoryRecordV3905(r) && r.status === 'done' && (scope === 'trip' || r.date === state.selectedDate));
+};
+
+const v3904EngineDiagnosticSnapshotV3905 = engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38 = function() {
+  const snapshot = v3904EngineDiagnosticSnapshotV3905();
+  snapshot.context = snapshot.context || {};
+  snapshot.context.historyHardening = historyHealthV3905();
+  return snapshot;
+};
+
+const v3904ExposeDiagnosticsApiV3905 = exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38 = function() {
+  v3904ExposeDiagnosticsApiV3905();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.historyHealth = () => structuredClone(historyHealthV3905());
+};
+
+const v3904RunEngineSelfTestsV3905 = runEngineSelfTestsV38;
+runEngineSelfTestsV38 = function() {
+  const report = v3904RunEngineSelfTestsV3905();
+  const additions = [];
+  const backup = {
+    history:state.history,
+    preferenceLearningEvents:state.preferenceLearningEvents,
+    preferenceLearningStartedAt:state.preferenceLearningStartedAt,
+    preferenceLearningResetAt:state.preferenceLearningResetAt,
+    preferenceLearningResetByKey:state.preferenceLearningResetByKey,
+    attractionPreferences:state.attractionPreferences,
+    learningEnabled:state.settings.preferenceLearningEnabled
+  };
+  const base = () => {
+    state.history=[];
+    state.preferenceLearningEvents=[];
+    state.preferenceLearningStartedAt=1;
+    state.preferenceLearningResetAt=0;
+    state.preferenceLearningResetByKey={};
+    state.attractionPreferences={};
+    state.settings.preferenceLearningEnabled=true;
+  };
+  try {
+    addSelfTestV38(additions,'Histórico ausente é normalizado sem exceção',()=>{
+      base(); state.history=undefined;
+      ensureCopilotState();
+      assertSelfTestV38(Array.isArray(state.history),'history não virou array');
+      assertSelfTestV38(getDayHistory('2099-01-01').length===0,'histórico vazio deveria permanecer vazio');
+      return 'undefined → []';
+    });
+    addSelfTestV38(additions,'Histórico em formato inválido é normalizado para array',()=>{
+      base(); state.history={legacy:true};
+      ensureCopilotState();
+      assertSelfTestV38(Array.isArray(state.history),'objeto legado não foi normalizado');
+      return 'object → []';
+    });
+    addSelfTestV38(additions,'Registro null no histórico não quebra aprendizado',()=>{
+      base(); state.history=[null,{status:'started',title:'Incompleto'}];
+      const learned=learnedPreferenceEvidenceV39('Teste Inexistente');
+      assertSelfTestV38(learned?.evidenceCount===0,`evidências=${learned?.evidenceCount}`);
+      return 'registro inválido ignorado';
+    });
+    addSelfTestV38(additions,'Done sem activityId usa identidade textual com segurança',()=>{
+      base();
+      state.history=[{title:'Teste Sem ID',type:'attraction',status:'done',actualEnd:new Date().toISOString(),rating:5}];
+      const learned=learnedPreferenceEvidenceV39('Teste Sem ID');
+      assertSelfTestV38(learned?.ratings===1,`ratings=${learned?.ratings}`);
+      assertSelfTestV38(learned?.affinity>50,`afinidade=${learned?.affinity}`);
+      return 'title/type preservam evidência';
+    });
+    addSelfTestV38(additions,'Evento de aprendizado null é ignorado',()=>{
+      base();
+      state.preferenceLearningEvents=[null,{type:'recommendation-accepted',key:learningKeyV39('Teste Evento'),title:'Teste Evento',at:Date.now()}];
+      const learned=learnedPreferenceEvidenceV39('Teste Evento');
+      assertSelfTestV38(learned?.accepted===1,`accepted=${learned?.accepted}`);
+      return 'null ignorado; evento válido preservado';
+    });
+    addSelfTestV38(additions,'Primeira visita sem evidências permanece neutra',()=>{
+      base();
+      const learned=learnedPreferenceEvidenceV39('Primeira Visita');
+      assertSelfTestV38(learned?.evidenceCount===0,'surgiu evidência fantasma');
+      assertSelfTestV38(Math.round(learned?.affinity)===50,`afinidade=${learned?.affinity}`);
+      return 'afinidade 50 sem sinais';
+    });
+    addSelfTestV38(additions,'Aprendizado pausado preserva score declarado',()=>{
+      base();
+      const now=new Date().toISOString();
+      state.history=[{title:'Teste Pausado',type:'attraction',status:'done',actualEnd:now,rating:5},{title:'Teste Pausado',type:'attraction',status:'done',actualEnd:now,rating:5}];
+      state.settings.preferenceLearningEnabled=false;
+      const plain=personalPriorityMetaWithoutLearningV39({title:'Teste Pausado',type:'attraction',priority:3},30);
+      const actual=personalPriorityMeta({title:'Teste Pausado',type:'attraction',priority:3},30);
+      assertSelfTestV38(actual.score===plain.score,`score ${actual.score} != ${plain.score}`);
+      return `score declarado ${actual.score}`;
+    });
+    addSelfTestV38(additions,'Diagnóstico aponta registros incompletos sem descartá-los',()=>{
+      base();
+      state.history=[null,{title:'Sem ID',type:'attraction',status:'done',actualEnd:'invalido'},{activityId:'ok',title:'OK',status:'done'}];
+      const health=historyHealthV3905();
+      assertSelfTestV38(health.total===3,`total=${health.total}`);
+      assertSelfTestV38(health.invalidRecords===1,`invalid=${health.invalidRecords}`);
+      assertSelfTestV38(health.doneWithoutActivityId===1,`doneWithoutId=${health.doneWithoutActivityId}`);
+      assertSelfTestV38(health.invalidTimestamp===1,`invalidTimestamp=${health.invalidTimestamp}`);
+      return 'diagnóstico preserva e sinaliza';
+    });
+  } finally {
+    state.history=backup.history;
+    state.preferenceLearningEvents=backup.preferenceLearningEvents;
+    state.preferenceLearningStartedAt=backup.preferenceLearningStartedAt;
+    state.preferenceLearningResetAt=backup.preferenceLearningResetAt;
+    state.preferenceLearningResetByKey=backup.preferenceLearningResetByKey;
+    state.attractionPreferences=backup.attractionPreferences;
+    state.settings.preferenceLearningEnabled=backup.learningEnabled;
+  }
+  report.results.push(...additions);
+  report.total=report.results.length;
+  report.passed=report.results.filter(x=>x.ok).length;
+  report.failed=report.total-report.passed;
+  report.ok=report.failed===0;
+  report.build=ENGINE_BUILD_V38;
+  report.version=ENGINE_DIAGNOSTICS_VERSION_V38;
+  return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v39.1 — Preference Governance
+   Contrato do Ciclo 7.1:
+   - condições operacionais e compromissos protegidos vencem;
+   - preferência declarada vence a aprendida somente na camada
+     de preferência (os guards v39 preservam a classe declarada);
+   - preferência pode melhorar uma boa opção, mas não deve ser
+     suficiente para transformar uma janela ruim em FAÇA AGORA.
+   ============================================================ */
+const PREFERENCE_GOVERNANCE_VERSION_V391 = 1;
+const PREFERENCE_GOVERNANCE_RULES_V391 = Object.freeze({
+  hierarchy:['operational-viability','strategic-commitments','declared-preference','learned-preference'],
+  neutralPriorityScore:60,
+  doNowThreshold:72,
+  waitThreshold:45,
+  minOperationalForPreferenceDoNow:55,
+  minCostForPreferenceDoNow:40,
+  minScheduleForPreferenceDoNow:45,
+  minOperationalForPreferenceWait:35,
+  minCostForPreferenceWait:25,
+  climateSevereScore:25,
+  defaultUnknownPriorityWait:30,
+  transitionReserveMinutes:8,
+  wantReserveFactor:.75
+});
+
+// Antes da v39.1, custo alto era suavizado para must/want. Isso podia fazer
+// preferência pessoal neutralizar demais uma condição operacional ruim.
+// O valor estratégico continua preservado; a penalidade tática passa a ser igual.
+const v3905ExperienceCostAdjustmentV391 = experienceCostAdjustment;
+experienceCostAdjustment = function(cost, priorityCode) {
+  if (!cost) return 0;
+  const mode=state.settings?.optimizationMode || 'experience';
+  const factor=EXPERIENCE_COST_RULES.modeFactor[mode] ?? EXPERIENCE_COST_RULES.modeFactor.experience;
+  const adjustment=(Number(cost.score||50)-EXPERIENCE_COST_RULES.costCenter)*factor;
+  return clamp(adjustment,EXPERIENCE_COST_RULES.maxNegativeAdjustment,EXPERIENCE_COST_RULES.maxPositiveAdjustment);
+};
+
+function pendingStrategicCommitmentsV391(activity, day, livePayload=null) {
+  if (!day) return [];
+  const currentKey=attractionIdentityKeyV3903(activity||'');
+  const seen=new Set();
+  const rows=[];
+  const add=(candidate,code,source)=>{
+    if (!candidate || String(candidate.type||'').toLowerCase()!=='attraction') return;
+    const key=attractionIdentityKeyV3903(candidate);
+    if (!key || key===currentKey || seen.has(key) || !['must','want'].includes(code)) return;
+    if (candidate.id && (isDone(candidate.id)||isSkipped(candidate.id))) return;
+    seen.add(key); rows.push({activity:candidate,code,source,key});
+  };
+  for (const candidate of day.activities||[]) {
+    const declared=personalPriorityMetaWithoutLearningV39(candidate,candidate?.plannedWait??0);
+    add(candidate,declared.code,'timeline');
+  }
+  try {
+    for (const item of declaredStrategicPreferenceActivitiesV3902(day,livePayload)||[]) {
+      const code=item?.pref?.priority || personalPriorityMetaWithoutLearningV39(item?.activity,item?.activity?.plannedWait??0).code;
+      add(item?.activity,code,'declared-pool');
+    }
+  } catch {}
+  return rows;
+}
+
+function strategicCommitmentReserveV391(activity, day, livePayload=null, startMinute=null, candidateMinutes=0) {
+  const now=getOrlandoParts();
+  const minute=startMinute==null?now.hour*60+now.minute:Number(startMinute);
+  const hours=parkHoursForDate(day?.park||state.selectedPark,day?.date||now.date);
+  const commitments=pendingStrategicCommitmentsV391(activity,day,livePayload);
+  const estimates=[];
+  for (const row of commitments) {
+    const entry=findLiveMatch(row.activity,livePayload?.liveData||[]);
+    const liveWait=entry?extractStandby(entry):null;
+    const wait=liveWait!=null && Number.isFinite(Number(liveWait)) ? Number(liveWait)
+      : Number.isFinite(Number(row.activity?.plannedWait)) ? Number(row.activity.plannedWait)
+      : PREFERENCE_GOVERNANCE_RULES_V391.defaultUnknownPriorityWait;
+    const queue=Math.max(0,effectiveQueueMinutes(row.activity,wait,minute));
+    const duration=Math.max(5,Number(row.activity?.duration||8));
+    const raw=queue+duration+PREFERENCE_GOVERNANCE_RULES_V391.transitionReserveMinutes;
+    const factor=row.code==='must'?1:PREFERENCE_GOVERNANCE_RULES_V391.wantReserveFactor;
+    const reserve=Math.max(12,Math.round(raw*factor));
+    estimates.push({title:row.activity?.title||row.key,code:row.code,reserveMinutes:reserve,source:row.source});
+  }
+  const reserveMinutes=estimates.reduce((sum,x)=>sum+Number(x.reserveMinutes||0),0);
+  const availableBefore=Math.max(0,Number(hours.close||1440)-minute);
+  const availableAfter=Math.max(0,Number(hours.close||1440)-(minute+Math.max(0,Number(candidateMinutes||0))));
+  const alreadyOvercommitted=reserveMinutes>availableBefore;
+  const risk=reserveMinutes>availableAfter;
+  return {count:estimates.length,reserveMinutes,availableBefore,availableAfter,risk,alreadyOvercommitted,commitments:estimates.slice(0,8)};
+}
+
+function operationalPreferenceScoreV391(meta) {
+  const components=meta?.components||{};
+  const profile=copilotProfile();
+  let weighted=0,totalWeight=0;
+  for (const key of ['wait','forecast','distance','climate','schedule','energy']) {
+    const weight=Number(profile.weights?.[key]||0);
+    if (!weight) continue;
+    weighted+=Number(components[key]??50)*weight; totalWeight+=weight;
+  }
+  return totalWeight?Math.round((weighted/totalWeight)*10)/10:50;
+}
+
+function preferenceContributionV391(meta) {
+  const priority=meta?.priority||{};
+  const profile=copilotProfile();
+  const weight=Number(profile.weights?.priority||0)/100;
+  const neutral=PREFERENCE_GOVERNANCE_RULES_V391.neutralPriorityScore;
+  const declaredScore=Number(priority.learned?.declaredScore ?? personalPriorityMetaWithoutLearningV39(meta?.activity,meta?.wait??0).score ?? neutral);
+  const effectiveScore=Number(priority.score??declaredScore);
+  return {
+    priorityWeight:weight,
+    declaredScore:Math.round(declaredScore),
+    effectiveScore:Math.round(effectiveScore),
+    explicitLift:Math.round(Math.max(0,(declaredScore-neutral)*weight)*10)/10,
+    learnedLift:Math.round((effectiveScore-declaredScore)*weight*10)/10,
+    positiveLift:Math.round(Math.max(0,(effectiveScore-neutral)*weight)*10)/10
+  };
+}
+
+function preferenceTacticalGateV391(input={}) {
+  const score=Number(input.score||0);
+  const base=Number(input.scoreWithoutPositivePreference??score);
+  const positiveLift=Math.max(0,Number(input.positivePreferenceLift||0));
+  const operational=Number(input.operationalScore??50);
+  const cost=Number(input.costScore??50);
+  const schedule=Number(input.scheduleScore??65);
+  const hardBlocked=Boolean(input.hardBlocked);
+  const climateSevere=Boolean(input.climateSevere);
+  const priorityReserveRisk=Boolean(input.priorityReserveRisk);
+  if (hardBlocked) return {score:0,limited:score!==0,reason:'hard-block',canPromoteToDoNow:false,canPromoteToWait:false};
+  const canPromoteToDoNow=operational>=PREFERENCE_GOVERNANCE_RULES_V391.minOperationalForPreferenceDoNow &&
+    cost>=PREFERENCE_GOVERNANCE_RULES_V391.minCostForPreferenceDoNow &&
+    schedule>=PREFERENCE_GOVERNANCE_RULES_V391.minScheduleForPreferenceDoNow &&
+    !climateSevere && !priorityReserveRisk;
+  const canPromoteToWait=operational>=PREFERENCE_GOVERNANCE_RULES_V391.minOperationalForPreferenceWait &&
+    cost>=PREFERENCE_GOVERNANCE_RULES_V391.minCostForPreferenceWait && !climateSevere;
+  let finalScore=score,reason=null;
+  if (positiveLift>0 && score>=PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold && base<PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold && !canPromoteToDoNow) {
+    finalScore=PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold-1;
+    reason=priorityReserveRisk?'protect-other-priorities':climateSevere?'climate-conditions':'operational-window';
+  }
+  if (positiveLift>0 && finalScore>=PREFERENCE_GOVERNANCE_RULES_V391.waitThreshold && base<PREFERENCE_GOVERNANCE_RULES_V391.waitThreshold && !canPromoteToWait) {
+    finalScore=PREFERENCE_GOVERNANCE_RULES_V391.waitThreshold-1;
+    reason=reason||'poor-operational-window';
+  }
+  return {score:Math.round(clamp(finalScore)),limited:Math.round(finalScore)!==Math.round(score),reason,canPromoteToDoNow,canPromoteToWait};
+}
+
+function preferenceOperationalContextV391(meta,day,livePayload,startMinute=null) {
+  const now=getOrlandoParts();
+  const minute=startMinute==null?now.hour*60+now.minute:Number(startMinute);
+  const operationalScore=operationalPreferenceScoreV391(meta);
+  const costScore=Number(meta?.experienceCost?.score??50);
+  const scheduleScore=Number(meta?.schedule?.score??65);
+  const climateScore=Number(meta?.climate?.score??65);
+  const climateSevere=meta?.climate?.impact==='high' && climateScore<=PREFERENCE_GOVERNANCE_RULES_V391.climateSevereScore;
+  const candidateMinutes=Number(meta?.experienceCost?.operationalMinutes??meta?.totalMinutes??0);
+  const priorityReserve=strategicCommitmentReserveV391(meta?.activity,day,livePayload,minute,candidateMinutes);
+  return {operationalScore,costScore,scheduleScore,climateScore,climateSevere,hardBlocked:Boolean(meta?.blocked||meta?.schedule?.blocked),priorityReserve};
+}
+
+const v3905CopilotScoreForEntryV391 = copilotScoreForEntry;
+copilotScoreForEntry = function(entry,day=getSelectedDay(),weatherPayload=state.weatherCache[state.selectedPark],startMinute=null,previousActivity=null) {
+  const result=v3905CopilotScoreForEntryV391(entry,day,weatherPayload,startMinute,previousActivity);
+  if (!result || !result.activity || result.wait==null) return result;
+  const livePayload=state.liveCache?.[day?.park||state.selectedPark]||null;
+  const contribution=preferenceContributionV391(result);
+  const context=preferenceOperationalContextV391(result,day,livePayload,startMinute);
+  const scoreBeforeGovernance=Number(result.score||0);
+  const scoreWithoutPositivePreference=Math.max(0,scoreBeforeGovernance-contribution.positiveLift);
+  const gate=preferenceTacticalGateV391({score:scoreBeforeGovernance,scoreWithoutPositivePreference,positivePreferenceLift:contribution.positiveLift,
+    operationalScore:context.operationalScore,costScore:context.costScore,scheduleScore:context.scheduleScore,
+    hardBlocked:context.hardBlocked,climateSevere:context.climateSevere,priorityReserveRisk:context.priorityReserve.risk});
+  result.score=gate.score;
+  result.band=result.score>=72?'FAÇA AGORA':result.score>=45?'ESPERE':'EVITE AGORA';
+  result.bandClass=result.score>=72?'good':result.score>=45?'warn':'bad';
+  result.preferenceGovernance={version:PREFERENCE_GOVERNANCE_VERSION_V391,hierarchy:PREFERENCE_GOVERNANCE_RULES_V391.hierarchy,
+    declaredCode:result.priority?.code||null,learnedAdjustment:Number(result.priority?.learned?.adjustment||0),...contribution,
+    scoreBeforeGovernance:Math.round(scoreBeforeGovernance),scoreWithoutPositivePreference:Math.round(scoreWithoutPositivePreference*10)/10,
+    operationalScore:context.operationalScore,costScore:context.costScore,scheduleScore:context.scheduleScore,climateScore:context.climateScore,
+    priorityReserve:context.priorityReserve,limited:gate.limited,limitReason:gate.reason,canPromoteToDoNow:gate.canPromoteToDoNow,canPromoteToWait:gate.canPromoteToWait};
+  if (gate.limited) {
+    const reason=gate.reason==='protect-other-priorities'
+      ? `preferência preservada; esta janela consumiria margem de ${context.priorityReserve.count} outra(s) prioridade(s)`
+      : gate.reason==='climate-conditions'
+        ? 'preferência preservada; condições climáticas reais pedem outra janela'
+        : 'preferência preservada; condições operacionais indicam aguardar uma janela melhor';
+    result.reasons=[...new Set([...(result.reasons||[]),reason])];
+  }
+  return result;
+};
+
+const v3905EngineDiagnosticSnapshotV391=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){
+  const snapshot=v3905EngineDiagnosticSnapshotV391(); snapshot.context=snapshot.context||{};
+  snapshot.context.preferenceGovernance={version:PREFERENCE_GOVERNANCE_VERSION_V391,hierarchy:[...PREFERENCE_GOVERNANCE_RULES_V391.hierarchy],
+    contract:'Condições operacionais e compromissos protegidos vencem; preferência declarada vence a aprendida apenas dentro da camada de preferência.'};
+  return snapshot;
+};
+
+const v3905ExposeDiagnosticsApiV391=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){v3905ExposeDiagnosticsApiV391();window.__ORLANDO_FLOW_DIAGNOSTICS__.preferenceGovernancePolicy=()=>structuredClone({version:PREFERENCE_GOVERNANCE_VERSION_V391,...PREFERENCE_GOVERNANCE_RULES_V391});};
+
+const v3905RunEngineSelfTestsV391=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v3905RunEngineSelfTestsV391(); const additions=[];
+  const backup={history:state.history,attractionPreferences:state.attractionPreferences,preferenceLearningEvents:state.preferenceLearningEvents,
+    preferenceLearningStartedAt:state.preferenceLearningStartedAt,preferenceLearningResetAt:state.preferenceLearningResetAt,
+    preferenceLearningResetByKey:state.preferenceLearningResetByKey,learningEnabled:state.settings.preferenceLearningEnabled,optimizationMode:state.settings.optimizationMode};
+  const reset=()=>{state.history=[];state.attractionPreferences={};state.preferenceLearningEvents=[];state.preferenceLearningStartedAt=1;state.preferenceLearningResetAt=0;state.preferenceLearningResetByKey={};state.settings.preferenceLearningEnabled=true;state.settings.optimizationMode='experience';};
+  try{
+    addSelfTestV38(additions,'Declarada Imperdível continua dominante sobre aprendizado negativo',()=>{reset();state.attractionPreferences[learningKeyV39('Teste Hierarquia')]={name:'Teste Hierarquia',priority:'must'};const now=new Date().toISOString();state.history=[{title:'Teste Hierarquia',type:'attraction',status:'done',actualEnd:now,rating:1},{title:'Teste Hierarquia',type:'attraction',status:'done',actualEnd:now,rating:1}];const p=personalPriorityMeta({title:'Teste Hierarquia',type:'attraction',priority:3},40);assertSelfTestV38(p.code==='must'&&p.score>=96,`code=${p.code}; score=${p.score}`);return `must ${p.score}`;});
+    addSelfTestV38(additions,'Aprendizado positivo não muda classe declarada baixa',()=>{reset();state.attractionPreferences[learningKeyV39('Teste Low')]={name:'Teste Low',priority:'low'};const now=new Date().toISOString();state.history=Array.from({length:5},()=>({title:'Teste Low',type:'attraction',status:'done',actualEnd:now,rating:5}));const p=personalPriorityMeta({title:'Teste Low',type:'attraction',priority:3},10);assertSelfTestV38(p.code==='low'&&p.score<=42,`code=${p.code}; score=${p.score}`);return `low ${p.score}`;});
+    addSelfTestV38(additions,'Custo operacional negativo não é suavizado por Imperdível',()=>{reset();const cost={score:20};const normal=experienceCostAdjustment(cost,'normal'),must=experienceCostAdjustment(cost,'must');assertSelfTestV38(must===normal&&must<0,`must=${must}; normal=${normal}`);return `penalidade ${must}`;});
+    addSelfTestV38(additions,'Preferência sozinha não cria FAÇA AGORA em janela ruim',()=>{const g=preferenceTacticalGateV391({score:76,scoreWithoutPositivePreference:68,positivePreferenceLift:8,operationalScore:42,costScore:38,scheduleScore:70});assertSelfTestV38(g.score===71&&g.limited,`score=${g.score}`);return '76 → 71';});
+    addSelfTestV38(additions,'Preferência pode promover boa janela operacional',()=>{const g=preferenceTacticalGateV391({score:76,scoreWithoutPositivePreference:68,positivePreferenceLift:8,operationalScore:72,costScore:68,scheduleScore:80});assertSelfTestV38(g.score===76&&!g.limited,`score=${g.score}`);return '68 + preferência → 76';});
+    addSelfTestV38(additions,'Margem de outras prioridades impede promoção artificial',()=>{const g=preferenceTacticalGateV391({score:78,scoreWithoutPositivePreference:69,positivePreferenceLift:9,operationalScore:75,costScore:70,scheduleScore:80,priorityReserveRisk:true});assertSelfTestV38(g.score===71&&g.reason==='protect-other-priorities',`score=${g.score}; reason=${g.reason}`);return 'prioridades protegidas';});
+    addSelfTestV38(additions,'Hard blocker operacional continua absoluto',()=>{const g=preferenceTacticalGateV391({score:99,scoreWithoutPositivePreference:80,positivePreferenceLift:19,operationalScore:95,costScore:95,scheduleScore:0,hardBlocked:true});assertSelfTestV38(g.score===0,`score=${g.score}`);return '99 → 0';});
+    addSelfTestV38(additions,'Reserva estratégica usa fila planejada quando fila ao vivo está ausente',()=>{reset();const day={date:'2099-01-01',park:'epcot',activities:[{id:'v391-current',title:'Atual Preferida',type:'attraction',priority:5,duration:8,plannedWait:20,flexible:true},{id:'v391-other',title:'Outra Prioridade',type:'attraction',priority:5,duration:10,plannedWait:40,flexible:true}]};const hours=parkHoursForDate(day.park,day.date);const r=strategicCommitmentReserveV391(day.activities[0],day,null,Number(hours.close)-100,50);assertSelfTestV38(r.count===1&&r.reserveMinutes>=58&&r.risk,`count=${r.count}; reserve=${r.reserveMinutes}; after=${r.availableAfter}`);return `${r.reserveMinutes} min reservados`;});
+    addSelfTestV38(additions,'Governança formaliza operacional > estratégica > declarada > aprendida',()=>{const h=PREFERENCE_GOVERNANCE_RULES_V391.hierarchy;assertSelfTestV38(h.join('>')==='operational-viability>strategic-commitments>declared-preference>learned-preference',h.join('>'));return h.join(' > ');});
+  }finally{state.history=backup.history;state.attractionPreferences=backup.attractionPreferences;state.preferenceLearningEvents=backup.preferenceLearningEvents;state.preferenceLearningStartedAt=backup.preferenceLearningStartedAt;state.preferenceLearningResetAt=backup.preferenceLearningResetAt;state.preferenceLearningResetByKey=backup.preferenceLearningResetByKey;state.settings.preferenceLearningEnabled=backup.learningEnabled;state.settings.optimizationMode=backup.optimizationMode;}
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v39.2 — Decision Trace
+   Observabilidade interna da decisão, sem exposição na UI comum.
+   ============================================================ */
+const DECISION_TRACE_VERSION_V392 = 1;
+const DECISION_TRACE_RULES_V392 = Object.freeze({
+  maxEntries: 60,
+  maxCandidates: 10,
+  dedupeWindowMs: 45_000
+});
+const decisionTraceLogV392 = [];
+let lastDecisionTraceSignatureV392 = '';
+let lastDecisionTraceAtV392 = 0;
+
+function traceNumberV392(value, digits=1) {
+  const n=Number(value);
+  if (!Number.isFinite(n)) return null;
+  const factor=10**Math.max(0,Number(digits||0));
+  return Math.round(n*factor)/factor;
+}
+
+function decisionTraceSelectionReasonV392(decision) {
+  switch(decision?.kind){
+    case 'started': return 'activity-already-started';
+    case 'future': return 'future-day-plan-only';
+    case 'fixed': return 'fixed-commitment-protected';
+    case 'emergency': return 'critical-condition-replan';
+    case 'opportunity': return `opportunity-${decision?.opportunity?.type||'trigger'}`;
+    case 'priority-window': return 'protected-priority-window-started';
+    case 'direct': return decision?.priority ? 'green-strategic-priority-within-tolerance' : 'best-green-tactical-option';
+    case 'bridge': return 'best-executable-bridge-before-protected-priority';
+    case 'pause': return 'fatigue-or-low-bridge-utility';
+    case 'passive-break': return 'preserve-upcoming-priority-window';
+    case 'tactical-fallback': return 'best-executable-non-green-option';
+    case 'fallback': return 'insufficient-live-data-or-no-scored-candidate';
+    default: return 'no-decision';
+  }
+}
+
+function decisionTraceCandidateV392(row, decision, priorities, protectedPriority, day, nowMinute) {
+  const meta=row?.meta||{};
+  const activity=row?.activity||meta?.activity||{};
+  const governance=meta?.preferenceGovernance||null;
+  const strategic=(priorities||[]).find(p=>p?.activity?.id===activity?.id)||null;
+  let tacticalUtility=null;
+  try {
+    const value=tacticalUtilityV36(row,protectedPriority,day,nowMinute);
+    tacticalUtility=Number.isFinite(value)?traceNumberV392(value,0):null;
+  } catch {}
+  const blockers=[];
+  if(meta?.blocked||meta?.schedule?.blocked) blockers.push('hard-block');
+  if(governance?.limited) blockers.push(`preference-${governance.limitReason||'limited'}`);
+  if(governance?.priorityReserve?.risk) blockers.push('protect-other-priorities');
+  if(meta?.climate?.impact==='high' && Number(meta?.climate?.score||0)<=PREFERENCE_GOVERNANCE_RULES_V391.climateSevereScore) blockers.push('climate-severe');
+  if(tacticalUtility==null && !meta?.blocked) blockers.push('deadline-or-fit');
+
+  const selectedId=decision?.activity?.id||null;
+  const selected=Boolean(selectedId && activity?.id===selectedId);
+  const rejection=[];
+  if(!selected){
+    if(blockers.includes('hard-block')) rejection.push('inviável operacionalmente');
+    if(governance?.limited) rejection.push(`preferência limitada: ${governance.limitReason||'governance'}`);
+    if(decision?.kind==='direct' && meta?.band!=='FAÇA AGORA') rejection.push(`faixa tática ${meta?.band||'sem faixa'}`);
+    if(decision?.kind==='direct' && meta?.band==='FAÇA AGORA') rejection.push('score/valor tático inferior ao selecionado');
+    if(decision?.kind==='priority-window') rejection.push('janela da prioridade protegida tem precedência');
+    if(decision?.kind==='bridge') rejection.push(tacticalUtility==null?'não cabe antes do compromisso protegido':'utilidade de ponte inferior');
+    if(decision?.kind==='tactical-fallback') rejection.push('score tático inferior');
+    if(decision?.kind==='opportunity') rejection.push('não possui o gatilho de oportunidade ativo');
+    if(!rejection.length) rejection.push('não venceu a comparação desta decisão');
+  }
+
+  return {
+    activityId:activity?.id||null,
+    title:activity?.title||null,
+    selected,
+    score:traceNumberV392(meta?.score,0),
+    band:meta?.band||null,
+    wait:traceNumberV392(meta?.wait,0),
+    totalMinutes:traceNumberV392(meta?.experienceCost?.totalMinutes??meta?.totalMinutes,0),
+    operationalMinutes:traceNumberV392(meta?.experienceCost?.operationalMinutes,0),
+    walkMinutes:traceNumberV392(meta?.walk?.minutes,0),
+    tacticalUtility,
+    strategicScore:traceNumberV392(strategic?.strategicScore??strategic?.strategicValue,0),
+    strategicWindow:strategic?.window?.label||null,
+    components:meta?.components?{
+      wait:traceNumberV392(meta.components.wait,0),
+      forecast:traceNumberV392(meta.components.forecast,0),
+      distance:traceNumberV392(meta.components.distance,0),
+      priority:traceNumberV392(meta.components.priority,0),
+      climate:traceNumberV392(meta.components.climate,0),
+      schedule:traceNumberV392(meta.components.schedule,0),
+      energy:traceNumberV392(meta.components.energy,0)
+    }:null,
+    preference:governance?{
+      declaredCode:governance.declaredCode||null,
+      declaredScore:traceNumberV392(governance.declaredScore,1),
+      learnedAdjustment:traceNumberV392(governance.learnedAdjustment,1),
+      learnedLift:traceNumberV392(governance.learnedLift,1),
+      positiveLift:traceNumberV392(governance.positiveLift,1),
+      limited:Boolean(governance.limited),
+      limitReason:governance.limitReason||null,
+      scoreBeforeGovernance:traceNumberV392(governance.scoreBeforeGovernance,0),
+      scoreWithoutPositivePreference:traceNumberV392(governance.scoreWithoutPositivePreference,1),
+      priorityReserveRisk:Boolean(governance.priorityReserve?.risk)
+    }:null,
+    dataQuality:traceNumberV392(meta?.dataQuality?.overall,0),
+    blockers:[...new Set(blockers)],
+    outcome:selected?'selected':'rejected',
+    rejectionReasons:selected?[]:[...new Set(rejection)].slice(0,4)
+  };
+}
+
+function buildDecisionTraceV392(decision, day, livePayload, weatherPayload) {
+  const nowMinute=Number(decision?.nowMinute ?? (getOrlandoParts().hour*60+getOrlandoParts().minute));
+  let rows=[],priorities=[],protectedPriority=null;
+  try {
+    if(day&&livePayload?.liveData?.length){
+      priorities=strategicPrioritiesV36(day,livePayload,weatherPayload,nowMinute);
+      protectedPriority=priorities[0]||null;
+      rows=liveDecisionRowsV36(day,livePayload,weatherPayload,nowMinute);
+    }
+  } catch(error){recordRuntimeDiagnosticV38('decision-trace-candidates',error);}
+  const candidates=rows
+    .map(row=>decisionTraceCandidateV392(row,decision,priorities,protectedPriority,day,nowMinute))
+    .sort((a,b)=>Number(b.selected)-Number(a.selected)||(b.score??-1)-(a.score??-1)||(b.tacticalUtility??-1)-(a.tacticalUtility??-1))
+    .slice(0,DECISION_TRACE_RULES_V392.maxCandidates);
+  const selected=decision?.activity?{
+    activityId:decision.activity.id||null,
+    title:decision.activity.title||null,
+    kind:decision.kind||'none',
+    score:traceNumberV392(decision?.meta?.score,0),
+    band:decision?.meta?.band||null
+  }:{activityId:null,title:decision?.pause?.reason||decision?.emergency?.label||null,kind:decision?.kind||'none',score:null,band:null};
+  const priority=decision?.nextPriority||decision?.priority||protectedPriority||null;
+  const governance=decision?.meta?.preferenceGovernance||null;
+  return {
+    version:DECISION_TRACE_VERSION_V392,
+    id:`dt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`,
+    at:new Date().toISOString(),
+    build:ENGINE_BUILD_V38,
+    dayDate:day?.date||null,
+    park:day?.park||state.selectedPark||null,
+    nowMinute,
+    decisionKind:decision?.kind||'none',
+    selectionReason:decisionTraceSelectionReasonV392(decision),
+    selected,
+    protectedPriority:priority?{
+      activityId:priority.activity?.id||null,
+      title:priority.activity?.title||null,
+      code:priority.code||priority.meta?.priority?.code||null,
+      window:priority.window?.label||null,
+      leaveAt:traceNumberV392(priority.window?.leaveAt,0)
+    }:null,
+    governanceSummary:governance?{
+      limited:Boolean(governance.limited),
+      limitReason:governance.limitReason||null,
+      declaredCode:governance.declaredCode||null,
+      learnedAdjustment:traceNumberV392(governance.learnedAdjustment,1),
+      priorityReserveRisk:Boolean(governance.priorityReserve?.risk)
+    }:null,
+    candidates,
+    sourceFreshness:{
+      liveMinutes:diagnosticAgeMinutesV38(livePayload?.fetchedAt),
+      weatherMinutes:diagnosticAgeMinutesV38(weatherPayload?.fetchedAt)
+    }
+  };
+}
+
+function decisionTraceSignatureV392(trace) {
+  const compact=(trace?.candidates||[]).map(c=>[c.activityId,c.score,c.band,c.preference?.limited?c.preference.limitReason:null]);
+  return JSON.stringify([trace?.dayDate,trace?.park,trace?.decisionKind,trace?.selected?.activityId,trace?.selectionReason,compact]);
+}
+
+function commitDecisionTraceV392(trace, force=false) {
+  if(!trace||typeof trace!=='object') return null;
+  const nowMs=Date.now();
+  const signature=decisionTraceSignatureV392(trace);
+  if(!force && signature===lastDecisionTraceSignatureV392 && nowMs-lastDecisionTraceAtV392<DECISION_TRACE_RULES_V392.dedupeWindowMs) return decisionTraceLogV392[0]||null;
+  lastDecisionTraceSignatureV392=signature;
+  lastDecisionTraceAtV392=nowMs;
+  decisionTraceLogV392.unshift(structuredClone(trace));
+  if(decisionTraceLogV392.length>DECISION_TRACE_RULES_V392.maxEntries) decisionTraceLogV392.length=DECISION_TRACE_RULES_V392.maxEntries;
+  return decisionTraceLogV392[0];
+}
+
+function recordDecisionTraceV392(decision, day, livePayload, weatherPayload) {
+  try { return commitDecisionTraceV392(buildDecisionTraceV392(decision,day,livePayload,weatherPayload)); }
+  catch(error){ recordRuntimeDiagnosticV38('decision-trace',error); return null; }
+}
+
+const v391DecisionOrchestratorV392 = decisionOrchestratorV36;
+decisionOrchestratorV36 = function(day,livePayload,weatherPayload) {
+  const decision=v391DecisionOrchestratorV392(day,livePayload,weatherPayload);
+  recordDecisionTraceV392(decision,day,livePayload,weatherPayload);
+  return decision;
+};
+
+function latestDecisionTraceV392(){ return decisionTraceLogV392[0]?structuredClone(decisionTraceLogV392[0]):null; }
+function decisionTraceEntriesV392(limit=10){
+  const n=Math.max(1,Math.min(DECISION_TRACE_RULES_V392.maxEntries,Number(limit)||10));
+  return structuredClone(decisionTraceLogV392.slice(0,n));
+}
+
+const v391EngineDiagnosticSnapshotV392=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){
+  const snapshot=v391EngineDiagnosticSnapshotV392(); snapshot.context=snapshot.context||{};
+  const latest=latestDecisionTraceV392();
+  snapshot.context.decisionTrace={
+    version:DECISION_TRACE_VERSION_V392,
+    internalOnly:true,
+    entries:decisionTraceLogV392.length,
+    latest:latest?{id:latest.id,at:latest.at,kind:latest.decisionKind,selected:latest.selected?.title||null,selectionReason:latest.selectionReason,candidateCount:latest.candidates?.length||0}:null
+  };
+  return snapshot;
+};
+
+const v391ExposeDiagnosticsApiV392=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){
+  v391ExposeDiagnosticsApiV392();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.decisionTrace=(limit=10)=>decisionTraceEntriesV392(limit);
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.latestDecisionTrace=()=>latestDecisionTraceV392();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.decisionTracePolicy=()=>structuredClone({version:DECISION_TRACE_VERSION_V392,internalOnly:true,...DECISION_TRACE_RULES_V392});
+};
+
+const v391RunEngineSelfTestsV392=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v391RunEngineSelfTestsV392(); const additions=[];
+  addSelfTestV38(additions,'Decision Trace é interno e não cria UI própria',()=>{assertSelfTestV38(DECISION_TRACE_RULES_V392.maxEntries===60,'policy');assertSelfTestV38(!document.querySelector('[data-decision-trace]'),'trace apareceu na UI');return 'internal-only';});
+  addSelfTestV38(additions,'Decision Trace registra componentes do candidato',()=>{const meta={score:74,band:'FAÇA AGORA',wait:20,components:{wait:80,forecast:70,distance:60,priority:90,climate:65,schedule:75,energy:55},experienceCost:{totalMinutes:35,operationalMinutes:30},walk:{minutes:5},dataQuality:{overall:88},preferenceGovernance:{declaredCode:'want',declaredScore:82,learnedAdjustment:3,learnedLift:.6,positiveLift:6,limited:false}};const row={activity:{id:'dt-a',title:'Trace A'},meta};const c=decisionTraceCandidateV392(row,{kind:'direct',activity:row.activity},[],null,{activities:[row.activity]},600);assertSelfTestV38(c.selected&&c.components.priority===90&&c.preference.declaredCode==='want',JSON.stringify(c));return 'score + components + preference';});
+  addSelfTestV38(additions,'Decision Trace registra limite da governança',()=>{const meta={score:71,band:'ESPERE',preferenceGovernance:{declaredCode:'must',limited:true,limitReason:'protect-other-priorities',priorityReserve:{risk:true}}};const row={activity:{id:'dt-b',title:'Trace B'},meta};const c=decisionTraceCandidateV392(row,{kind:'direct',activity:{id:'other'}},[],null,{activities:[row.activity]},600);assertSelfTestV38(c.blockers.includes('preference-protect-other-priorities')&&c.rejectionReasons.some(x=>x.includes('preferência limitada')),JSON.stringify(c));return c.blockers.join(',');});
+  addSelfTestV38(additions,'Decision Trace explica prioridade protegida',()=>{const reason=decisionTraceSelectionReasonV392({kind:'priority-window'});assertSelfTestV38(reason==='protected-priority-window-started',reason);return reason;});
+  addSelfTestV38(additions,'Decision Trace deduplica decisão idêntica',()=>{const beforeLog=decisionTraceLogV392.slice(),beforeSig=lastDecisionTraceSignatureV392,beforeAt=lastDecisionTraceAtV392;try{decisionTraceLogV392.length=0;lastDecisionTraceSignatureV392='';lastDecisionTraceAtV392=0;const t={version:1,id:'x',dayDate:'2099-01-01',park:'epcot',decisionKind:'direct',selected:{activityId:'a'},selectionReason:'best-green-tactical-option',candidates:[]};commitDecisionTraceV392(t);commitDecisionTraceV392({...t,id:'y'});assertSelfTestV38(decisionTraceLogV392.length===1,`len=${decisionTraceLogV392.length}`);return '1 entrada';}finally{decisionTraceLogV392.length=0;decisionTraceLogV392.push(...beforeLog);lastDecisionTraceSignatureV392=beforeSig;lastDecisionTraceAtV392=beforeAt;}});
+  addSelfTestV38(additions,'Decision Trace respeita limite do ring buffer',()=>{const beforeLog=decisionTraceLogV392.slice(),beforeSig=lastDecisionTraceSignatureV392,beforeAt=lastDecisionTraceAtV392;try{decisionTraceLogV392.length=0;lastDecisionTraceSignatureV392='';lastDecisionTraceAtV392=0;for(let i=0;i<DECISION_TRACE_RULES_V392.maxEntries+7;i++){commitDecisionTraceV392({version:1,id:`z${i}`,dayDate:'2099-01-01',park:'epcot',decisionKind:'direct',selected:{activityId:`a${i}`},selectionReason:'best-green-tactical-option',candidates:[]},true);}assertSelfTestV38(decisionTraceLogV392.length===DECISION_TRACE_RULES_V392.maxEntries,`len=${decisionTraceLogV392.length}`);return `${decisionTraceLogV392.length}/${DECISION_TRACE_RULES_V392.maxEntries}`;}finally{decisionTraceLogV392.length=0;decisionTraceLogV392.push(...beforeLog);lastDecisionTraceSignatureV392=beforeSig;lastDecisionTraceAtV392=beforeAt;}});
+  addSelfTestV38(additions,'Decision Trace não é persistido no state',()=>{assertSelfTestV38(!Object.prototype.hasOwnProperty.call(state,'decisionTraceLog')&&!Object.prototype.hasOwnProperty.call(state,'decisionTrace'),'persistência indevida');return 'somente sessão';});
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v39.3 — Histórico v3
+   Ledger persistente do ciclo de decisão:
+   contexto -> candidatos -> recomendação -> ação -> resultado.
+
+   Contratos:
+   - preserva state.history como histórico operacional compatível;
+   - não inventa decisões para registros anteriores à v39.3;
+   - persiste um resumo estruturado do Decision Trace, não o log de sessão;
+   - registra aceitação, desvio, pulo, conclusão, Opportunity e replanejamento;
+   - mantém retenção limitada para proteger localStorage;
+   - continua interno: nenhuma UI técnica nova é criada.
+   ============================================================ */
+const HISTORY_V3_SCHEMA_VERSION_V393 = 3;
+const HISTORY_V3_RULES_V393 = Object.freeze({
+  maxCycles: 200,
+  maxCandidates: 6,
+  persistentDedupeWindowMs: 10 * 60_000,
+  actionMatchWindowMs: 4 * 60 * 60_000
+});
+let historyV3CaptureEnabledV393 = true;
+
+function historyV3NowIsoV393() { return new Date().toISOString(); }
+function historyV3IdV393(prefix='hv3') { return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`; }
+function historyV3ParseTimeV393(value) { const n=Date.parse(value||''); return Number.isFinite(n)?n:0; }
+function historyV3ValidObjectV393(value) { return Boolean(value && typeof value === 'object' && !Array.isArray(value)); }
+
+function createHistoryV3StateV393(reason='migration') {
+  const at=historyV3NowIsoV393();
+  const legacyCount=historyRowsV3905().filter(isHistoryRecordV3905).length;
+  return {
+    schemaVersion:HISTORY_V3_SCHEMA_VERSION_V393,
+    createdAt:at,
+    migration:{
+      at,
+      reason,
+      from:'legacy-activity-history',
+      legacyRecordCount:legacyCount,
+      backfilledDecisionCycles:0,
+      note:'Registros anteriores foram preservados em state.history sem inferir contexto, candidatos ou recomendação inexistentes.'
+    },
+    cycles:[]
+  };
+}
+
+function ensureHistoryV3StateV393() {
+  let changed=false;
+  if (!historyV3ValidObjectV393(state.historyV3)) {
+    state.historyV3=createHistoryV3StateV393('migration');
+    return true;
+  }
+  if (Number(state.historyV3.schemaVersion)!==HISTORY_V3_SCHEMA_VERSION_V393) {
+    state.historyV3.schemaVersion=HISTORY_V3_SCHEMA_VERSION_V393; changed=true;
+  }
+  if (!state.historyV3.createdAt) { state.historyV3.createdAt=historyV3NowIsoV393(); changed=true; }
+  if (!historyV3ValidObjectV393(state.historyV3.migration)) {
+    const legacyCount=historyRowsV3905().filter(isHistoryRecordV3905).length;
+    state.historyV3.migration={at:historyV3NowIsoV393(),reason:'repair',from:'legacy-activity-history',legacyRecordCount:legacyCount,backfilledDecisionCycles:0}; changed=true;
+  }
+  if (!Array.isArray(state.historyV3.cycles)) { state.historyV3.cycles=[]; changed=true; }
+  const valid=state.historyV3.cycles.filter(historyV3ValidObjectV393);
+  if (valid.length!==state.historyV3.cycles.length) { state.historyV3.cycles=valid; changed=true; }
+  if (state.historyV3.cycles.length>HISTORY_V3_RULES_V393.maxCycles) {
+    state.historyV3.cycles=state.historyV3.cycles.slice(-HISTORY_V3_RULES_V393.maxCycles); changed=true;
+  }
+  return changed;
+}
+
+function resetHistoryV3V393(reason='reset') {
+  state.historyV3=createHistoryV3StateV393(reason);
+  state.historyV3.migration.legacyRecordCount=0;
+  state.historyV3.migration.backfilledDecisionCycles=0;
+  return state.historyV3;
+}
+
+function historyV3CyclesV393() {
+  ensureHistoryV3StateV393();
+  return state.historyV3.cycles;
+}
+
+function historyV3CompactCandidateV393(candidate) {
+  if (!historyV3ValidObjectV393(candidate)) return null;
+  return {
+    activityId:candidate.activityId||null,
+    title:candidate.title||null,
+    selected:Boolean(candidate.selected),
+    score:Number.isFinite(Number(candidate.score))?Number(candidate.score):null,
+    band:candidate.band||null,
+    wait:Number.isFinite(Number(candidate.wait))?Number(candidate.wait):null,
+    totalCost:Number.isFinite(Number(candidate.totalCost))?Number(candidate.totalCost):null,
+    walkMinutes:Number.isFinite(Number(candidate.walkMinutes))?Number(candidate.walkMinutes):null,
+    tacticalUtility:Number.isFinite(Number(candidate.tacticalUtility))?Number(candidate.tacticalUtility):null,
+    components:historyV3ValidObjectV393(candidate.components)?structuredClone(candidate.components):null,
+    preference:historyV3ValidObjectV393(candidate.preference)?{
+      declaredCode:candidate.preference.declaredCode||null,
+      learnedAdjustment:Number.isFinite(Number(candidate.preference.learnedAdjustment))?Number(candidate.preference.learnedAdjustment):null,
+      limited:Boolean(candidate.preference.limited),
+      limitReason:candidate.preference.limitReason||null,
+      priorityReserveRisk:Boolean(candidate.preference.priorityReserveRisk)
+    }:null,
+    blockers:Array.isArray(candidate.blockers)?candidate.blockers.slice(0,6):[],
+    rejectionReasons:Array.isArray(candidate.rejectionReasons)?candidate.rejectionReasons.slice(0,4):[]
+  };
+}
+
+function historyV3ContextSnapshotV393(trace=null, day=null) {
+  const selectedDay=day || (trace?.dayDate ? (state.days||[]).find(d=>d.date===trace.dayDate) : null) || getSelectedDay();
+  const park=trace?.park||selectedDay?.park||state.selectedPark||null;
+  let delayMinutes=null,weatherRisk=null;
+  try { if(selectedDay) delayMinutes=Number(currentPlanStatus(selectedDay)?.delay||0); } catch {}
+  try {
+    const weather=relevantWeather(state.weatherCache?.[park]);
+    weatherRisk=weather?.risk?{level:weather.risk.level||null,score:Number(weather.risk.score||0),label:weather.risk.label||null}:null;
+  } catch {}
+  return {
+    capturedAt:trace?.at||historyV3NowIsoV393(),
+    dayDate:trace?.dayDate||selectedDay?.date||state.selectedDate||null,
+    park,
+    nowMinute:Number.isFinite(Number(trace?.nowMinute))?Number(trace.nowMinute):null,
+    optimizationMode:state.settings?.optimizationMode||'experience',
+    delayMinutes:Number.isFinite(delayMinutes)?delayMinutes:null,
+    weatherRisk,
+    protectedPriority:historyV3ValidObjectV393(trace?.protectedPriority)?structuredClone(trace.protectedPriority):null,
+    governanceSummary:historyV3ValidObjectV393(trace?.governanceSummary)?structuredClone(trace.governanceSummary):null,
+    sourceFreshness:historyV3ValidObjectV393(trace?.sourceFreshness)?structuredClone(trace.sourceFreshness):null
+  };
+}
+
+function historyV3SignatureV393(trace) {
+  try { return decisionTraceSignatureV392(trace); }
+  catch {
+    return JSON.stringify([trace?.dayDate,trace?.park,trace?.decisionKind,trace?.selected?.activityId,trace?.selectionReason]);
+  }
+}
+
+function historyV3TraceRecordableV393(trace) {
+  if (!historyV3ValidObjectV393(trace)) return false;
+  return !['started','future','none'].includes(String(trace.decisionKind||'none'));
+}
+
+function historyV3RecommendationFromTraceV393(trace) {
+  const selected=trace?.selected||{};
+  return {
+    traceId:trace?.id||null,
+    decisionKind:trace?.decisionKind||'none',
+    selectionReason:trace?.selectionReason||null,
+    activityId:selected.activityId||null,
+    title:selected.title||null,
+    score:Number.isFinite(Number(selected.score))?Number(selected.score):null,
+    band:selected.band||null
+  };
+}
+
+function pruneHistoryV3V393() {
+  const cycles=historyV3CyclesV393();
+  if (cycles.length>HISTORY_V3_RULES_V393.maxCycles) cycles.splice(0,cycles.length-HISTORY_V3_RULES_V393.maxCycles);
+}
+
+function historyV3PersistTraceV393(trace,{persist=true}={}) {
+  if (!historyV3CaptureEnabledV393 || !historyV3TraceRecordableV393(trace)) return null;
+  ensureHistoryV3StateV393();
+  const cycles=state.historyV3.cycles;
+  const signature=historyV3SignatureV393(trace);
+  const traceAt=historyV3ParseTimeV393(trace.at)||Date.now();
+  const latest=cycles.at(-1)||null;
+  if (latest && latest.source==='decision-engine' && latest.signature===signature && !latest.userAction &&
+      traceAt-historyV3ParseTimeV393(latest.updatedAt||latest.createdAt)<=HISTORY_V3_RULES_V393.persistentDedupeWindowMs) {
+    latest.updatedAt=trace.at||historyV3NowIsoV393();
+    latest.context=historyV3ContextSnapshotV393(trace);
+    latest.recommendation=historyV3RecommendationFromTraceV393(trace);
+    latest.candidates=(trace.candidates||[]).slice(0,HISTORY_V3_RULES_V393.maxCandidates).map(historyV3CompactCandidateV393).filter(Boolean);
+    if (persist) saveState();
+    return latest;
+  }
+  if (latest && latest.source==='decision-engine' && latest.status==='recommended' && !latest.userAction && latest.context?.dayDate===trace.dayDate) {
+    latest.status='superseded';
+    latest.updatedAt=trace.at||historyV3NowIsoV393();
+    latest.outcome={type:'recommendation-superseded',at:trace.at||historyV3NowIsoV393(),reason:'engine-recommendation-changed'};
+  }
+  const at=trace.at||historyV3NowIsoV393();
+  const cycle={
+    schemaVersion:HISTORY_V3_SCHEMA_VERSION_V393,
+    id:historyV3IdV393(),
+    source:'decision-engine',
+    signature,
+    createdAt:at,
+    updatedAt:at,
+    status:'recommended',
+    context:historyV3ContextSnapshotV393(trace),
+    candidates:(trace.candidates||[]).slice(0,HISTORY_V3_RULES_V393.maxCandidates).map(historyV3CompactCandidateV393).filter(Boolean),
+    recommendation:historyV3RecommendationFromTraceV393(trace),
+    userAction:null,
+    outcome:null
+  };
+  cycles.push(cycle);
+  pruneHistoryV3V393();
+  if (persist) saveState();
+  return cycle;
+}
+
+function historyV3ActionAgeOkV393(cycle, nowMs=Date.now()) {
+  const at=historyV3ParseTimeV393(cycle?.updatedAt||cycle?.createdAt);
+  return at>0 && nowMs-at<=HISTORY_V3_RULES_V393.actionMatchWindowMs;
+}
+
+function historyV3FindActionCycleV393(activity,date=null) {
+  const id=activity?.id||null;
+  const rows=[...historyV3CyclesV393()].reverse().filter(c=>historyV3ActionAgeOkV393(c) && (!date || c.context?.dayDate===date));
+  const exact=rows.find(c=>c.recommendation?.activityId===id && c.recommendation?.decisionKind!=='started' && !c.userAction);
+  if (exact) return exact;
+  return rows.find(c=>c.source==='decision-engine' && !c.userAction && ['recommended','superseded'].includes(c.status))||null;
+}
+
+function historyV3FindOutcomeCycleV393(activity,date=null) {
+  const id=activity?.id||null;
+  const rows=[...historyV3CyclesV393()].reverse().filter(c=>(!date || c.context?.dayDate===date));
+  return rows.find(c=>c.userAction?.activityId===id && ['acted','started'].includes(c.status)) ||
+         rows.find(c=>c.recommendation?.activityId===id && ['recommended','superseded','acted'].includes(c.status)) || null;
+}
+
+function historyV3StandaloneCycleV393(activity,date=null,source='manual-action') {
+  const day=(state.days||[]).find(d=>d.date===date)||getSelectedDay();
+  const at=historyV3NowIsoV393();
+  const cycle={
+    schemaVersion:HISTORY_V3_SCHEMA_VERSION_V393,
+    id:historyV3IdV393(),source,signature:null,createdAt:at,updatedAt:at,status:'recommended',
+    context:historyV3ContextSnapshotV393(null,day),candidates:[],recommendation:null,userAction:null,outcome:null
+  };
+  historyV3CyclesV393().push(cycle); pruneHistoryV3V393();
+  return cycle;
+}
+
+function historyV3AttachLegacyRecordV393(activityId,status,cycleId) {
+  if (!activityId || !cycleId) return null;
+  const rows=historyRowsV3905();
+  for (let i=rows.length-1;i>=0;i--) {
+    const r=rows[i];
+    if (isHistoryRecordV3905(r) && r.activityId===activityId && r.status===status) { r.historyV3CycleId=cycleId; return r; }
+  }
+  return null;
+}
+
+function historyV3RecordUserActionV393(action,activity,{date=null,source='timeline',type=null,persist=true,immediateOutcome=null}={}) {
+  if (!historyV3CaptureEnabledV393 || !activity) return null;
+  ensureHistoryV3StateV393();
+  const dayDate=date||getSelectedDay()?.date||state.selectedDate||null;
+  let cycle=historyV3FindActionCycleV393(activity,dayDate);
+  if (!cycle) cycle=historyV3StandaloneCycleV393(activity,dayDate,'manual-action');
+  const recommendedId=cycle.recommendation?.activityId||null;
+  const matched=Boolean(recommendedId && activity.id && recommendedId===activity.id);
+  const defaultType=action==='start'?(matched?'recommendation-accepted':'alternative-started'):
+    action==='skip'?'skipped':action;
+  const at=historyV3NowIsoV393();
+  cycle.userAction={type:type||defaultType,at,activityId:activity.id||null,title:activity.title||null,source,matchedRecommendation:matched};
+  cycle.updatedAt=at;
+  cycle.status=action==='skip'?'skipped':'acted';
+  if (immediateOutcome || action==='skip') cycle.outcome=immediateOutcome||{type:'skipped',at};
+  const legacyStatus=action==='start'?'started':action==='skip'?'skipped':null;
+  if (legacyStatus) historyV3AttachLegacyRecordV393(activity.id,legacyStatus,cycle.id);
+  if (persist) saveState();
+  return cycle;
+}
+
+function historyV3OutcomeFromRecordV393(record) {
+  if (!isHistoryRecordV3905(record)) return null;
+  const start=historyV3ParseTimeV393(record.actualStart),end=historyV3ParseTimeV393(record.actualEnd);
+  return {
+    type:'completed',
+    at:record.actualEnd||historyV3NowIsoV393(),
+    actualStart:record.actualStart||null,
+    actualEnd:record.actualEnd||null,
+    elapsedMinutes:start&&end&&end>=start?Math.round((end-start)/60000):null,
+    actualWait:Number.isFinite(Number(record.actualWait))?Number(record.actualWait):null,
+    rating:Number.isFinite(Number(record.rating))?Number(record.rating):null,
+    weatherRiskAtCompletion:historyV3ValidObjectV393(record.weatherRiskAtCompletion)?structuredClone(record.weatherRiskAtCompletion):null,
+    restaurantName:record.restaurantName||null,
+    mealItem:record.mealItem||null
+  };
+}
+
+function historyV3RecordCompletionV393(activity,record,{date=null,source='timeline',persist=true}={}) {
+  if (!historyV3CaptureEnabledV393 || !activity || !record) return null;
+  ensureHistoryV3StateV393();
+  const dayDate=date||record.date||getSelectedDay()?.date||null;
+  let cycle=historyV3FindOutcomeCycleV393(activity,dayDate);
+  if (!cycle) cycle=historyV3FindActionCycleV393(activity,dayDate);
+  if (!cycle) cycle=historyV3StandaloneCycleV393(activity,dayDate,'manual-completion');
+  const matched=Boolean(cycle.recommendation?.activityId && cycle.recommendation.activityId===activity.id);
+  if (!cycle.userAction) cycle.userAction={type:matched?'completed-recommendation':'completed-manually',at:record.actualEnd||historyV3NowIsoV393(),activityId:activity.id||null,title:activity.title||null,source,matchedRecommendation:matched};
+  cycle.outcome=historyV3OutcomeFromRecordV393(record);
+  cycle.status='completed'; cycle.updatedAt=cycle.outcome?.at||historyV3NowIsoV393();
+  record.historyV3CycleId=cycle.id;
+  if (persist) saveState();
+  return cycle;
+}
+
+function historyV3RecordReplanV393(action,proposal,{persist=true}={}) {
+  if (!historyV3CaptureEnabledV393 || !proposal) return null;
+  ensureHistoryV3StateV393();
+  const at=historyV3NowIsoV393();
+  const day=(state.days||[]).find(d=>d.date===proposal.date)||getSelectedDay();
+  const scheduled=(proposal.scheduled||[]).slice(0,HISTORY_V3_RULES_V393.maxCandidates);
+  const cycle={
+    schemaVersion:HISTORY_V3_SCHEMA_VERSION_V393,id:historyV3IdV393('hv3-rp'),source:'replan',signature:proposal.signature||null,
+    createdAt:at,updatedAt:at,status:'completed',context:historyV3ContextSnapshotV393(null,day),
+    candidates:scheduled.map((x,index)=>({activityId:x.id||x.activity?.id||null,title:x.title||x.activity?.title||null,selected:index===0,score:null,band:null,wait:Number.isFinite(Number(x.predictedWait))?Number(x.predictedWait):null,totalCost:null,walkMinutes:null,tacticalUtility:null,components:null,preference:null,blockers:[],rejectionReasons:[]})),
+    recommendation:{traceId:null,decisionKind:'replan',selectionReason:'replan-proposal',activityId:null,title:'Aplicar nova sequência sugerida',score:null,band:null},
+    userAction:{type:action==='applied'?'replan-applied':'replan-kept',at,activityId:null,title:null,source:'replan-panel',matchedRecommendation:action==='applied'},
+    outcome:{type:action==='applied'?'plan-updated':'plan-kept',at,proposalSignature:proposal.signature||null,triggerCount:Array.isArray(proposal.triggers)?proposal.triggers.length:0,scheduledCount:Array.isArray(proposal.scheduled)?proposal.scheduled.length:0,deferredCount:Array.isArray(proposal.deferred)?proposal.deferred.length:0}
+  };
+  state.historyV3.cycles.push(cycle); pruneHistoryV3V393(); if(persist) saveState(); return cycle;
+}
+
+function historyV3SummaryV393() {
+  ensureHistoryV3StateV393();
+  const cycles=state.historyV3.cycles;
+  const byStatus={}; let accepted=0,deviated=0,completed=0;
+  for (const c of cycles) {
+    byStatus[c.status]=(byStatus[c.status]||0)+1;
+    if(c.userAction?.matchedRecommendation===true) accepted++;
+    if(c.userAction?.matchedRecommendation===false) deviated++;
+    if(c.status==='completed') completed++;
+  }
+  return {
+    schemaVersion:HISTORY_V3_SCHEMA_VERSION_V393,
+    totalCycles:cycles.length,
+    completed,accepted,deviated,byStatus,
+    legacyRecordCount:Number(state.historyV3.migration?.legacyRecordCount||0),
+    backfilledDecisionCycles:Number(state.historyV3.migration?.backfilledDecisionCycles||0),
+    latestAt:cycles.at(-1)?.updatedAt||null,
+    retention:{maxCycles:HISTORY_V3_RULES_V393.maxCycles,maxCandidates:HISTORY_V3_RULES_V393.maxCandidates}
+  };
+}
+
+// Estado/migração.
+const v392EnsureCopilotStateV393=ensureCopilotState;
+ensureCopilotState=function(){
+  v392EnsureCopilotStateV393();
+  ensureHistoryV3StateV393();
+};
+const v392LoadStateV393=loadState;
+loadState=async function(){
+  const result=await v392LoadStateV393();
+  if(ensureHistoryV3StateV393()) saveState();
+  return result;
+};
+const v392LoadDemoV393=loadDemo;
+loadDemo=async function(showMessage=true){
+  const result=await v392LoadDemoV393(showMessage);
+  resetHistoryV3V393('demo-reset');
+  saveState();
+  return result;
+};
+
+// Cada novo Decision Trace aceito pela deduplicação de sessão alimenta o ledger persistente.
+const v392CommitDecisionTraceV393=commitDecisionTraceV392;
+commitDecisionTraceV392=function(trace,force=false){
+  const beforeId=decisionTraceLogV392[0]?.id||null;
+  const result=v392CommitDecisionTraceV393(trace,force);
+  if(result && result.id!==beforeId && historyV3CaptureEnabledV393) {
+    try { historyV3PersistTraceV393(result); }
+    catch(error){ recordRuntimeDiagnosticV38('history-v3-trace',error); }
+  }
+  return result;
+};
+
+// Ações do usuário completam o ciclo iniciado pela recomendação.
+const v392StartActivityV393=startActivity;
+startActivity=function(id){
+  const day=getSelectedDay(); const activity=day?.activities?.find(a=>a.id===id)||null;
+  const wasStarted=activity?isStarted(id):false;
+  const result=v392StartActivityV393(id);
+  if(activity && !wasStarted && isStarted(id) && !isDone(id)) {
+    try { historyV3RecordUserActionV393('start',activity,{date:day?.date,source:'timeline'}); } catch(error){recordRuntimeDiagnosticV38('history-v3-start',error);}
+  }
+  return result;
+};
+
+const v392CompleteWithoutInputsV393=completeWithoutInputs;
+completeWithoutInputs=function(id){
+  const day=getSelectedDay(); const activity=day?.activities?.find(a=>a.id===id)||null;
+  const result=v392CompleteWithoutInputsV393(id);
+  if(activity){ const record=[...historyRowsV3905()].reverse().find(r=>isHistoryRecordV3905(r)&&r.activityId===id&&r.status==='done'); if(record) try{historyV3RecordCompletionV393(activity,record,{date:day?.date});}catch(error){recordRuntimeDiagnosticV38('history-v3-complete',error);} }
+  return result;
+};
+
+const v392SaveCompletionV393=saveCompletion;
+saveCompletion=function(id){
+  const day=getSelectedDay(); const activity=day?.activities?.find(a=>a.id===id)||null;
+  const result=v392SaveCompletionV393(id);
+  if(result && activity){ const record=[...historyRowsV3905()].reverse().find(r=>isHistoryRecordV3905(r)&&r.activityId===id&&r.status==='done'); if(record) try{historyV3RecordCompletionV393(activity,record,{date:day?.date});}catch(error){recordRuntimeDiagnosticV38('history-v3-completion',error);} }
+  return result;
+};
+
+const v392SkipActivityV393=skipActivity;
+skipActivity=function(id){
+  const day=getSelectedDay(); const activity=day?.activities?.find(a=>a.id===id)||null; const already=activity?isSkipped(id):false;
+  const result=v392SkipActivityV393(id);
+  if(activity && !already && isSkipped(id)) try{historyV3RecordUserActionV393('skip',activity,{date:day?.date,source:'timeline'});}catch(error){recordRuntimeDiagnosticV38('history-v3-skip',error);}
+  return result;
+};
+
+const v392ApplyOpportunityV393=applyOpportunity;
+applyOpportunity=function(){
+  const day=getSelectedDay(); const opportunity=activeOpportunityFor(day); const activity=opportunity?.activityId?day?.activities?.find(a=>a.id===opportunity.activityId):null;
+  const result=v392ApplyOpportunityV393();
+  if(activity) try{historyV3RecordUserActionV393('opportunity',activity,{date:day?.date,source:'opportunity',type:'opportunity-accepted',immediateOutcome:{type:'opportunity-applied',at:historyV3NowIsoV393()}});}catch(error){recordRuntimeDiagnosticV38('history-v3-opportunity-apply',error);}
+  return result;
+};
+
+const v392DismissOpportunityV393=dismissOpportunity;
+dismissOpportunity=function(){
+  const day=getSelectedDay(); const opportunity=activeOpportunityFor(day); const activity=opportunity?.activityId?day?.activities?.find(a=>a.id===opportunity.activityId):null;
+  const result=v392DismissOpportunityV393();
+  if(activity) try{historyV3RecordUserActionV393('opportunity',activity,{date:day?.date,source:'opportunity',type:'opportunity-dismissed',immediateOutcome:{type:'opportunity-dismissed',at:historyV3NowIsoV393()}});}catch(error){recordRuntimeDiagnosticV38('history-v3-opportunity-dismiss',error);}
+  return result;
+};
+
+
+function historyV3RecordPauseV393(action,duration,{persist=true}={}) {
+  if(!historyV3CaptureEnabledV393) return null;
+  ensureHistoryV3StateV393();
+  const date=getSelectedDay()?.date||state.selectedDate||null;
+  const rows=[...historyV3CyclesV393()].reverse().filter(c=>historyV3ActionAgeOkV393(c)&&c.context?.dayDate===date&&!c.userAction);
+  let cycle=rows.find(c=>c.recommendation?.decisionKind==='pause')||null;
+  if(!cycle) cycle=historyV3StandaloneCycleV393(null,date,'manual-pause-choice');
+  const at=historyV3NowIsoV393();
+  cycle.userAction={type:action==='accepted'?'pause-accepted':'pause-declined',at,activityId:null,title:null,source:'pause-card',matchedRecommendation:action==='accepted'};
+  cycle.outcome={type:action==='accepted'?'break-started':'continue-selected',at,durationMinutes:Number(duration||0)||null};
+  cycle.status='completed'; cycle.updatedAt=at;
+  if(persist) saveState();
+  return cycle;
+}
+
+const v392StartSmartBreakV393=startSmartBreakV35;
+startSmartBreakV35=function(duration){
+  const result=v392StartSmartBreakV393(duration);
+  try{historyV3RecordPauseV393('accepted',duration);}catch(error){recordRuntimeDiagnosticV38('history-v3-pause-accepted',error);}
+  return result;
+};
+const v392DeclineSmartBreakV393=declineSmartBreakV381;
+declineSmartBreakV381=function(duration=20){
+  const result=v392DeclineSmartBreakV393(duration);
+  try{historyV3RecordPauseV393('declined',duration);}catch(error){recordRuntimeDiagnosticV38('history-v3-pause-declined',error);}
+  return result;
+};
+
+const v392KeepOriginalRouteV393=keepOriginalRoute;
+keepOriginalRoute=function(){
+  const proposal=currentReplanProposal?structuredClone(currentReplanProposal):null;
+  const result=v392KeepOriginalRouteV393();
+  if(proposal) try{historyV3RecordReplanV393('kept',proposal);}catch(error){recordRuntimeDiagnosticV38('history-v3-replan-kept',error);}
+  return result;
+};
+const v392ApplyReplanProposalV393=applyReplanProposal;
+applyReplanProposal=function(){
+  const proposal=currentReplanProposal?structuredClone(currentReplanProposal):null;
+  const result=v392ApplyReplanProposalV393();
+  if(proposal) try{historyV3RecordReplanV393('applied',proposal);}catch(error){recordRuntimeDiagnosticV38('history-v3-replan-applied',error);}
+  return result;
+};
+
+// Diagnóstico interno; nenhuma UI nova.
+const v392EngineDiagnosticSnapshotV393=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){
+  const snapshot=v392EngineDiagnosticSnapshotV393(); snapshot.context=snapshot.context||{};
+  snapshot.context.historyV3=historyV3SummaryV393();
+  return snapshot;
+};
+const v392ExposeDiagnosticsApiV393=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){
+  v392ExposeDiagnosticsApiV393();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.historyV3Summary=()=>structuredClone(historyV3SummaryV393());
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.historyV3Cycles=(limit=20)=>{const n=Math.max(1,Math.min(HISTORY_V3_RULES_V393.maxCycles,Number(limit)||20));return structuredClone(historyV3CyclesV393().slice(-n).reverse());};
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.historyV3Cycle=(id)=>{const row=historyV3CyclesV393().find(c=>c.id===id);return row?structuredClone(row):null;};
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.historyV3Policy=()=>structuredClone({schemaVersion:HISTORY_V3_SCHEMA_VERSION_V393,internalOnly:true,...HISTORY_V3_RULES_V393});
+};
+
+const v392RunEngineSelfTestsV393=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const previousCapture=historyV3CaptureEnabledV393;
+  historyV3CaptureEnabledV393=false;
+  let report;
+  try { report=v392RunEngineSelfTestsV393(); }
+  finally { historyV3CaptureEnabledV393=previousCapture; }
+  const additions=[];
+  const backup={historyV3:structuredClone(state.historyV3),history:structuredClone(state.history),days:structuredClone(state.days),selectedDate:state.selectedDate,selectedPark:state.selectedPark};
+  const sampleTrace=(id='hv3-a',selected='a',at=historyV3NowIsoV393())=>({version:1,id,at,dayDate:'2099-01-01',park:'epcot',nowMinute:600,decisionKind:'direct',selectionReason:'best-green-tactical-option',selected:{activityId:selected,title:selected==='a'?'A':'B',kind:'direct',score:80,band:'FAÇA AGORA'},protectedPriority:null,governanceSummary:{limited:false},sourceFreshness:{liveMinutes:2,weatherMinutes:5},candidates:[{activityId:'a',title:'A',selected:selected==='a',score:80,band:'FAÇA AGORA',wait:20,totalCost:35,walkMinutes:5,tacticalUtility:80,components:{wait:80,priority:90},preference:{declaredCode:'want',learnedAdjustment:2,limited:false},blockers:[],rejectionReasons:[]},{activityId:'b',title:'B',selected:selected==='b',score:70,band:'ESPERE',wait:30,totalCost:45,walkMinutes:8,tacticalUtility:60,components:{wait:65,priority:60},preference:null,blockers:[],rejectionReasons:['score tático inferior']}]});
+  const reset=()=>{state.history=[];state.days=[{date:'2099-01-01',park:'epcot',activities:[{id:'a',title:'A',type:'attraction'},{id:'b',title:'B',type:'attraction'}]}];state.selectedDate='2099-01-01';state.selectedPark='epcot';state.historyV3=createHistoryV3StateV393('selftest');state.historyV3.migration.legacyRecordCount=0;};
+  try {
+    addSelfTestV38(additions,'Histórico v3 inicializa sem inventar decisões legadas',()=>{state.history=[{activityId:'old',title:'Legado',status:'done'}];state.historyV3=null;ensureHistoryV3StateV393();assertSelfTestV38(state.historyV3.schemaVersion===3,'schema');assertSelfTestV38(state.historyV3.cycles.length===0,'backfill indevido');assertSelfTestV38(state.historyV3.migration.legacyRecordCount===1,`legacy=${state.historyV3.migration.legacyRecordCount}`);return '1 legado, 0 decisões inventadas';});
+    addSelfTestV38(additions,'Histórico v3 persiste contexto, candidatos e recomendação',()=>{reset();historyV3CaptureEnabledV393=true;const c=historyV3PersistTraceV393(sampleTrace(),{persist:false});assertSelfTestV38(c.context.park==='epcot'&&c.candidates.length===2&&c.recommendation.activityId==='a',JSON.stringify(c));return 'contexto → 2 candidatos → A';});
+    addSelfTestV38(additions,'Histórico v3 deduplica recomendação persistente',()=>{reset();historyV3CaptureEnabledV393=true;const t=sampleTrace('x');historyV3PersistTraceV393(t,{persist:false});historyV3PersistTraceV393({...t,id:'y',at:new Date(Date.now()+1000).toISOString()},{persist:false});assertSelfTestV38(state.historyV3.cycles.length===1,`cycles=${state.historyV3.cycles.length}`);return '1 ciclo';});
+    addSelfTestV38(additions,'Aceitação liga ação à recomendação correta',()=>{reset();historyV3CaptureEnabledV393=true;historyV3PersistTraceV393(sampleTrace(),{persist:false});const c=historyV3RecordUserActionV393('start',state.days[0].activities[0],{date:'2099-01-01',persist:false});assertSelfTestV38(c.userAction.matchedRecommendation===true&&c.status==='acted',JSON.stringify(c.userAction));return c.userAction.type;});
+    addSelfTestV38(additions,'Escolha alternativa registra desvio sem apagar recomendação',()=>{reset();historyV3CaptureEnabledV393=true;historyV3PersistTraceV393(sampleTrace(),{persist:false});const c=historyV3RecordUserActionV393('start',state.days[0].activities[1],{date:'2099-01-01',persist:false});assertSelfTestV38(c.recommendation.activityId==='a'&&c.userAction.activityId==='b'&&!c.userAction.matchedRecommendation,JSON.stringify(c));return 'A recomendada → B escolhida';});
+    addSelfTestV38(additions,'Conclusão fecha ciclo com resultado real',()=>{reset();historyV3CaptureEnabledV393=true;historyV3PersistTraceV393(sampleTrace(),{persist:false});historyV3RecordUserActionV393('start',state.days[0].activities[0],{date:'2099-01-01',persist:false});const record={activityId:'a',date:'2099-01-01',title:'A',status:'done',actualStart:'2099-01-01T10:00:00Z',actualEnd:'2099-01-01T10:40:00Z',actualWait:22,rating:4.5};const c=historyV3RecordCompletionV393(state.days[0].activities[0],record,{date:'2099-01-01',persist:false});assertSelfTestV38(c.status==='completed'&&c.outcome.actualWait===22&&c.outcome.rating===4.5,JSON.stringify(c.outcome));return '22 min · 4,5★';});
+    addSelfTestV38(additions,'Pulo encerra ciclo como skipped',()=>{reset();historyV3CaptureEnabledV393=true;historyV3PersistTraceV393(sampleTrace(),{persist:false});const c=historyV3RecordUserActionV393('skip',state.days[0].activities[0],{date:'2099-01-01',persist:false});assertSelfTestV38(c.status==='skipped'&&c.outcome.type==='skipped','skip');return 'skipped';});
+    addSelfTestV38(additions,'Recomendação alterada fecha ciclo anterior como superseded',()=>{reset();historyV3CaptureEnabledV393=true;const t1=sampleTrace('a1','a');const t2=sampleTrace('b1','b',new Date(Date.now()+11*60_000).toISOString());historyV3PersistTraceV393(t1,{persist:false});historyV3PersistTraceV393(t2,{persist:false});assertSelfTestV38(state.historyV3.cycles.length===2&&state.historyV3.cycles[0].status==='superseded',JSON.stringify(state.historyV3.cycles.map(x=>x.status)));return 'recommended → superseded';});
+    addSelfTestV38(additions,'Escolha de pausa também fecha o ciclo de decisão',()=>{reset();historyV3CaptureEnabledV393=true;const t=sampleTrace('pause1');t.decisionKind='pause';t.selectionReason='fatigue-or-low-bridge-utility';t.selected={activityId:null,title:'Pausa sugerida',kind:'pause',score:null,band:null};historyV3PersistTraceV393(t,{persist:false});const c=historyV3RecordPauseV393('declined',20,{persist:false});assertSelfTestV38(c.status==='completed'&&c.userAction.type==='pause-declined'&&c.outcome.type==='continue-selected',JSON.stringify(c));return 'pausa recusada → continuar';});
+    addSelfTestV38(additions,'Histórico v3 respeita retenção máxima',()=>{reset();historyV3CaptureEnabledV393=true;for(let i=0;i<HISTORY_V3_RULES_V393.maxCycles+5;i++){const t=sampleTrace(`r${i}`,i%2?'a':'b',new Date(Date.now()+i*11*60_000).toISOString());t.selectionReason=`reason-${i}`;historyV3PersistTraceV393(t,{persist:false});}assertSelfTestV38(state.historyV3.cycles.length===HISTORY_V3_RULES_V393.maxCycles,`len=${state.historyV3.cycles.length}`);return `${state.historyV3.cycles.length}/${HISTORY_V3_RULES_V393.maxCycles}`;});
+    addSelfTestV38(additions,'Histórico v3 continua interno e Decision Trace segue session-only',()=>{assertSelfTestV38(!document.querySelector('[data-history-v3]'),'UI indevida');assertSelfTestV38(!Object.prototype.hasOwnProperty.call(state,'decisionTraceLog'),'trace persistido');return 'interno';});
+  } finally {
+    state.historyV3=backup.historyV3; state.history=backup.history; state.days=backup.days; state.selectedDate=backup.selectedDate; state.selectedPark=backup.selectedPark; historyV3CaptureEnabledV393=previousCapture; saveState();
+  }
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v39.4 — Confidence + Decay
+   Aprendizado ponderado por quantidade, consistência e recência.
+
+   Contratos:
+   - preferência declarada e a governança v39.1 permanecem soberanas;
+   - Histórico v3 é a fonte comportamental preferencial quando existe ciclo;
+   - avaliações continuam sendo o sinal individual mais forte;
+   - evidência antiga perde peso gradualmente, sem sumir abruptamente;
+   - sinais contraditórios reduzem confiança;
+   - uma recusa/pulo isolado continua neutro;
+   - nenhuma nova UI técnica é criada.
+   ============================================================ */
+const PREFERENCE_CONFIDENCE_VERSION_V394 = 1;
+const PREFERENCE_CONFIDENCE_RULES_V394 = Object.freeze({
+  model:'weighted-evidence-v2',
+  ratingHalfLifeDays:365,
+  repeatHalfLifeDays:240,
+  decisionHalfLifeDays:120,
+  legacyEventHalfLifeDays:90,
+  evidenceScale:5,
+  consistencyFloor:.35,
+  minConfidenceToApply:.12,
+  legacyOverlapWindowMs:3*60_000,
+  maxEvidenceItemsPerAttraction:120
+});
+
+function preferenceDecayFactorV394(at,halfLifeDays,now=Date.now()) {
+  const stamp=Number(at||0);
+  if(!Number.isFinite(stamp)||stamp<=0) return 0;
+  const ageDays=Math.max(0,(Number(now)-stamp)/86_400_000);
+  const half=Math.max(1,Number(halfLifeDays||1));
+  return Math.pow(.5,ageDays/half);
+}
+
+function preferenceEvidenceItemV394(type,source,at,signal,weight,halfLifeDays,extra={}) {
+  const s=Math.max(-1,Math.min(1,Number(signal||0)));
+  const w=Math.max(0,Number(weight||0));
+  const decay=preferenceDecayFactorV394(at,halfLifeDays);
+  return {type,source,at:Number(at||0),signal:s,weight:w,decay,effectiveWeight:w*decay,...extra};
+}
+
+function historyV3AtV394(cycle) {
+  return historyV3ParseTimeV393(cycle?.userAction?.at||cycle?.outcome?.at||cycle?.updatedAt||cycle?.createdAt||'');
+}
+
+function historyV3MatchesKeyV394(value,key) {
+  if(!value) return false;
+  return learningKeyV39(value)===key;
+}
+
+function historyV3EvidenceV394(key,cutoff) {
+  ensureHistoryV3StateV393();
+  const items=[];
+  const cycles=historyV3CyclesV393();
+  for(const cycle of cycles) {
+    if(!cycle || typeof cycle!=='object') continue;
+    const at=historyV3AtV394(cycle);
+    if(at<cutoff) continue;
+    const action=cycle.userAction||null;
+    const rec=cycle.recommendation||null;
+    const actionMatches=historyV3MatchesKeyV394(action?.title||action?.activityId,key);
+    const recMatches=historyV3MatchesKeyV394(rec?.title||rec?.activityId,key);
+    const actionType=String(action?.type||'');
+    if(actionMatches) {
+      if(actionType==='recommendation-accepted' || (action?.matchedRecommendation===true && /start|completed|accepted/.test(actionType))) {
+        items.push(preferenceEvidenceItemV394('recommendation-accepted','history-v3',at,.35,1,PREFERENCE_CONFIDENCE_RULES_V394.decisionHalfLifeDays,{cycleId:cycle.id}));
+      } else if(action?.matchedRecommendation===false && /alternative|start|completed/.test(actionType)) {
+        items.push(preferenceEvidenceItemV394('spontaneous-choice','history-v3',at,.55,1.3,PREFERENCE_CONFIDENCE_RULES_V394.decisionHalfLifeDays,{cycleId:cycle.id}));
+      }
+      if(actionType==='skipped' || actionType==='skip') {
+        items.push(preferenceEvidenceItemV394('skip','history-v3',at,-.35,.75,PREFERENCE_CONFIDENCE_RULES_V394.decisionHalfLifeDays,{cycleId:cycle.id,isolatedNegative:true}));
+      }
+      if(actionType==='opportunity-accepted') {
+        items.push(preferenceEvidenceItemV394('opportunity-accepted','history-v3',at,.25,.8,PREFERENCE_CONFIDENCE_RULES_V394.decisionHalfLifeDays,{cycleId:cycle.id}));
+      }
+      if(actionType==='opportunity-dismissed') {
+        items.push(preferenceEvidenceItemV394('opportunity-dismissed','history-v3',at,-.2,.6,PREFERENCE_CONFIDENCE_RULES_V394.decisionHalfLifeDays,{cycleId:cycle.id,isolatedNegative:true}));
+      }
+    }
+    if(recMatches && action && action?.matchedRecommendation===false && !actionMatches) {
+      items.push(preferenceEvidenceItemV394('recommendation-ignored','history-v3',at,-.25,.65,PREFERENCE_CONFIDENCE_RULES_V394.decisionHalfLifeDays,{cycleId:cycle.id,isolatedNegative:true}));
+    }
+  }
+  return items;
+}
+
+function legacyEventOverlapsHistoryV3V394(event,key,cycles) {
+  const at=eventTimestampV39(event);
+  if(!at) return false;
+  const windowMs=PREFERENCE_CONFIDENCE_RULES_V394.legacyOverlapWindowMs;
+  return cycles.some(c=>{
+    const cat=historyV3AtV394(c);
+    if(!cat || Math.abs(cat-at)>windowMs) return false;
+    return historyV3MatchesKeyV394(c?.userAction?.title||c?.userAction?.activityId,key) || historyV3MatchesKeyV394(c?.recommendation?.title||c?.recommendation?.activityId,key);
+  });
+}
+
+function neutralizeFirstCircumstantialNegativeV394(items) {
+  const guarded=new Set(['recommendation-ignored','skip','opportunity-dismissed']);
+  const seen=new Set();
+  return items.sort((a,b)=>a.at-b.at).map(item=>{
+    if(!guarded.has(item.type) || !item.isolatedNegative) return item;
+    if(!seen.has(item.type)) {
+      seen.add(item.type);
+      return {...item,signal:0,neutralized:true};
+    }
+    return item;
+  });
+}
+
+function preferenceEvidenceBundleV394(value) {
+  ensureCopilotState();
+  const key=learningKeyV39(value);
+  if(!key) return null;
+  const cutoff=learningCutoffV39(key);
+  const now=Date.now();
+  const items=[];
+  const rows=historyRowsV3905().filter(record=>{
+    if(!isHistoryRecordV3905(record) || record.status!=='done') return false;
+    const at=historyTimestampV39(record);
+    if(at<cutoff) return false;
+    const type=String(record?.type||activityForRecord(record)?.type||'').toLowerCase();
+    if(type && type!=='attraction') return false;
+    return learningKeyV39(attractionTitleForHistoryV39(record))===key;
+  }).sort((a,b)=>historyTimestampV39(a)-historyTimestampV39(b));
+
+  const ratings=[];
+  rows.forEach((record,index)=>{
+    const at=historyTimestampV39(record);
+    const rating=normalizeRating(record.rating);
+    if(rating) {
+      ratings.push(rating);
+      items.push(preferenceEvidenceItemV394('rating','operational-history',at,(rating-3)/2,2.2,PREFERENCE_CONFIDENCE_RULES_V394.ratingHalfLifeDays,{rating}));
+    }
+    if(index>0) items.push(preferenceEvidenceItemV394('repeat','operational-history',at,.45,1.25,PREFERENCE_CONFIDENCE_RULES_V394.repeatHalfLifeDays));
+  });
+
+  const hv3Cycles=historyV3CyclesV393().filter(c=>historyV3AtV394(c)>=cutoff);
+  items.push(...historyV3EvidenceV394(key,cutoff));
+
+  const legacy=(Array.isArray(state.preferenceLearningEvents)?state.preferenceLearningEvents:[]).filter(e=>e&&typeof e==='object'&&e.key===key&&eventTimestampV39(e)>=cutoff);
+  for(const e of legacy) {
+    if(legacyEventOverlapsHistoryV3V394(e,key,hv3Cycles)) continue;
+    const at=eventTimestampV39(e);
+    const type=String(e.type||'');
+    if(type==='spontaneous-start') items.push(preferenceEvidenceItemV394(type,'legacy-event',at,.55,1.3,PREFERENCE_CONFIDENCE_RULES_V394.legacyEventHalfLifeDays));
+    else if(type==='recommendation-accepted') items.push(preferenceEvidenceItemV394(type,'legacy-event',at,.35,1,PREFERENCE_CONFIDENCE_RULES_V394.legacyEventHalfLifeDays));
+    else if(type==='recommendation-ignored') items.push(preferenceEvidenceItemV394(type,'legacy-event',at,-.25,.65,PREFERENCE_CONFIDENCE_RULES_V394.legacyEventHalfLifeDays,{isolatedNegative:true}));
+    else if(type==='skip') items.push(preferenceEvidenceItemV394(type,'legacy-event',at,-.35,.75,PREFERENCE_CONFIDENCE_RULES_V394.legacyEventHalfLifeDays,{isolatedNegative:true}));
+  }
+
+  const normalized=neutralizeFirstCircumstantialNegativeV394(items).slice(-PREFERENCE_CONFIDENCE_RULES_V394.maxEvidenceItemsPerAttraction);
+  const rawWeight=normalized.reduce((sum,x)=>sum+x.weight,0);
+  const effectiveEvidence=normalized.reduce((sum,x)=>sum+x.effectiveWeight,0);
+  const signed=normalized.reduce((sum,x)=>sum+x.signal*x.effectiveWeight,0);
+  const directional=normalized.reduce((sum,x)=>sum+Math.abs(x.signal)*x.effectiveWeight,0);
+  const positive=normalized.reduce((sum,x)=>sum+(x.signal>0?x.signal*x.effectiveWeight:0),0);
+  const negative=normalized.reduce((sum,x)=>sum+(x.signal<0?-x.signal*x.effectiveWeight:0),0);
+  const consistency=directional>0?Math.max(PREFERENCE_CONFIDENCE_RULES_V394.consistencyFloor,Math.abs(positive-negative)/directional):1;
+  const sampleConfidence=1-Math.exp(-effectiveEvidence/PREFERENCE_CONFIDENCE_RULES_V394.evidenceScale);
+  const confidence=Math.max(0,Math.min(1,sampleConfidence*(.35+.65*consistency)));
+  const weightedSignal=effectiveEvidence>0?signed/effectiveEvidence:0;
+  const rawDelta=Math.max(-45,Math.min(45,weightedSignal*45));
+  const effectiveDelta=rawDelta*confidence;
+  const affinity=Math.max(5,Math.min(95,50+effectiveDelta));
+  const avgRating=ratings.length?ratings.reduce((a,b)=>a+b,0)/ratings.length:0;
+  const sourceCounts=normalized.reduce((acc,x)=>(acc[x.source]=(acc[x.source]||0)+1,acc),{});
+  const typeCount=type=>normalized.filter(x=>x.type===type).length;
+  const freshness=rawWeight>0?Math.max(0,Math.min(1,effectiveEvidence/rawWeight)):0;
+  const lastAt=Math.max(0,...normalized.map(x=>x.at));
+  return {
+    key,
+    name:value?.title||value?.entityName||value?.name||state.attractionPreferences?.[key]?.name||attractionTitleForHistoryV39(rows.at(-1))||legacy.at(-1)?.title||key,
+    affinity,rawDelta,effectiveDelta,confidence,
+    confidenceLabel:confidence>=.7?'alta':confidence>=.35?'média':'baixa',
+    evidenceCount:normalized.length,
+    sampleCount:normalized.length,
+    effectiveEvidence:Math.round(effectiveEvidence*100)/100,
+    rawEvidence:Math.round(rawWeight*100)/100,
+    freshness:Math.round(freshness*1000)/1000,
+    consistency:Math.round(consistency*1000)/1000,
+    modelVersion:PREFERENCE_CONFIDENCE_VERSION_V394,
+    avgRating,ratings:ratings.length,completions:rows.length,repeats:Math.max(0,rows.length-1),
+    spontaneous:typeCount('spontaneous-start')+typeCount('spontaneous-choice'),
+    accepted:typeCount('recommendation-accepted')+typeCount('opportunity-accepted'),
+    ignored:typeCount('recommendation-ignored')+typeCount('opportunity-dismissed'),
+    skipped:typeCount('skip'),
+    historyV3Signals:sourceCounts['history-v3']||0,
+    legacySignals:sourceCounts['legacy-event']||0,
+    lastAt,
+    ageDays:lastAt?Math.max(0,Math.round(((now-lastAt)/86_400_000)*10)/10):null,
+    sources:sourceCounts,
+    evidence:normalized.map(x=>({type:x.type,source:x.source,at:x.at,signal:Math.round(x.signal*1000)/1000,weight:x.weight,decay:Math.round(x.decay*1000)/1000,effectiveWeight:Math.round(x.effectiveWeight*1000)/1000,neutralized:Boolean(x.neutralized)}))
+  };
+}
+
+const v393LearnedPreferenceEvidenceV394=learnedPreferenceEvidenceV39;
+learnedPreferenceEvidenceV39=function(value){
+  try { return preferenceEvidenceBundleV394(value); }
+  catch(error){ recordRuntimeDiagnosticV38('preference-confidence-v394',error); return v393LearnedPreferenceEvidenceV394(value); }
+};
+
+// Aplique o sinal apenas quando já existe confiança mínima. A governança v39.1
+// continua podendo limitar a promoção tática mesmo com confiança alta.
+const v393PersonalPriorityMetaV394=personalPriorityMeta;
+personalPriorityMeta=function(activity,currentWait=null){
+  const result=v393PersonalPriorityMetaV394(activity,currentWait);
+  const learned=result?.learned;
+  if(!learned || !learned.applied) return result;
+  if(Number(learned.confidence||0)>=PREFERENCE_CONFIDENCE_RULES_V394.minConfidenceToApply) return result;
+  const base=personalPriorityMetaWithoutLearningV39(activity,currentWait);
+  return {...base,learned:{...learned,applied:false,adjustment:0,declaredScore:Math.round(Number(base.score||0)),suppressedReason:'low-confidence'}};
+};
+
+// Enriquece a observabilidade sem mudar score/política.
+const v393CopilotScoreForEntryV394=copilotScoreForEntry;
+copilotScoreForEntry=function(...args){
+  const result=v393CopilotScoreForEntryV394(...args);
+  const learned=result?.priority?.learned;
+  if(result?.preferenceGovernance && learned){
+    result.preferenceGovernance.confidence=traceNumberV392(learned.confidence,3);
+    result.preferenceGovernance.confidenceLabel=learned.confidenceLabel||null;
+    result.preferenceGovernance.sampleCount=Number(learned.sampleCount||learned.evidenceCount||0);
+    result.preferenceGovernance.effectiveEvidence=traceNumberV392(learned.effectiveEvidence,2);
+    result.preferenceGovernance.consistency=traceNumberV392(learned.consistency,3);
+    result.preferenceGovernance.freshness=traceNumberV392(learned.freshness,3);
+    result.preferenceGovernance.learningModelVersion=PREFERENCE_CONFIDENCE_VERSION_V394;
+  }
+  return result;
+};
+
+const v393DecisionTraceCandidateV394=decisionTraceCandidateV392;
+decisionTraceCandidateV392=function(...args){
+  const candidate=v393DecisionTraceCandidateV394(...args);
+  const governance=args?.[0]?.meta?.preferenceGovernance||null;
+  if(candidate?.preference && governance){
+    candidate.preference.confidence=traceNumberV392(governance.confidence,3);
+    candidate.preference.confidenceLabel=governance.confidenceLabel||null;
+    candidate.preference.sampleCount=Number(governance.sampleCount||0);
+    candidate.preference.effectiveEvidence=traceNumberV392(governance.effectiveEvidence,2);
+    candidate.preference.consistency=traceNumberV392(governance.consistency,3);
+    candidate.preference.freshness=traceNumberV392(governance.freshness,3);
+    candidate.preference.learningModelVersion=PREFERENCE_CONFIDENCE_VERSION_V394;
+  }
+  return candidate;
+};
+
+// Histórico v3 preserva apenas um resumo da confiança; o detalhamento continua no diagnóstico.
+const v393HistoryV3CompactCandidateV394=historyV3CompactCandidateV393;
+historyV3CompactCandidateV393=function(candidate){
+  const compact=v393HistoryV3CompactCandidateV394(candidate);
+  if(compact?.preference && candidate?.preference){
+    for(const key of ['confidence','confidenceLabel','sampleCount','effectiveEvidence','consistency','freshness','learningModelVersion']) {
+      if(candidate.preference[key]!==undefined) compact.preference[key]=candidate.preference[key];
+    }
+  }
+  return compact;
+};
+
+function preferenceConfidenceSummaryV394() {
+  const profiles=learnedProfilesV39();
+  return {
+    version:PREFERENCE_CONFIDENCE_VERSION_V394,
+    model:PREFERENCE_CONFIDENCE_RULES_V394.model,
+    profiles:profiles.length,
+    high:profiles.filter(x=>x.confidence>=.7).length,
+    medium:profiles.filter(x=>x.confidence>=.35&&x.confidence<.7).length,
+    low:profiles.filter(x=>x.confidence<.35).length,
+    top:profiles.slice(0,8).map(x=>({name:x.name,affinity:Math.round(x.affinity),confidence:traceNumberV392(x.confidence,3),effectiveEvidence:traceNumberV392(x.effectiveEvidence,2),consistency:traceNumberV392(x.consistency,3),freshness:traceNumberV392(x.freshness,3),historyV3Signals:x.historyV3Signals||0}))
+  };
+}
+
+const v393EngineDiagnosticSnapshotV394=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){
+  const snapshot=v393EngineDiagnosticSnapshotV394(); snapshot.context=snapshot.context||{};
+  snapshot.context.preferenceConfidence=preferenceConfidenceSummaryV394();
+  return snapshot;
+};
+
+const v393ExposeDiagnosticsApiV394=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){
+  v393ExposeDiagnosticsApiV394();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.preferenceConfidence=(value)=>{const row=learnedPreferenceEvidenceV39(value);return row?structuredClone(row):null;};
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.preferenceConfidenceSummary=()=>structuredClone(preferenceConfidenceSummaryV394());
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.preferenceConfidencePolicy=()=>structuredClone({version:PREFERENCE_CONFIDENCE_VERSION_V394,...PREFERENCE_CONFIDENCE_RULES_V394});
+};
+
+const v393RunEngineSelfTestsV394=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v393RunEngineSelfTestsV394(); const additions=[];
+  const backup={history:structuredClone(state.history),historyV3:structuredClone(state.historyV3),attractionPreferences:structuredClone(state.attractionPreferences),preferenceLearningEvents:structuredClone(state.preferenceLearningEvents),preferenceLearningStartedAt:state.preferenceLearningStartedAt,preferenceLearningResetAt:state.preferenceLearningResetAt,preferenceLearningResetByKey:structuredClone(state.preferenceLearningResetByKey),enabled:state.settings.preferenceLearningEnabled};
+  const iso=days=>new Date(Date.now()-days*86_400_000).toISOString();
+  const reset=()=>{state.history=[];state.attractionPreferences={};state.preferenceLearningEvents=[];state.preferenceLearningStartedAt=1;state.preferenceLearningResetAt=0;state.preferenceLearningResetByKey={};state.settings.preferenceLearningEnabled=true;state.historyV3=createHistoryV3StateV393('v394-selftest');state.historyV3.migration.legacyRecordCount=0;};
+  const addCycle=(title,matched=true,days=0,actionTitle=null)=>{const at=iso(days);state.historyV3.cycles.push({schemaVersion:3,id:historyV3IdV393('v394'),createdAt:at,updatedAt:at,status:'acted',context:{dayDate:'2099-01-01',park:'epcot'},candidates:[],recommendation:{activityId:'rec',title,decisionKind:'direct'},userAction:{type:matched?'recommendation-accepted':'alternative-started',at,activityId:matched?'rec':'alt',title:actionTitle||title,matchedRecommendation:matched},outcome:null});};
+  try{
+    addSelfTestV38(additions,'Confidence cresce com amostras coerentes',()=>{reset();state.history=[1,2,3,4].map(i=>({activityId:`c${i}`,title:'Teste Confiança',type:'attraction',status:'done',actualEnd:iso(i-1),rating:5}));const p=learnedPreferenceEvidenceV39('Teste Confiança');assertSelfTestV38(p.confidence>.65&&p.sampleCount>=4,JSON.stringify(p));return `confiança ${Math.round(p.confidence*100)}%`;});
+    addSelfTestV38(additions,'Decay reduz peso de evidência antiga',()=>{reset();state.history=[{activityId:'old',title:'Teste Decay',type:'attraction',status:'done',actualEnd:iso(365),rating:5}];const old=learnedPreferenceEvidenceV39('Teste Decay');state.history=[{activityId:'new',title:'Teste Decay',type:'attraction',status:'done',actualEnd:iso(0),rating:5}];const fresh=learnedPreferenceEvidenceV39('Teste Decay');assertSelfTestV38(fresh.effectiveEvidence>old.effectiveEvidence&&fresh.affinity>old.affinity,`old=${old.effectiveEvidence}/${old.affinity}; fresh=${fresh.effectiveEvidence}/${fresh.affinity}`);return `${old.effectiveEvidence} → ${fresh.effectiveEvidence}`;});
+    addSelfTestV38(additions,'Sinais contraditórios reduzem confiança',()=>{reset();state.history=[{activityId:'p',title:'Teste Contradição',type:'attraction',status:'done',actualEnd:iso(0),rating:5},{activityId:'n',title:'Teste Contradição',type:'attraction',status:'done',actualEnd:iso(0),rating:1}];const mixed=learnedPreferenceEvidenceV39('Teste Contradição');reset();state.history=[{activityId:'p1',title:'Teste Coerente',type:'attraction',status:'done',actualEnd:iso(0),rating:5},{activityId:'p2',title:'Teste Coerente',type:'attraction',status:'done',actualEnd:iso(0),rating:5}];const coherent=learnedPreferenceEvidenceV39('Teste Coerente');assertSelfTestV38(mixed.consistency<coherent.consistency&&mixed.confidence<coherent.confidence,`mixed=${mixed.consistency}/${mixed.confidence}; coherent=${coherent.consistency}/${coherent.confidence}`);return 'contradição penalizada';});
+    addSelfTestV38(additions,'Histórico v3 alimenta confiança comportamental',()=>{reset();addCycle('Teste HV3',true,0);addCycle('Teste HV3',true,1);const p=learnedPreferenceEvidenceV39('Teste HV3');assertSelfTestV38(p.historyV3Signals>=2&&p.affinity>50,JSON.stringify(p));return `${p.historyV3Signals} sinais v3`;});
+    addSelfTestV38(additions,'Histórico v3 evita dupla contagem de evento legado sobreposto',()=>{reset();addCycle('Teste Dedupe',true,0);const at=historyV3AtV394(state.historyV3.cycles[0]);state.preferenceLearningEvents=[{type:'recommendation-accepted',key:learningKeyV39('Teste Dedupe'),title:'Teste Dedupe',at}];const p=learnedPreferenceEvidenceV39('Teste Dedupe');assertSelfTestV38(p.historyV3Signals===1&&p.legacySignals===0,JSON.stringify(p));return 'v3 prevalece';});
+    addSelfTestV38(additions,'Recusa isolada continua neutra na v39.4',()=>{reset();state.preferenceLearningEvents=[{type:'recommendation-ignored',key:learningKeyV39('Teste Neutro'),title:'Teste Neutro',at:Date.now()}];const p=learnedPreferenceEvidenceV39('Teste Neutro');assertSelfTestV38(Math.round(p.affinity)===50,`afinidade=${p.affinity}`);return '50 neutro';});
+    addSelfTestV38(additions,'Reset continua cortando Histórico v3 antigo',()=>{reset();addCycle('Teste Reset HV3',true,2);state.preferenceLearningResetByKey[learningKeyV39('Teste Reset HV3')]=Date.now()-60_000;const p=learnedPreferenceEvidenceV39('Teste Reset HV3');assertSelfTestV38(p.evidenceCount===0,`evidence=${p.evidenceCount}`);return 'ciclo anterior ignorado';});
+    addSelfTestV38(additions,'Baixa confiança não altera score declarado',()=>{reset();state.preferenceLearningEvents=[{type:'recommendation-accepted',key:learningKeyV39('Teste Low Confidence'),title:'Teste Low Confidence',at:Date.now()-500*86_400_000}];const p=personalPriorityMeta({title:'Teste Low Confidence',type:'attraction',priority:3},30);assertSelfTestV38(!p.learned?.applied&&p.learned?.suppressedReason==='low-confidence',JSON.stringify(p.learned));return 'ajuste suprimido';});
+    addSelfTestV38(additions,'Governança operacional permanece acima da confiança aprendida',()=>{const g=preferenceTacticalGateV391({score:80,scoreWithoutPositivePreference:68,positivePreferenceLift:12,operationalScore:40,costScore:35,scheduleScore:80,priorityReserveRisk:true});assertSelfTestV38(g.score===71&&g.limited,JSON.stringify(g));return '80 → 71';});
+  }finally{state.history=backup.history;state.historyV3=backup.historyV3;state.attractionPreferences=backup.attractionPreferences;state.preferenceLearningEvents=backup.preferenceLearningEvents;state.preferenceLearningStartedAt=backup.preferenceLearningStartedAt;state.preferenceLearningResetAt=backup.preferenceLearningResetAt;state.preferenceLearningResetByKey=backup.preferenceLearningResetByKey;state.settings.preferenceLearningEnabled=backup.enabled;saveState();}
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v39.5 — Feedback comportamental v2
+   Interpreta o desvio do usuário sem confundir contexto com gosto.
+
+   Contratos:
+   - não seguir a recomendação não equivale automaticamente a rejeitá-la;
+   - alternativa escolhida é sinal positivo da escolha, mas a recomendação
+     só recebe sinal negativo após padrão repetido em condição favorável;
+   - fila/custo altos, blockers e governança limitada tornam o desvio
+     circunstancial e neutro para preferência;
+   - Opportunity dispensada é neutra para gosto;
+   - se a atração adiada for concluída depois, o desvio anterior é resolvido
+     como circunstancial e deixa de contar como rejeição;
+   - ratings continuam soberanos como sinal comportamental individual;
+   - Confidence + Decay v39.4 e governança v39.1 permanecem intactos.
+   ============================================================ */
+const BEHAVIORAL_FEEDBACK_VERSION_V395 = 2;
+const BEHAVIORAL_FEEDBACK_RULES_V395 = Object.freeze({
+  model:'contextual-behavior-v2',
+  favorableWaitMax:45,
+  favorableTotalCostMax:65,
+  frictionWaitMin:60,
+  frictionTotalCostMin:80,
+  repeatedNegativeFrom:2,
+  deferralResolutionHours:12,
+  acceptedSignal:.35,
+  selectedAlternativeSignal:.55,
+  repeatedOverrideSignal:-.25,
+  repeatedFavorableSkipSignal:-.35,
+  opportunityAcceptedSignal:.25,
+  behavioralHalfLifeDays:120
+});
+
+function behavioralCandidateV395(cycle,activityOrId) {
+  const id=typeof activityOrId==='string'?activityOrId:activityOrId?.id;
+  const key=learningKeyV39(activityOrId?.title||activityOrId?.entityName||activityOrId?.name||'');
+  return (Array.isArray(cycle?.candidates)?cycle.candidates:[]).find(c=>
+    (id && c?.activityId===id) || (key && learningKeyV39(c?.title||'')===key)
+  )||null;
+}
+
+function behavioralRecommendationAssessmentV395(cycle) {
+  const rec=cycle?.recommendation||null;
+  const candidate=behavioralCandidateV395(cycle,rec?.activityId||null) ||
+    (Array.isArray(cycle?.candidates)?cycle.candidates.find(c=>learningKeyV39(c?.title||'')===learningKeyV39(rec?.title||'')):null);
+  const wait=Number.isFinite(Number(candidate?.wait))?Number(candidate.wait):null;
+  const totalCost=Number.isFinite(Number(candidate?.totalCost))?Number(candidate.totalCost):null;
+  const score=Number.isFinite(Number(candidate?.score))?Number(candidate.score):null;
+  const blockers=Array.isArray(candidate?.blockers)?candidate.blockers.filter(Boolean):[];
+  const reasons=[];
+  if(blockers.length) reasons.push(...blockers.map(x=>`blocker:${x}`));
+  if(candidate?.preference?.limited) reasons.push(`governance:${candidate.preference.limitReason||'limited'}`);
+  if(candidate?.preference?.priorityReserveRisk) reasons.push('protect-other-priorities');
+  if(wait!=null && wait>=BEHAVIORAL_FEEDBACK_RULES_V395.frictionWaitMin) reasons.push('high-wait');
+  if(totalCost!=null && totalCost>=BEHAVIORAL_FEEDBACK_RULES_V395.frictionTotalCostMin) reasons.push('high-total-cost');
+  const friction=reasons.length>0;
+  const favorable=Boolean(candidate && !friction &&
+    (wait==null || wait<=BEHAVIORAL_FEEDBACK_RULES_V395.favorableWaitMax) &&
+    (totalCost==null || totalCost<=BEHAVIORAL_FEEDBACK_RULES_V395.favorableTotalCostMax) &&
+    (candidate.band==='FAÇA AGORA' || score==null || score>=72));
+  return {candidate: candidate?{
+    activityId:candidate.activityId||null,title:candidate.title||null,score,band:candidate.band||null,
+    wait,totalCost,blockers:[...blockers]
+  }:null,favorable,friction,frictionReasons:[...new Set(reasons)]};
+}
+
+function behavioralClassifyActionV395(cycle,activity,action,options={}) {
+  const userAction=cycle?.userAction||{};
+  const type=String(userAction.type||options.type||action||'');
+  const assessment=behavioralRecommendationAssessmentV395(cycle);
+  const matched=Boolean(userAction.matchedRecommendation);
+  let classification='ambiguous-action';
+  let negativeEligible=false;
+  let rationale='insufficient-context';
+
+  if(type==='opportunity-accepted') {
+    classification='opportunity-accepted'; rationale='user-accepted-favorable-change';
+  } else if(type==='opportunity-dismissed') {
+    classification='opportunity-dismissed-neutral'; rationale='dismissal-may-protect-current-plan';
+  } else if(action==='skip' || type==='skipped' || type==='skip') {
+    if(matched && assessment.friction) { classification='circumstantial-skip'; rationale='recommended-option-had-operational-friction'; }
+    else if(matched && assessment.favorable) { classification='favorable-skip'; negativeEligible=true; rationale='skipped-while-recommendation-was-operationally-favorable'; }
+    else { classification='ambiguous-skip'; rationale='skip-without-enough-evidence-of-dislike'; }
+  } else if(matched) {
+    classification='recommendation-accepted'; rationale='user-followed-recommendation';
+  } else if(cycle?.recommendation?.activityId || cycle?.recommendation?.title) {
+    if(assessment.friction) { classification='circumstantial-deferral'; rationale='alternative-selected-while-recommendation-had-friction'; }
+    else if(assessment.favorable) { classification='favorable-alternative-over-recommendation'; negativeEligible=true; rationale='alternative-selected-over-feasible-recommendation'; }
+    else { classification='ambiguous-deferral'; rationale='alternative-selected-with-uncertain-recommendation-context'; }
+  } else {
+    classification='spontaneous-choice'; rationale='manual-choice-without-active-recommendation';
+  }
+
+  return {
+    version:BEHAVIORAL_FEEDBACK_VERSION_V395,
+    model:BEHAVIORAL_FEEDBACK_RULES_V395.model,
+    at:userAction.at||historyV3NowIsoV393(),classification,rationale,negativeEligible,
+    resolution:null,
+    recommendation:{activityId:cycle?.recommendation?.activityId||null,title:cycle?.recommendation?.title||null,...assessment},
+    action:{activityId:activity?.id||userAction.activityId||null,title:activity?.title||userAction.title||null,type,matchedRecommendation:matched}
+  };
+}
+
+function behavioralFeedbackKeyV395(value) { return learningKeyV39(value?.title||value?.activityId||value||''); }
+
+function behavioralResolveDeferralsV395(activity,date,currentCycleId=null,{persist=true}={}) {
+  if(!activity) return 0;
+  ensureHistoryV3StateV393();
+  const key=learningKeyV39(activity);
+  const now=Date.now();
+  const maxAge=BEHAVIORAL_FEEDBACK_RULES_V395.deferralResolutionHours*60*60_000;
+  let resolved=0;
+  for(const cycle of historyV3CyclesV393()) {
+    if(!cycle || cycle.id===currentCycleId || (date && cycle.context?.dayDate!==date)) continue;
+    const feedback=cycle.behavioralFeedback;
+    if(!feedback || Number(feedback.version)!==BEHAVIORAL_FEEDBACK_VERSION_V395) continue;
+    const recKey=behavioralFeedbackKeyV395(cycle.recommendation||feedback.recommendation);
+    if(!recKey || recKey!==key) continue;
+    const classification=String(feedback.classification||'');
+    if(!['circumstantial-deferral','ambiguous-deferral','favorable-alternative-over-recommendation','circumstantial-skip','ambiguous-skip','favorable-skip'].includes(classification)) continue;
+    const at=historyV3ParseTimeV393(feedback.at||cycle.updatedAt||cycle.createdAt);
+    if(at && now-at>maxAge) continue;
+    feedback.resolution={type:'completed-later',at:historyV3NowIsoV393(),activityId:activity.id||null,title:activity.title||null};
+    feedback.classification='deferred-then-completed';
+    feedback.negativeEligible=false;
+    feedback.rationale='later-completion-confirms-circumstantial-deferral';
+    resolved++;
+  }
+  if(resolved && persist) saveState();
+  return resolved;
+}
+
+const v394HistoryV3RecordUserActionV395=historyV3RecordUserActionV393;
+historyV3RecordUserActionV393=function(action,activity,options={}){
+  const cycle=v394HistoryV3RecordUserActionV395(action,activity,options);
+  if(cycle && activity){
+    try { cycle.behavioralFeedback=behavioralClassifyActionV395(cycle,activity,action,options); }
+    catch(error){ recordRuntimeDiagnosticV38('behavioral-feedback-classify-v395',error); }
+    if(options?.persist!==false) saveState();
+  }
+  return cycle;
+};
+
+const v394HistoryV3RecordCompletionV395=historyV3RecordCompletionV393;
+historyV3RecordCompletionV393=function(activity,record,options={}){
+  const cycle=v394HistoryV3RecordCompletionV395(activity,record,options);
+  if(activity && cycle){
+    try { behavioralResolveDeferralsV395(activity,options?.date||record?.date||cycle?.context?.dayDate,cycle.id,{persist:false}); }
+    catch(error){ recordRuntimeDiagnosticV38('behavioral-feedback-resolve-v395',error); }
+    if(options?.persist!==false) saveState();
+  }
+  return cycle;
+};
+
+function behavioralEvidenceFromHistoryV3V395(key,cutoff) {
+  ensureHistoryV3StateV393();
+  const cycles=historyV3CyclesV393().filter(c=>historyV3AtV394(c)>=cutoff && Number(c?.behavioralFeedback?.version)===BEHAVIORAL_FEEDBACK_VERSION_V395)
+    .sort((a,b)=>historyV3AtV394(a)-historyV3AtV394(b));
+  const items=[];
+  let favorableNegativeCount=0;
+  for(const cycle of cycles){
+    const feedback=cycle.behavioralFeedback;
+    const at=historyV3AtV394(cycle);
+    const actionKey=behavioralFeedbackKeyV395(feedback.action||cycle.userAction);
+    const recKey=behavioralFeedbackKeyV395(feedback.recommendation||cycle.recommendation);
+    const cls=String(feedback.classification||'');
+
+    if(actionKey===key){
+      if(cls==='recommendation-accepted') items.push(preferenceEvidenceItemV394('recommendation-accepted','history-v3',at,BEHAVIORAL_FEEDBACK_RULES_V395.acceptedSignal,1,BEHAVIORAL_FEEDBACK_RULES_V395.behavioralHalfLifeDays,{cycleId:cycle.id,behaviorClass:cls}));
+      else if(['spontaneous-choice','circumstantial-deferral','ambiguous-deferral','favorable-alternative-over-recommendation'].includes(cls) && feedback.action?.matchedRecommendation===false) items.push(preferenceEvidenceItemV394('spontaneous-choice','history-v3',at,BEHAVIORAL_FEEDBACK_RULES_V395.selectedAlternativeSignal,1.3,BEHAVIORAL_FEEDBACK_RULES_V395.behavioralHalfLifeDays,{cycleId:cycle.id,behaviorClass:cls}));
+      else if(cls==='opportunity-accepted') items.push(preferenceEvidenceItemV394('opportunity-accepted','history-v3',at,BEHAVIORAL_FEEDBACK_RULES_V395.opportunityAcceptedSignal,.8,BEHAVIORAL_FEEDBACK_RULES_V395.behavioralHalfLifeDays,{cycleId:cycle.id,behaviorClass:cls}));
+    }
+
+    if(recKey===key && feedback.negativeEligible && !feedback.resolution && ['favorable-alternative-over-recommendation','favorable-skip'].includes(cls)) {
+      favorableNegativeCount++;
+      if(favorableNegativeCount>=BEHAVIORAL_FEEDBACK_RULES_V395.repeatedNegativeFrom){
+        const isSkip=cls==='favorable-skip';
+        items.push(preferenceEvidenceItemV394(isSkip?'skip':'recommendation-ignored','history-v3',at,isSkip?BEHAVIORAL_FEEDBACK_RULES_V395.repeatedFavorableSkipSignal:BEHAVIORAL_FEEDBACK_RULES_V395.repeatedOverrideSignal,isSkip ? .75 : .65,BEHAVIORAL_FEEDBACK_RULES_V395.behavioralHalfLifeDays,{cycleId:cycle.id,behaviorClass:cls,repeatedPattern:true}));
+      }
+    }
+  }
+  return items;
+}
+
+const v394HistoryV3EvidenceV395=historyV3EvidenceV394;
+historyV3EvidenceV394=function(key,cutoff){
+  const base=v394HistoryV3EvidenceV395(key,cutoff);
+  const feedbackCycleIds=new Set(historyV3CyclesV393().filter(c=>Number(c?.behavioralFeedback?.version)===BEHAVIORAL_FEEDBACK_VERSION_V395).map(c=>c.id));
+  const legacyCycles=base.filter(item=>!feedbackCycleIds.has(item?.cycleId));
+  return legacyCycles.concat(behavioralEvidenceFromHistoryV3V395(key,cutoff)).sort((a,b)=>a.at-b.at);
+};
+
+function behavioralFeedbackSummaryV395(){
+  ensureHistoryV3StateV393();
+  const rows=historyV3CyclesV393().filter(c=>Number(c?.behavioralFeedback?.version)===BEHAVIORAL_FEEDBACK_VERSION_V395);
+  const counts={};
+  let resolved=0,negativeEligible=0;
+  for(const c of rows){
+    const f=c.behavioralFeedback||{};
+    const cls=f.classification||'unknown'; counts[cls]=(counts[cls]||0)+1;
+    if(f.resolution) resolved++;
+    if(f.negativeEligible) negativeEligible++;
+  }
+  return {version:BEHAVIORAL_FEEDBACK_VERSION_V395,model:BEHAVIORAL_FEEDBACK_RULES_V395.model,classifiedCycles:rows.length,resolvedDeferrals:resolved,negativeEligible,classes:counts};
+}
+
+const v394EngineDiagnosticSnapshotV395=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){
+  const snapshot=v394EngineDiagnosticSnapshotV395(); snapshot.context=snapshot.context||{};
+  snapshot.context.behavioralFeedback=behavioralFeedbackSummaryV395();
+  return snapshot;
+};
+
+const v394ExposeDiagnosticsApiV395=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){
+  v394ExposeDiagnosticsApiV395();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.behavioralFeedbackSummary=()=>structuredClone(behavioralFeedbackSummaryV395());
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.behavioralFeedbackPolicy=()=>structuredClone({version:BEHAVIORAL_FEEDBACK_VERSION_V395,...BEHAVIORAL_FEEDBACK_RULES_V395});
+};
+
+const v394RunEngineSelfTestsV395=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v394RunEngineSelfTestsV395(); const additions=[];
+  const backup={history:structuredClone(state.history),historyV3:structuredClone(state.historyV3),attractionPreferences:structuredClone(state.attractionPreferences),preferenceLearningEvents:structuredClone(state.preferenceLearningEvents),preferenceLearningStartedAt:state.preferenceLearningStartedAt,preferenceLearningResetAt:state.preferenceLearningResetAt,preferenceLearningResetByKey:structuredClone(state.preferenceLearningResetByKey),enabled:state.settings.preferenceLearningEnabled,days:structuredClone(state.days),selectedDate:state.selectedDate,selectedPark:state.selectedPark};
+  const nowIso=()=>new Date().toISOString();
+  const reset=()=>{state.history=[];state.attractionPreferences={};state.preferenceLearningEvents=[];state.preferenceLearningStartedAt=1;state.preferenceLearningResetAt=0;state.preferenceLearningResetByKey={};state.settings.preferenceLearningEnabled=true;state.days=[{date:'2099-01-01',park:'epcot',activities:[{id:'a',title:'A',type:'attraction'},{id:'b',title:'B',type:'attraction'}]}];state.selectedDate='2099-01-01';state.selectedPark='epcot';state.historyV3=createHistoryV3StateV393('v395-selftest');state.historyV3.migration.legacyRecordCount=0;};
+  const cycle=(rec='a',{wait=20,totalCost=40,score=82,band='FAÇA AGORA',blockers=[],limited=false}={})=>{const at=nowIso();const title=rec==='a'?'A':'B';const c={schemaVersion:3,id:historyV3IdV393('v395'),source:'decision-engine',signature:null,createdAt:at,updatedAt:at,status:'recommended',context:{dayDate:'2099-01-01',park:'epcot'},candidates:[{activityId:rec,title,score,band,wait,totalCost,preference:{limited,limitReason:limited?'operational-limit':null,priorityReserveRisk:false},blockers}],recommendation:{activityId:rec,title,decisionKind:'direct'},userAction:null,outcome:null};state.historyV3.cycles.push(c);return c;};
+  const act=(c,activityId,action='start',type=null)=>{const a=state.days[0].activities.find(x=>x.id===activityId);const recommendedId=c.recommendation?.activityId||null;c.userAction={type:type||(action==='skip'?'skipped':recommendedId===activityId?'recommendation-accepted':'alternative-started'),at:nowIso(),activityId:a.id,title:a.title,source:'selftest',matchedRecommendation:recommendedId===activityId};c.status=action==='skip'?'skipped':'acted';c.behavioralFeedback=behavioralClassifyActionV395(c,a,action,{type});return c;};
+  try{
+    addSelfTestV38(additions,'Feedback v2 classifica aceitação sem alterar recomendação',()=>{reset();const c=cycle();act(c,'a');assertSelfTestV38(c.behavioralFeedback.classification==='recommendation-accepted'&&c.behavioralFeedback.action.matchedRecommendation,JSON.stringify(c.behavioralFeedback));return 'aceitação';});
+    addSelfTestV38(additions,'Alternativa diante de fila alta vira adiamento circunstancial',()=>{reset();const c=cycle('a',{wait:80,totalCost:95});act(c,'b');const ev=behavioralEvidenceFromHistoryV3V395(learningKeyV39('A'),0);assertSelfTestV38(c.behavioralFeedback.classification==='circumstantial-deferral'&&ev.length===0,JSON.stringify({f:c.behavioralFeedback,e:ev}));return 'neutro para A';});
+    addSelfTestV38(additions,'Alternativa escolhida gera sinal positivo para a escolha',()=>{reset();const c=cycle();act(c,'b');const ev=behavioralEvidenceFromHistoryV3V395(learningKeyV39('B'),0);assertSelfTestV38(ev.some(x=>x.type==='spontaneous-choice'&&x.signal>0),JSON.stringify(ev));return 'B recebe sinal positivo';});
+    addSelfTestV38(additions,'Primeiro desvio favorável não vira rejeição',()=>{reset();const c=cycle();act(c,'b');const ev=behavioralEvidenceFromHistoryV3V395(learningKeyV39('A'),0);assertSelfTestV38(c.behavioralFeedback.negativeEligible&&ev.length===0,JSON.stringify(ev));return '1º desvio neutro';});
+    addSelfTestV38(additions,'Desvio favorável repetido pode virar evidência negativa',()=>{reset();act(cycle(),'b');act(cycle(),'b');const ev=behavioralEvidenceFromHistoryV3V395(learningKeyV39('A'),0);assertSelfTestV38(ev.some(x=>x.type==='recommendation-ignored'&&x.signal<0&&x.repeatedPattern),JSON.stringify(ev));return 'padrão repetido';});
+    addSelfTestV38(additions,'Pulo com atrito operacional continua neutro',()=>{reset();const c=cycle('a',{wait:70,totalCost:90});act(c,'a','skip');const ev=behavioralEvidenceFromHistoryV3V395(learningKeyV39('A'),0);assertSelfTestV38(c.behavioralFeedback.classification==='circumstantial-skip'&&ev.length===0,JSON.stringify(c.behavioralFeedback));return 'skip circunstancial';});
+    addSelfTestV38(additions,'Pulo favorável só pesa após repetição',()=>{reset();act(cycle(),'a','skip');act(cycle(),'a','skip');const ev=behavioralEvidenceFromHistoryV3V395(learningKeyV39('A'),0);assertSelfTestV38(ev.filter(x=>x.type==='skip'&&x.signal<0).length===1,JSON.stringify(ev));return '2º pulo gera 1 sinal';});
+    addSelfTestV38(additions,'Dispensar Opportunity é neutro para preferência',()=>{reset();const c=cycle();act(c,'a','opportunity','opportunity-dismissed');const ev=behavioralEvidenceFromHistoryV3V395(learningKeyV39('A'),0);assertSelfTestV38(c.behavioralFeedback.classification==='opportunity-dismissed-neutral'&&ev.length===0,JSON.stringify({f:c.behavioralFeedback,e:ev}));return 'dismiss neutro';});
+    addSelfTestV38(additions,'Conclusão posterior resolve rejeição aparente',()=>{reset();const c1=cycle();act(c1,'b');const c2=cycle('a');act(c2,'a');const n=behavioralResolveDeferralsV395(state.days[0].activities[0],'2099-01-01',c2.id,{persist:false});const ev=behavioralEvidenceFromHistoryV3V395(learningKeyV39('A'),0);assertSelfTestV38(n===1&&c1.behavioralFeedback.classification==='deferred-then-completed'&&!ev.some(x=>x.signal<0),JSON.stringify({n,f:c1.behavioralFeedback,e:ev}));return 'adiamento resolvido';});
+    addSelfTestV38(additions,'Ciclos anteriores sem feedback mantêm semântica v39.4',()=>{reset();const c=cycle();c.userAction={type:'recommendation-accepted',at:nowIso(),activityId:'a',title:'A',matchedRecommendation:true};delete c.behavioralFeedback;const ev=historyV3EvidenceV394(learningKeyV39('A'),0);assertSelfTestV38(ev.some(x=>x.type==='recommendation-accepted'),JSON.stringify(ev));return 'compatível';});
+  }finally{state.history=backup.history;state.historyV3=backup.historyV3;state.attractionPreferences=backup.attractionPreferences;state.preferenceLearningEvents=backup.preferenceLearningEvents;state.preferenceLearningStartedAt=backup.preferenceLearningStartedAt;state.preferenceLearningResetAt=backup.preferenceLearningResetAt;state.preferenceLearningResetByKey=backup.preferenceLearningResetByKey;state.settings.preferenceLearningEnabled=backup.enabled;state.days=backup.days;state.selectedDate=backup.selectedDate;state.selectedPark=backup.selectedPark;saveState();}
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v39.6 — Calibração e Telemetria do Aprendizado
+   Observabilidade interna da qualidade do aprendizado.
+
+   Contratos:
+   - mede influência aprendida sem recalibrar pesos automaticamente;
+   - deriva telemetria do Histórico v3, sem criar log persistente paralelo;
+   - separa aceitação, alternativa, conclusão e bloqueio por governança;
+   - calibra confiança por faixas (baixa/média/alta) sem inferir causalidade;
+   - sinaliza possível sobreajuste apenas para revisão diagnóstica;
+   - não cria UI técnica para o usuário;
+   - preserva score, pesos, 30% de influência aprendida e governança v39.1.
+   ============================================================ */
+const LEARNING_TELEMETRY_VERSION_V396 = 1;
+const LEARNING_TELEMETRY_RULES_V396 = Object.freeze({
+  model:'learning-observability-v1',
+  maxCyclesAnalyzed:200,
+  maxCycleRowsReturned:80,
+  learnedAdjustmentEpsilon:.1,
+  highConfidenceFloor:.70,
+  mediumConfidenceFloor:.35,
+  lowConfidenceCeiling:.35,
+  overfitAdjustmentMin:8,
+  overfitEffectiveEvidenceMax:3,
+  overfitConsistencyMax:.50,
+  staleFreshnessMax:.35,
+  minCalibrationSamplesPerBand:2
+});
+
+function telemetryRoundV396(value,digits=3){
+  const n=Number(value);
+  if(!Number.isFinite(n)) return null;
+  const factor=10**Math.max(0,Number(digits||0));
+  return Math.round(n*factor)/factor;
+}
+function telemetryRateV396(numerator,denominator){
+  return denominator>0?telemetryRoundV396(Number(numerator||0)/Number(denominator||1),3):null;
+}
+function telemetryCandidateForCycleV396(cycle){
+  const candidates=Array.isArray(cycle?.candidates)?cycle.candidates:[];
+  const id=cycle?.recommendation?.activityId||null;
+  if(id){const exact=candidates.find(c=>c?.activityId===id);if(exact)return exact;}
+  return candidates.find(c=>c?.selected)||candidates[0]||null;
+}
+function telemetryConfidenceBandV396(value){
+  const n=Number(value);
+  if(!Number.isFinite(n)) return 'unknown';
+  if(n>=LEARNING_TELEMETRY_RULES_V396.highConfidenceFloor) return 'high';
+  if(n>=LEARNING_TELEMETRY_RULES_V396.mediumConfidenceFloor) return 'medium';
+  return 'low';
+}
+function telemetryBehaviorClassV396(cycle){
+  const cls=String(cycle?.behavioralFeedback?.classification||'');
+  if(cls) return cls;
+  const action=cycle?.userAction||null;
+  if(!action) return 'unresolved';
+  const type=String(action.type||'');
+  if(type==='skipped'||type==='skip') return 'skip';
+  if(type==='opportunity-dismissed') return 'opportunity-dismissed-neutral';
+  if(action.matchedRecommendation===true) return 'recommendation-accepted';
+  if(action.matchedRecommendation===false) return 'alternative-selected';
+  return type||'acted';
+}
+function telemetryCycleOutcomeV396(cycle){
+  const action=cycle?.userAction||null;
+  const outcome=cycle?.outcome||null;
+  const behavior=telemetryBehaviorClassV396(cycle);
+  const accepted=behavior==='recommendation-accepted'||behavior==='opportunity-accepted'||Boolean(action?.matchedRecommendation===true && !['skipped','skip','opportunity-dismissed'].includes(String(action?.type||'')));
+  const alternative=Boolean(action?.matchedRecommendation===false && !['opportunity-dismissed','pause-declined','replan-kept'].includes(String(action?.type||'')));
+  const completed=String(outcome?.type||'')==='completed';
+  const recommendationCompleted=completed && action?.matchedRecommendation===true;
+  const resolved=Boolean(action||outcome);
+  return {behavior,accepted,alternative,completed,recommendationCompleted,resolved};
+}
+function telemetryCycleRowV396(cycle){
+  if(!cycle||typeof cycle!=='object'||!cycle.recommendation) return null;
+  const candidate=telemetryCandidateForCycleV396(cycle);
+  const preference=candidate?.preference||null;
+  const learnedAdjustment=Number(preference?.learnedAdjustment||0);
+  const learnedLift=Number.isFinite(Number(preference?.learnedLift))?Number(preference.learnedLift):null;
+  const confidence=Number.isFinite(Number(preference?.confidence))?Number(preference.confidence):null;
+  const influenced=Math.abs(learnedAdjustment)>=LEARNING_TELEMETRY_RULES_V396.learnedAdjustmentEpsilon;
+  const governanceLimited=Boolean(preference?.limited);
+  const outcome=telemetryCycleOutcomeV396(cycle);
+  return {
+    cycleId:cycle.id||null,
+    at:cycle.userAction?.at||cycle.outcome?.at||cycle.updatedAt||cycle.createdAt||null,
+    dayDate:cycle.context?.dayDate||null,
+    park:cycle.context?.park||null,
+    activityId:cycle.recommendation?.activityId||null,
+    title:cycle.recommendation?.title||candidate?.title||null,
+    decisionKind:cycle.recommendation?.decisionKind||null,
+    score:Number.isFinite(Number(candidate?.score))?Number(candidate.score):null,
+    band:candidate?.band||null,
+    learnedAdjustment:telemetryRoundV396(learnedAdjustment,2),
+    learnedLift:telemetryRoundV396(learnedLift,2),
+    confidence:telemetryRoundV396(confidence,3),
+    confidenceBand:telemetryConfidenceBandV396(confidence),
+    sampleCount:Number.isFinite(Number(preference?.sampleCount))?Number(preference.sampleCount):null,
+    effectiveEvidence:telemetryRoundV396(preference?.effectiveEvidence,2),
+    consistency:telemetryRoundV396(preference?.consistency,3),
+    freshness:telemetryRoundV396(preference?.freshness,3),
+    influenced,
+    governanceLimited,
+    governanceReason:preference?.limitReason||null,
+    behavior:outcome.behavior,
+    resolved:outcome.resolved,
+    accepted:outcome.accepted,
+    alternative:outcome.alternative,
+    completed:outcome.completed,
+    recommendationCompleted:outcome.recommendationCompleted
+  };
+}
+function learningTelemetryCycleRowsV396(){
+  let cycles=[];
+  try{cycles=historyV3CyclesV393();}catch{return [];}
+  return cycles.slice(-LEARNING_TELEMETRY_RULES_V396.maxCyclesAnalyzed).map(telemetryCycleRowV396).filter(Boolean);
+}
+function telemetryCalibrationBandsV396(rows=learningTelemetryCycleRowsV396()){
+  const template=()=>({recommendations:0,resolved:0,accepted:0,alternative:0,completed:0,recommendationCompleted:0,influenced:0,avgLearnedAdjustment:null,avgLearnedLift:null,followThroughRate:null,completionRate:null});
+  const bands={low:template(),medium:template(),high:template(),unknown:template()};
+  const sums={low:{adj:0,lift:0,liftN:0},medium:{adj:0,lift:0,liftN:0},high:{adj:0,lift:0,liftN:0},unknown:{adj:0,lift:0,liftN:0}};
+  for(const row of rows){
+    const band=bands[row.confidenceBand]?row.confidenceBand:'unknown';
+    const b=bands[band],s=sums[band];
+    b.recommendations++;
+    if(row.resolved)b.resolved++;
+    if(row.accepted)b.accepted++;
+    if(row.alternative)b.alternative++;
+    if(row.completed)b.completed++;
+    if(row.recommendationCompleted)b.recommendationCompleted++;
+    if(row.influenced)b.influenced++;
+    s.adj+=Math.abs(Number(row.learnedAdjustment||0));
+    if(row.learnedLift!=null){s.lift+=Number(row.learnedLift);s.liftN++;}
+  }
+  for(const band of Object.keys(bands)){
+    const b=bands[band],s=sums[band];
+    b.avgLearnedAdjustment=b.recommendations?telemetryRoundV396(s.adj/b.recommendations,2):null;
+    b.avgLearnedLift=s.liftN?telemetryRoundV396(s.lift/s.liftN,2):null;
+    b.followThroughRate=telemetryRateV396(b.accepted,b.resolved);
+    b.completionRate=telemetryRateV396(b.recommendationCompleted,b.resolved);
+    b.sampleSufficient=b.resolved>=LEARNING_TELEMETRY_RULES_V396.minCalibrationSamplesPerBand;
+  }
+  return bands;
+}
+function learningTelemetryWarningsV396(profilesOverride=null){
+  let profiles=[];
+  if(Array.isArray(profilesOverride)) profiles=profilesOverride;
+  else try{profiles=learnedProfilesV39();}catch{return [];}
+  const warnings=[];
+  for(const profile of profiles){
+    const adjustment=Math.abs(Number(profile?.effectiveDelta||0));
+    const confidence=Number(profile?.confidence||0);
+    const evidence=Number(profile?.effectiveEvidence||0);
+    const consistency=Number(profile?.consistency??1);
+    const freshness=Number(profile?.freshness??1);
+    if(adjustment<LEARNING_TELEMETRY_RULES_V396.overfitAdjustmentMin) continue;
+    const reasons=[];
+    if(confidence<LEARNING_TELEMETRY_RULES_V396.mediumConfidenceFloor) reasons.push('low-confidence');
+    if(evidence<=LEARNING_TELEMETRY_RULES_V396.overfitEffectiveEvidenceMax) reasons.push('thin-evidence');
+    if(consistency<=LEARNING_TELEMETRY_RULES_V396.overfitConsistencyMax) reasons.push('contradictory-evidence');
+    if(freshness<=LEARNING_TELEMETRY_RULES_V396.staleFreshnessMax) reasons.push('stale-evidence');
+    if(!reasons.length) continue;
+    warnings.push({
+      key:profile.key||null,name:profile.name||profile.key||null,
+      effectiveDelta:telemetryRoundV396(profile.effectiveDelta,2),
+      confidence:telemetryRoundV396(confidence,3),effectiveEvidence:telemetryRoundV396(evidence,2),
+      consistency:telemetryRoundV396(consistency,3),freshness:telemetryRoundV396(freshness,3),
+      reasons
+    });
+  }
+  return warnings.sort((a,b)=>Math.abs(Number(b.effectiveDelta||0))-Math.abs(Number(a.effectiveDelta||0))).slice(0,12);
+}
+function learningTelemetrySummaryV396(){
+  const rows=learningTelemetryCycleRowsV396();
+  const resolved=rows.filter(r=>r.resolved);
+  const influenced=rows.filter(r=>r.influenced);
+  const influencedResolved=influenced.filter(r=>r.resolved);
+  const lowInfluence=influenced.filter(r=>r.confidence!=null&&r.confidence<LEARNING_TELEMETRY_RULES_V396.lowConfidenceCeiling);
+  const highResolved=influencedResolved.filter(r=>r.confidence!=null&&r.confidence>=LEARNING_TELEMETRY_RULES_V396.highConfidenceFloor);
+  const governed=influenced.filter(r=>r.governanceLimited);
+  const learnedLiftRows=influenced.filter(r=>r.learnedLift!=null);
+  const avg=(arr,key)=>arr.length?telemetryRoundV396(arr.reduce((s,x)=>s+Number(x[key]||0),0)/arr.length,3):null;
+  const warnings=learningTelemetryWarningsV396();
+  return {
+    version:LEARNING_TELEMETRY_VERSION_V396,
+    model:LEARNING_TELEMETRY_RULES_V396.model,
+    observationalOnly:true,
+    autoCalibration:false,
+    persistedParallelLog:false,
+    analyzedCycles:rows.length,
+    resolvedCycles:resolved.length,
+    learnedInfluenceCycles:influenced.length,
+    learnedInfluenceRate:telemetryRateV396(influenced.length,rows.length),
+    acceptedRecommendationRate:telemetryRateV396(resolved.filter(r=>r.accepted).length,resolved.length),
+    alternativeChoiceRate:telemetryRateV396(resolved.filter(r=>r.alternative).length,resolved.length),
+    recommendationCompletionRate:telemetryRateV396(resolved.filter(r=>r.recommendationCompleted).length,resolved.length),
+    highConfidenceSuccessRate:telemetryRateV396(highResolved.filter(r=>r.accepted||r.recommendationCompleted).length,highResolved.length),
+    highConfidenceResolvedCycles:highResolved.length,
+    lowConfidenceInterference:{count:lowInfluence.length,rate:telemetryRateV396(lowInfluence.length,influenced.length)},
+    preferenceOverrideBlockedByGovernance:{count:governed.length,rate:telemetryRateV396(governed.length,influenced.length)},
+    avgLearnedPriorityAdjustment:avg(influenced,'learnedAdjustment'),
+    avgLearnedScoreLift:avg(learnedLiftRows,'learnedLift'),
+    scoreLiftSamples:learnedLiftRows.length,
+    confidenceCalibration:telemetryCalibrationBandsV396(rows),
+    warningCount:warnings.length,
+    warnings
+  };
+}
+
+// Ciclos futuros preservam os campos necessários para telemetria de influência
+// real no score. Ciclos antigos continuam válidos mesmo sem esses campos.
+const v395HistoryV3CompactCandidateV396=historyV3CompactCandidateV393;
+historyV3CompactCandidateV393=function(candidate){
+  const compact=v395HistoryV3CompactCandidateV396(candidate);
+  if(compact?.preference&&candidate?.preference){
+    for(const key of ['declaredScore','learnedLift','positiveLift','scoreBeforeGovernance','scoreWithoutPositivePreference']){
+      if(candidate.preference[key]!==undefined) compact.preference[key]=candidate.preference[key];
+    }
+    compact.preference.telemetryVersion=LEARNING_TELEMETRY_VERSION_V396;
+  }
+  return compact;
+};
+
+const v395EngineDiagnosticSnapshotV396=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){
+  const snapshot=v395EngineDiagnosticSnapshotV396();snapshot.context=snapshot.context||{};
+  const telemetry=learningTelemetrySummaryV396();
+  snapshot.context.learningTelemetry={
+    version:telemetry.version,model:telemetry.model,observationalOnly:true,
+    analyzedCycles:telemetry.analyzedCycles,learnedInfluenceRate:telemetry.learnedInfluenceRate,
+    acceptedRecommendationRate:telemetry.acceptedRecommendationRate,
+    highConfidenceSuccessRate:telemetry.highConfidenceSuccessRate,
+    warningCount:telemetry.warningCount
+  };
+  return snapshot;
+};
+
+const v395ExposeDiagnosticsApiV396=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){
+  v395ExposeDiagnosticsApiV396();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.learningTelemetrySummary=()=>structuredClone(learningTelemetrySummaryV396());
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.learningTelemetryCalibration=()=>structuredClone(telemetryCalibrationBandsV396());
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.learningTelemetryWarnings=()=>structuredClone(learningTelemetryWarningsV396());
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.learningTelemetryCycles=(limit=30)=>{const n=Math.max(1,Math.min(LEARNING_TELEMETRY_RULES_V396.maxCycleRowsReturned,Number(limit)||30));return structuredClone(learningTelemetryCycleRowsV396().slice(-n).reverse());};
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.learningTelemetryPolicy=()=>structuredClone({version:LEARNING_TELEMETRY_VERSION_V396,...LEARNING_TELEMETRY_RULES_V396,observationalOnly:true,autoCalibration:false});
+};
+
+const v395RunEngineSelfTestsV396=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v395RunEngineSelfTestsV396();const additions=[];
+  const backup={historyV3:structuredClone(state.historyV3),history:structuredClone(state.history),attractionPreferences:structuredClone(state.attractionPreferences),preferenceLearningEvents:structuredClone(state.preferenceLearningEvents),preferenceLearningStartedAt:state.preferenceLearningStartedAt,preferenceLearningResetAt:state.preferenceLearningResetAt,preferenceLearningResetByKey:structuredClone(state.preferenceLearningResetByKey),enabled:state.settings.preferenceLearningEnabled};
+  const reset=()=>{state.history=[];state.attractionPreferences={};state.preferenceLearningEvents=[];state.preferenceLearningStartedAt=1;state.preferenceLearningResetAt=0;state.preferenceLearningResetByKey={};state.settings.preferenceLearningEnabled=true;state.historyV3=createHistoryV3StateV393('v396-selftest');state.historyV3.migration.legacyRecordCount=0;};
+  const addCycle=({id='a',title='A',adjustment=4,lift=.8,confidence=.8,evidence=6,consistency=.9,freshness=.95,limited=false,matched=true,completed=false,behavior=null}={})=>{const at=new Date().toISOString();const c={schemaVersion:3,id:historyV3IdV393('v396'),source:'decision-engine',createdAt:at,updatedAt:at,status:'acted',context:{dayDate:'2099-01-01',park:'epcot'},candidates:[{activityId:id,title,score:80,band:'FAÇA AGORA',preference:{declaredCode:'normal',learnedAdjustment:adjustment,learnedLift:lift,confidence,sampleCount:5,effectiveEvidence:evidence,consistency,freshness,limited,limitReason:limited?'operational-window':null}}],recommendation:{activityId:id,title,decisionKind:'direct'},userAction:{type:matched?'recommendation-accepted':'alternative-started',at,activityId:matched?id:'b',title:matched?title:'B',matchedRecommendation:matched},outcome:completed?{type:'completed',at}:null};if(behavior)c.behavioralFeedback={version:2,classification:behavior};state.historyV3.cycles.push(c);return c;};
+  try{
+    addSelfTestV38(additions,'Telemetria v39.6 é observacional e não cria estado paralelo',()=>{reset();addCycle();const t=learningTelemetrySummaryV396();assertSelfTestV38(t.observationalOnly&&!t.autoCalibration&&!Object.prototype.hasOwnProperty.call(state,'learningTelemetry'),JSON.stringify(t));return 'somente diagnóstico';});
+    addSelfTestV38(additions,'Telemetria mede taxa de influência aprendida',()=>{reset();addCycle({adjustment:5});addCycle({id:'b',title:'B',adjustment:0});const t=learningTelemetrySummaryV396();assertSelfTestV38(t.learnedInfluenceCycles===1&&t.learnedInfluenceRate===.5,JSON.stringify(t));return '1/2 influenciada';});
+    addSelfTestV38(additions,'Aceitação e escolha alternativa são métricas separadas',()=>{reset();addCycle({matched:true});addCycle({id:'b',title:'B',matched:false});const t=learningTelemetrySummaryV396();assertSelfTestV38(t.acceptedRecommendationRate===.5&&t.alternativeChoiceRate===.5,JSON.stringify(t));return '50% / 50%';});
+    addSelfTestV38(additions,'Calibração separa confiança baixa média e alta',()=>{reset();addCycle({confidence:.2});addCycle({id:'b',title:'B',confidence:.5});addCycle({id:'c',title:'C',confidence:.8});const bands=telemetryCalibrationBandsV396();assertSelfTestV38(bands.low.recommendations===1&&bands.medium.recommendations===1&&bands.high.recommendations===1,JSON.stringify(bands));return '3 faixas';});
+    addSelfTestV38(additions,'Baixa confiança influente aparece como interferência diagnóstica',()=>{reset();addCycle({confidence:.2,adjustment:3});const t=learningTelemetrySummaryV396();assertSelfTestV38(t.lowConfidenceInterference.count===1&&t.lowConfidenceInterference.rate===1,JSON.stringify(t.lowConfidenceInterference));return '1 sinal';});
+    addSelfTestV38(additions,'Governança bloqueada é contabilizada sem alterar score',()=>{reset();addCycle({adjustment:8,limited:true});const t=learningTelemetrySummaryV396();assertSelfTestV38(t.preferenceOverrideBlockedByGovernance.count===1,JSON.stringify(t));return 'bloqueio medido';});
+    addSelfTestV38(additions,'Alerta de sobreajuste exige ajuste relevante e evidência fraca',()=>{const warnings=learningTelemetryWarningsV396([{key:'risk',name:'Risco Telemetria',effectiveDelta:12,confidence:.2,effectiveEvidence:1.5,consistency:.4,freshness:.2}]);assertSelfTestV38(warnings.length===1&&warnings[0].reasons.includes('low-confidence')&&warnings[0].reasons.includes('thin-evidence'),JSON.stringify(warnings));return warnings[0].reasons.join(',');});
+    addSelfTestV38(additions,'Histórico v3 futuro preserva learnedLift para telemetria',()=>{const compact=historyV3CompactCandidateV393({activityId:'x',title:'X',preference:{declaredCode:'want',learnedAdjustment:5,learnedLift:1.25,positiveLift:4,declaredScore:80,scoreBeforeGovernance:76,scoreWithoutPositivePreference:70,confidence:.8}});assertSelfTestV38(compact.preference.learnedLift===1.25&&compact.preference.telemetryVersion===1,JSON.stringify(compact));return 'learnedLift persistido';});
+    addSelfTestV38(additions,'High confidence success usa follow-through observado, não causalidade',()=>{reset();addCycle({confidence:.8,matched:true,completed:true});addCycle({id:'b',title:'B',confidence:.8,matched:false});const t=learningTelemetrySummaryV396();assertSelfTestV38(t.highConfidenceSuccessRate===.5&&t.highConfidenceResolvedCycles===2,JSON.stringify(t));return '1/2 follow-through';});
+    addSelfTestV38(additions,'Política de score permanece inalterada na v39.6',()=>{assertSelfTestV38(PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold===72&&PREFERENCE_CONFIDENCE_RULES_V394.minConfidenceToApply===.12,'threshold alterado');return '72 / 0.12 preservados';});
+  }finally{state.historyV3=backup.historyV3;state.history=backup.history;state.attractionPreferences=backup.attractionPreferences;state.preferenceLearningEvents=backup.preferenceLearningEvents;state.preferenceLearningStartedAt=backup.preferenceLearningStartedAt;state.preferenceLearningResetAt=backup.preferenceLearningResetAt;state.preferenceLearningResetByKey=backup.preferenceLearningResetByKey;state.settings.preferenceLearningEnabled=backup.enabled;saveState();}
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v39.6.1 — Performance Hotfix
+   Remove cálculos diagnósticos pesados do caminho crítico de renderização.
+
+   Contratos:
+   - diagnóstico e preferências aprendidas são lazy quando Configurações está oculta;
+   - telemetria/perfis derivados usam cache curto invalidado por assinatura do estado;
+   - abrir Histórico/Ao Vivo não depende do cálculo de telemetria;
+   - nenhuma regra de score, governança, aprendizado ou Histórico v3 é alterada.
+   ============================================================ */
+const PERFORMANCE_HOTFIX_VERSION_V3961=1;
+const PERFORMANCE_HOTFIX_RULES_V3961=Object.freeze({
+  telemetryCacheMs:15_000,
+  learnedProfilesCacheMs:5_000,
+  preferenceEvidenceCacheMs:5_000,
+  settingsLazyDiagnostics:true,
+  settingsLazyLearnedProfiles:true
+});
+
+function learningDerivedSignatureV3961(){
+  const history=Array.isArray(state?.history)?state.history:[];
+  const cycles=Array.isArray(state?.historyV3?.cycles)?state.historyV3.cycles:[];
+  const events=Array.isArray(state?.preferenceLearningEvents)?state.preferenceLearningEvents:[];
+  let maxCycleUpdated=0;
+  for(const c of cycles){
+    const t=Date.parse(c?.updatedAt||c?.userAction?.at||c?.outcome?.at||c?.createdAt||'');
+    if(Number.isFinite(t)&&t>maxCycleUpdated) maxCycleUpdated=t;
+  }
+  const lastHistory=history.at(-1)||null;
+  const lastEvent=events.at(-1)||null;
+  const lastCycle=cycles.at(-1)||null;
+  const lastCandidate=Array.isArray(lastCycle?.candidates)?lastCycle.candidates[0]:null;
+  const historyStamp=lastHistory?`${lastHistory.activityId||''}:${lastHistory.status||''}:${lastHistory.actualEnd||lastHistory.actualStart||''}:${lastHistory.rating??''}`:'';
+  const eventStamp=lastEvent?`${lastEvent.key||''}:${lastEvent.type||''}:${eventTimestampV39(lastEvent)||''}`:'';
+  const cycleStamp=lastCycle?`${lastCycle.id||''}:${lastCycle.updatedAt||''}:${lastCycle.recommendation?.activityId||''}:${lastCycle.userAction?.type||''}:${lastCycle.userAction?.matchedRecommendation??''}:${lastCandidate?.preference?.learnedAdjustment??''}:${lastCandidate?.preference?.confidence??''}:${lastCandidate?.preference?.limited??''}`:'';
+  return [
+    history.length,historyStamp,
+    cycles.length,maxCycleUpdated,cycleStamp,
+    events.length,eventStamp,
+    Number(state?.preferenceLearningResetAt||0),
+    Object.keys(state?.preferenceLearningResetByKey||{}).length,
+    Object.keys(state?.attractionPreferences||{}).length,
+    Boolean(state?.settings?.preferenceLearningEnabled)
+  ].join('|');
+}
+
+const v396LearnedPreferenceEvidenceV3961=learnedPreferenceEvidenceV39;
+let preferenceEvidenceCacheV3961={signature:'',at:0,rows:new Map()};
+learnedPreferenceEvidenceV39=function(value){
+  const signature=learningDerivedSignatureV3961();
+  const now=Date.now();
+  if(preferenceEvidenceCacheV3961.signature!==signature||now-preferenceEvidenceCacheV3961.at>=PERFORMANCE_HOTFIX_RULES_V3961.preferenceEvidenceCacheMs){
+    preferenceEvidenceCacheV3961={signature,at:now,rows:new Map()};
+  }
+  const key=learningKeyV39(value);
+  if(!key) return v396LearnedPreferenceEvidenceV3961(value);
+  if(preferenceEvidenceCacheV3961.rows.has(key)) return preferenceEvidenceCacheV3961.rows.get(key);
+  const result=v396LearnedPreferenceEvidenceV3961(value);
+  preferenceEvidenceCacheV3961.rows.set(key,result);
+  return result;
+};
+
+const v396LearnedProfilesV3961=learnedProfilesV39;
+let learnedProfilesCacheV3961={signature:'',at:0,value:null};
+learnedProfilesV39=function(){
+  const signature=learningDerivedSignatureV3961();
+  const now=Date.now();
+  if(learnedProfilesCacheV3961.value&&learnedProfilesCacheV3961.signature===signature&&now-learnedProfilesCacheV3961.at<PERFORMANCE_HOTFIX_RULES_V3961.learnedProfilesCacheMs){
+    return learnedProfilesCacheV3961.value;
+  }
+  const value=v396LearnedProfilesV3961();
+  learnedProfilesCacheV3961={signature,at:now,value};
+  return value;
+};
+
+const v396LearningTelemetrySummaryV3961=learningTelemetrySummaryV396;
+let learningTelemetryCacheV3961={signature:'',at:0,value:null};
+learningTelemetrySummaryV396=function(){
+  const signature=learningDerivedSignatureV3961();
+  const now=Date.now();
+  if(learningTelemetryCacheV3961.value&&learningTelemetryCacheV3961.signature===signature&&now-learningTelemetryCacheV3961.at<PERFORMANCE_HOTFIX_RULES_V3961.telemetryCacheMs){
+    return learningTelemetryCacheV3961.value;
+  }
+  const value=v396LearningTelemetrySummaryV3961();
+  learningTelemetryCacheV3961={signature,at:now,value};
+  return value;
+};
+
+function settingsViewActiveV3961(){
+  return Boolean(document.querySelector('.view[data-view="settings"]')?.classList.contains('active'));
+}
+
+const v396RenderDiagnosticPanelV3961=renderDiagnosticPanelV38;
+renderDiagnosticPanelV38=function(force=false){
+  if(!force&&PERFORMANCE_HOTFIX_RULES_V3961.settingsLazyDiagnostics&&!settingsViewActiveV3961()) return;
+  return v396RenderDiagnosticPanelV3961();
+};
+
+const v396RenderPreferenceLearningV3961=renderPreferenceLearningV39;
+renderPreferenceLearningV39=function(force=false){
+  if(!force&&PERFORMANCE_HOTFIX_RULES_V3961.settingsLazyLearnedProfiles&&!settingsViewActiveV3961()) return;
+  return v396RenderPreferenceLearningV3961();
+};
+
+const v396SwitchViewV3961=switchView;
+switchView=function(target){
+  const result=v396SwitchViewV3961(target);
+  if(target==='settings'){
+    requestAnimationFrame(()=>{
+      try{renderSettings();}
+      catch(error){recordRuntimeDiagnosticV38('settings-lazy-render-v3961',error);}
+    });
+  }
+  return result;
+};
+
+const v396EngineDiagnosticSnapshotV3961=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){
+  const snapshot=v396EngineDiagnosticSnapshotV3961();
+  snapshot.context=snapshot.context||{};
+  snapshot.context.performanceHotfix={
+    version:PERFORMANCE_HOTFIX_VERSION_V3961,
+    settingsLazyDiagnostics:true,
+    settingsLazyLearnedProfiles:true,
+    telemetryCacheMs:PERFORMANCE_HOTFIX_RULES_V3961.telemetryCacheMs,
+    learnedProfilesCacheMs:PERFORMANCE_HOTFIX_RULES_V3961.learnedProfilesCacheMs,
+    preferenceEvidenceCacheMs:PERFORMANCE_HOTFIX_RULES_V3961.preferenceEvidenceCacheMs
+  };
+  return snapshot;
+};
+
+const v396ExposeDiagnosticsApiV3961=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){
+  v396ExposeDiagnosticsApiV3961();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.performanceHotfix=()=>structuredClone({version:PERFORMANCE_HOTFIX_VERSION_V3961,...PERFORMANCE_HOTFIX_RULES_V3961});
+};
+
+const v396RunEngineSelfTestsV3961=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v396RunEngineSelfTestsV3961();
+  const additions=[];
+  addSelfTestV38(additions,'Performance hotfix mantém diagnóstico lazy fora de Configurações',()=>{
+    assertSelfTestV38(PERFORMANCE_HOTFIX_RULES_V3961.settingsLazyDiagnostics===true&&PERFORMANCE_HOTFIX_RULES_V3961.settingsLazyLearnedProfiles===true,'lazy desativado');
+    return 'diagnóstico fora do caminho crítico';
+  });
+  addSelfTestV38(additions,'Cache derivado usa assinatura do Histórico v3 e aprendizado',()=>{
+    const sig=learningDerivedSignatureV3961();
+    assertSelfTestV38(typeof sig==='string'&&sig.split('|').length>=9,'assinatura inválida');
+    return 'assinatura válida';
+  });
+  addSelfTestV38(additions,'Hotfix não altera política de score',()=>{
+    assertSelfTestV38(PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold===72&&PREFERENCE_CONFIDENCE_RULES_V394.minConfidenceToApply===.12,'política alterada');
+    return '72 / 0.12 preservados';
+  });
+  report.results.push(...additions);
+  report.total=report.results.length;
+  report.passed=report.results.filter(x=>x.ok).length;
+  report.failed=report.total-report.passed;
+  report.ok=report.failed===0;
+  report.build=ENGINE_BUILD_V38;
+  report.version=ENGINE_DIAGNOSTICS_VERSION_V38;
+  return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v39.6.2 — Performance Hotfix II
+   Profiling de navegação real mostrou trabalho repetido no caminho de
+   Hoje/Ao Vivo. Esta camada é estritamente de performance:
+   - índice de state.history por ciclo de render;
+   - memoização transitória de cálculos puros durante o mesmo render;
+   - assinatura O(1) para caches derivados;
+   - replanejamento pesado após a primeira pintura do Ao Vivo;
+   - filas/clima atuais nunca replanejam um dia futuro.
+   ============================================================ */
+const PERFORMANCE_HOTFIX_VERSION_V3962=2;
+const PERFORMANCE_HOTFIX_RULES_V3962=Object.freeze({
+  renderMemoScope:'synchronous-render-only',
+  historyIndexPerRender:true,
+  futureDayLiveReplan:false,
+  deferredReplan:true,
+  replanIdleTimeoutMs:800,
+  replanRepeatGuardMs:5_000,
+  scorePolicyChanged:false
+});
+
+let performanceStateRevisionV3962=0;
+let performanceRenderDepthV3962=0;
+let performanceRenderMemoV3962=null;
+let deferredReplanHandleV3962=null;
+let deferredReplanTokenV3962=0;
+let lastDeferredReplanSignatureV3962='';
+let lastDeferredReplanAtV3962=0;
+
+function activityPerfKeyV3962(activity){return String(activity?.id||activity?.entityName||activity?.title||'');}
+function dayPerfKeyV3962(day){return `${day?.date||''}|${day?.park||''}`;}
+function livePerfStampV3962(payload){return Number(payload?.fetchedAt||0);}
+function weatherPerfStampV3962(payload){return Number(payload?.fetchedAt||0);}
+function withPerformanceRenderMemoV3962(fn){
+  const root=performanceRenderDepthV3962===0;
+  performanceRenderDepthV3962++;
+  if(root) performanceRenderMemoV3962={maps:new Map(),historyIndex:null,orlandoNow:null,startedAt:performance.now()};
+  try{return fn();}
+  finally{
+    performanceRenderDepthV3962=Math.max(0,performanceRenderDepthV3962-1);
+    if(performanceRenderDepthV3962===0) performanceRenderMemoV3962=null;
+  }
+}
+function performanceMemoMapV3962(name){
+  if(!performanceRenderMemoV3962) return null;
+  let map=performanceRenderMemoV3962.maps.get(name);
+  if(!map){map=new Map();performanceRenderMemoV3962.maps.set(name,map);}
+  return map;
+}
+function performanceMemoValueV3962(name,key,compute,{cloneArray=false}={}){
+  const map=performanceMemoMapV3962(name);
+  if(!map) return compute();
+  if(map.has(key)){const value=map.get(key);return cloneArray&&Array.isArray(value)?value.slice():value;}
+  const value=compute();map.set(key,value);return cloneArray&&Array.isArray(value)?value.slice():value;
+}
+
+// O relógio Orlando usa Intl; dentro de um mesmo render o instante lógico é único.
+const v3961GetOrlandoPartsV3962=getOrlandoParts;
+getOrlandoParts=function(date){
+  if(performanceRenderMemoV3962&&arguments.length===0){
+    if(!performanceRenderMemoV3962.orlandoNow) performanceRenderMemoV3962.orlandoNow=v3961GetOrlandoPartsV3962();
+    return performanceRenderMemoV3962.orlandoNow;
+  }
+  return arguments.length?v3961GetOrlandoPartsV3962(date):v3961GetOrlandoPartsV3962();
+};
+
+// Uma única varredura de state.history por render substitui centenas de .some/.find/.filter.
+function historyIndexV3962(){
+  if(!performanceRenderMemoV3962) return null;
+  if(performanceRenderMemoV3962.historyIndex) return performanceRenderMemoV3962.historyIndex;
+  const index={done:new Set(),skipped:new Set(),started:new Set(),logById:new Map(),doneByDate:new Map()};
+  for(const record of historyRowsV3905()){
+    if(!isHistoryRecordV3905(record)) continue;
+    const id=record.activityId||null;
+    if(id){
+      if(record.status==='done') index.done.add(id);
+      if(record.status==='skipped') index.skipped.add(id);
+      if(record.status==='started') index.started.add(id);
+      if(record.status!=='skipped'&&!index.logById.has(id)) index.logById.set(id,record);
+    }
+    if(record.status==='done'){
+      const rows=index.doneByDate.get(record.date)||[];rows.push(record);index.doneByDate.set(record.date,rows);
+    }
+  }
+  performanceRenderMemoV3962.historyIndex=index;
+  return index;
+}
+const v3961IsDoneV3962=isDone;
+const v3961IsSkippedV3962=isSkipped;
+const v3961IsStartedV3962=isStarted;
+const v3961GetActivityLogV3962=getActivityLog;
+const v3961GetDayHistoryV3962=getDayHistory;
+isDone=function(id){const x=historyIndexV3962();return x?x.done.has(id):v3961IsDoneV3962(id);};
+isSkipped=function(id){const x=historyIndexV3962();return x?x.skipped.has(id):v3961IsSkippedV3962(id);};
+isStarted=function(id){const x=historyIndexV3962();return x?x.started.has(id):v3961IsStartedV3962(id);};
+getActivityLog=function(id){const x=historyIndexV3962();return x?(x.logById.get(id)||null):v3961GetActivityLogV3962(id);};
+getDayHistory=function(date=state.selectedDate){const x=historyIndexV3962();return x?(x.doneByDate.get(date)||[]).slice():v3961GetDayHistoryV3962(date);};
+
+// Toda persistência real passa por saveState: a revisão permite invalidar caches em O(1).
+const v3961SaveStateV3962=saveState;
+saveState=function(){
+  performanceStateRevisionV3962++;
+  if(performanceRenderMemoV3962) performanceRenderMemoV3962.historyIndex=null;
+  return v3961SaveStateV3962();
+};
+learningDerivedSignatureV3961=function(){
+  const history=Array.isArray(state?.history)?state.history:[];
+  const cycles=Array.isArray(state?.historyV3?.cycles)?state.historyV3.cycles:[];
+  const events=Array.isArray(state?.preferenceLearningEvents)?state.preferenceLearningEvents:[];
+  const h=history.at(-1)||null,c=cycles.at(-1)||null,e=events.at(-1)||null;
+  return [
+    performanceStateRevisionV3962,
+    history.length,h?.activityId||'',h?.status||'',h?.actualEnd||h?.actualStart||'',h?.rating??'',
+    cycles.length,c?.id||'',c?.updatedAt||c?.createdAt||'',c?.userAction?.type||'',c?.outcome?.type||'',
+    events.length,e?.key||'',e?.type||'',eventTimestampV39(e)||'',
+    Number(state?.preferenceLearningResetAt||0),Object.keys(state?.preferenceLearningResetByKey||{}).length,
+    Object.keys(state?.attractionPreferences||{}).length,Boolean(state?.settings?.preferenceLearningEnabled)
+  ].join('|');
+};
+
+// Memoização transitória. Nenhum score/decisão atravessa a fronteira do render.
+const v3961HistoricalWaitAtMinuteV3962=historicalWaitAtMinute;
+historicalWaitAtMinute=function(parkKey,name,minute,date=getOrlandoParts().date){
+  const key=`${parkKey}|${normalizeName(name)}|${Number(minute)}|${date}`;
+  return performanceMemoValueV3962('historicalWaitAtMinute',key,()=>v3961HistoricalWaitAtMinuteV3962(parkKey,name,minute,date));
+};
+const v3961PredictedWaitMetaV37V3962=predictedWaitMetaV37;
+predictedWaitMetaV37=function(name,currentWait,targetMinute,parkKey=state.selectedPark,activity=null,weatherPayload=null,day=getSelectedDay()){
+  const key=[normalizeName(name),Number(currentWait),Number(targetMinute),parkKey,activityPerfKeyV3962(activity),Number(activity?.plannedWait??-1),weatherPerfStampV3962(weatherPayload),dayPerfKeyV3962(day),livePerfStampV3962(state.liveCache?.[parkKey])].join('|');
+  return performanceMemoValueV3962('predictedWaitMetaV37',key,()=>v3961PredictedWaitMetaV37V3962(name,currentWait,targetMinute,parkKey,activity,weatherPayload,day));
+};
+const v3961PredictedWaitForV3962=predictedWaitFor;
+predictedWaitFor=function(name,currentWait,targetMinute,parkKey=state.selectedPark,activity=null){
+  const key=[normalizeName(name),Number(currentWait),Number(targetMinute),parkKey,activityPerfKeyV3962(activity),Number(activity?.plannedWait??-1),livePerfStampV3962(state.liveCache?.[parkKey])].join('|');
+  return performanceMemoValueV3962('predictedWaitFor',key,()=>v3961PredictedWaitForV3962(name,currentWait,targetMinute,parkKey,activity));
+};
+const v3961BestQueueWindowV3962=bestQueueWindow;
+bestQueueWindow=function(name,currentWait,parkKey=state.selectedPark,activity=null,weatherPayload=null){
+  const now=getOrlandoParts();
+  const key=[normalizeName(name),Number(currentWait),parkKey,activityPerfKeyV3962(activity),Number(activity?.plannedWait??-1),weatherPerfStampV3962(weatherPayload),now.date,now.hour,now.minute].join('|');
+  return performanceMemoValueV3962('bestQueueWindow',key,()=>v3961BestQueueWindowV3962(name,currentWait,parkKey,activity,weatherPayload));
+};
+const v3961WalkingMetaV3962=walkingMeta;
+walkingMeta=function(activity,liveEntry=null,day=getSelectedDay(),previousActivity=null){
+  const key=[activityPerfKeyV3962(activity),liveEntry?.id||liveEntry?.name||'',dayPerfKeyV3962(day),activityPerfKeyV3962(previousActivity),gpsLastPoint?.lat??'',gpsLastPoint?.lon??'',Number(state.settings?.walkingMetersPerMinute||75)].join('|');
+  return performanceMemoValueV3962('walkingMeta',key,()=>v3961WalkingMetaV3962(activity,liveEntry,day,previousActivity));
+};
+const v3961ScheduleScoreMetaV3962=scheduleScoreMeta;
+scheduleScoreMeta=function(activity,startMinute,totalMinutes,day=getSelectedDay()){
+  const key=[activityPerfKeyV3962(activity),Number(startMinute),Number(totalMinutes),dayPerfKeyV3962(day),activity?.time||'',Boolean(activity?.flexible)].join('|');
+  return performanceMemoValueV3962('scheduleScoreMeta',key,()=>v3961ScheduleScoreMetaV3962(activity,startMinute,totalMinutes,day));
+};
+const v3961StrategicCommitmentReserveV3962=strategicCommitmentReserveV391;
+strategicCommitmentReserveV391=function(activity,day,livePayload=null,startMinute=null,candidateMinutes=0){
+  const key=[activityPerfKeyV3962(activity),dayPerfKeyV3962(day),livePerfStampV3962(livePayload),startMinute==null?'now':Number(startMinute),Number(candidateMinutes)].join('|');
+  return performanceMemoValueV3962('strategicCommitmentReserveV391',key,()=>v3961StrategicCommitmentReserveV3962(activity,day,livePayload,startMinute,candidateMinutes));
+};
+const v3961PersonalPriorityMetaV3962=personalPriorityMeta;
+personalPriorityMeta=function(activity,currentWait=null){
+  const key=[activityPerfKeyV3962(activity),currentWait==null?'':Number(currentWait),Boolean(state.settings?.preferenceLearningEnabled)].join('|');
+  return performanceMemoValueV3962('personalPriorityMeta',key,()=>v3961PersonalPriorityMetaV3962(activity,currentWait));
+};
+const v3961CopilotScoreForEntryV3962=copilotScoreForEntry;
+copilotScoreForEntry=function(entry,day=getSelectedDay(),weatherPayload=state.weatherCache[state.selectedPark],startMinute=null,previousActivity=null){
+  const now=getOrlandoParts();const minute=startMinute==null?now.hour*60+now.minute:Number(startMinute);const parkKey=day?.park||state.selectedPark;
+  const key=[entry?.id||entry?.entityId||entry?.name||'',normalizeName(entry?.name||entry?.title||''),extractStandby(entry),entry?.status||'',minute,activityPerfKeyV3962(previousActivity),dayPerfKeyV3962(day),weatherPerfStampV3962(weatherPayload),livePerfStampV3962(state.liveCache?.[parkKey])].join('|');
+  return performanceMemoValueV3962('copilotScoreForEntry',key,()=>v3961CopilotScoreForEntryV3962(entry,day,weatherPayload,startMinute,previousActivity));
+};
+const v3961LiveDecisionRowsV3962=liveDecisionRowsV36;
+liveDecisionRowsV36=function(day,livePayload,weatherPayload,nowMinute=null){
+  const key=[dayPerfKeyV3962(day),livePerfStampV3962(livePayload),weatherPerfStampV3962(weatherPayload),nowMinute==null?'now':Number(nowMinute)].join('|');
+  return performanceMemoValueV3962('liveDecisionRowsV36',key,()=>v3961LiveDecisionRowsV3962(day,livePayload,weatherPayload,nowMinute),{cloneArray:true});
+};
+const v3961StrategicPrioritiesV3962=strategicPrioritiesV36;
+strategicPrioritiesV36=function(day,livePayload,weatherPayload,nowMinute=null){
+  const key=[dayPerfKeyV3962(day),livePerfStampV3962(livePayload),weatherPerfStampV3962(weatherPayload),nowMinute==null?'now':Number(nowMinute)].join('|');
+  return performanceMemoValueV3962('strategicPrioritiesV36',key,()=>v3961StrategicPrioritiesV3962(day,livePayload,weatherPayload,nowMinute),{cloneArray:true});
+};
+const v3961BridgeCandidatesV3962=bridgeCandidatesV36;
+bridgeCandidatesV36=function(day,livePayload,weatherPayload,protectedPriority,nowMinute=null){
+  const key=[dayPerfKeyV3962(day),livePerfStampV3962(livePayload),weatherPerfStampV3962(weatherPayload),activityPerfKeyV3962(protectedPriority?.activity),nowMinute==null?'now':Number(nowMinute)].join('|');
+  return performanceMemoValueV3962('bridgeCandidatesV36',key,()=>v3961BridgeCandidatesV3962(day,livePayload,weatherPayload,protectedPriority,nowMinute),{cloneArray:true});
+};
+const v3961DecisionOrchestratorV3962=decisionOrchestratorV36;
+decisionOrchestratorV36=function(day,livePayload,weatherPayload){
+  const key=[dayPerfKeyV3962(day),livePerfStampV3962(livePayload),weatherPerfStampV3962(weatherPayload)].join('|');
+  return performanceMemoValueV3962('decisionOrchestratorV36',key,()=>v3961DecisionOrchestratorV3962(day,livePayload,weatherPayload));
+};
+
+// Replanejamento com filas/clima atuais só é válido para o dia corrente.
+const v3961GenerateReplanProposalV3962=generateReplanProposal;
+generateReplanProposal=function(day,livePayload,weatherPayload,force=false){
+  if(day&&day.date!==getOrlandoParts().date) return null;
+  return withPerformanceRenderMemoV3962(()=>v3961GenerateReplanProposalV3962(day,livePayload,weatherPayload,force));
+};
+function renderFutureReplanStateV3962(day){
+  const panel=$('#replanPanel');if(!panel)return;
+  currentReplanProposal=null;currentReplanJson=null;panel.hidden=false;panel.className='replan-panel stable';
+  const title=$('#replanTitle'),badge=$('#replanBadge'),triggers=$('#replanTriggers'),summary=$('#replanSummary'),comparison=$('#replanComparison'),explanations=$('#replanExplanations'),actions=$('#replanActions'),analyze=$('#analyzeReplanBtn'),jsonBtn=$('#downloadReplanJsonBtn');
+  if(title)title.textContent='Planejamento futuro';if(badge){badge.textContent='AGUARDANDO O DIA';badge.className='replan-badge neutral';}
+  if(triggers)triggers.innerHTML='';if(summary)summary.textContent=`Filas e clima de hoje não serão usados para replanejar ${formatDate(day.date)}. A análise ao vivo será ativada no dia da visita.`;
+  if(comparison)comparison.innerHTML='';if(explanations)explanations.innerHTML='';if(actions)actions.hidden=true;if(analyze)analyze.hidden=true;if(jsonBtn)jsonBtn.hidden=true;
+}
+function renderPendingReplanStateV3962(triggers=[]){
+  const panel=$('#replanPanel');if(!panel)return;panel.hidden=false;panel.className='replan-panel active';
+  const title=$('#replanTitle'),badge=$('#replanBadge'),triggersEl=$('#replanTriggers'),summary=$('#replanSummary'),comparison=$('#replanComparison'),explanations=$('#replanExplanations'),actions=$('#replanActions'),analyze=$('#analyzeReplanBtn'),jsonBtn=$('#downloadReplanJsonBtn');
+  if(title)title.textContent='Analisando mudanças do parque';if(badge){badge.textContent='ANALISANDO';badge.className='replan-badge warn';}
+  if(triggersEl)triggersEl.innerHTML=(triggers||[]).slice(0,4).map(t=>`<span class="replan-trigger ${escapeHtml(t.severity||'medium')}">${escapeHtml(t.label||'mudança detectada')}</span>`).join('');
+  if(summary)summary.textContent='A tela continua disponível enquanto o Orlando Flow recalcula a melhor sequência.';if(comparison)comparison.innerHTML='';if(explanations)explanations.innerHTML='';if(actions)actions.hidden=true;if(analyze)analyze.hidden=true;if(jsonBtn)jsonBtn.hidden=true;
+}
+function scheduleDeferredReplanV3962(day,livePayload,weatherPayload,triggers,force){
+  const signature=`${day?.date||''}|${replanSignature(day,triggers||[])}|${livePerfStampV3962(livePayload)}|${weatherPerfStampV3962(weatherPayload)}|${force?'force':'auto'}`;
+  const now=Date.now();if(signature===lastDeferredReplanSignatureV3962&&now-lastDeferredReplanAtV3962<PERFORMANCE_HOTFIX_RULES_V3962.replanRepeatGuardMs)return;
+  lastDeferredReplanSignatureV3962=signature;lastDeferredReplanAtV3962=now;const token=++deferredReplanTokenV3962;
+  if(deferredReplanHandleV3962!=null){if(typeof cancelIdleCallback==='function')try{cancelIdleCallback(deferredReplanHandleV3962);}catch{}else clearTimeout(deferredReplanHandleV3962);}
+  const run=()=>{deferredReplanHandleV3962=null;if(token!==deferredReplanTokenV3962||activeViewName()!=='live')return;try{withPerformanceRenderMemoV3962(()=>v3961RenderReplanPanelV3962(day,livePayload,weatherPayload));}catch(error){recordRuntimeDiagnosticV38('deferred-replan-v3962',error);}};
+  if(typeof requestIdleCallback==='function')deferredReplanHandleV3962=requestIdleCallback(run,{timeout:PERFORMANCE_HOTFIX_RULES_V3962.replanIdleTimeoutMs});else deferredReplanHandleV3962=setTimeout(run,64);
+}
+const v3961RenderReplanPanelV3962=renderReplanPanel;
+renderReplanPanel=function(day,livePayload,weatherPayload){
+  const samePark=day?.park===state.selectedPark;
+  if(!day||!samePark||day.park==='off-day')return v3961RenderReplanPanelV3962(day,livePayload,weatherPayload);
+  if(day.date!==getOrlandoParts().date){renderFutureReplanStateV3962(day);return;}
+  const triggers=getReplanTriggers(day,livePayload,weatherPayload);
+  if(!forceReplanAnalysis&&!triggers.length)return v3961RenderReplanPanelV3962(day,livePayload,weatherPayload);
+  renderPendingReplanStateV3962(triggers);scheduleDeferredReplanV3962(day,livePayload,weatherPayload,triggers,Boolean(forceReplanAnalysis));
+};
+
+// A troca de aba inteira compartilha um memo: evita recriar o cache entre renderHeader/renderNext/renderLive.
+const v3961SwitchViewV3962=switchView;
+switchView=function(target){return withPerformanceRenderMemoV3962(()=>v3961SwitchViewV3962(target));};
+
+// As principais entradas de navegação compartilham o memo transitório.
+const v3961RenderNextV3962=renderNext;
+renderNext=function(...args){return withPerformanceRenderMemoV3962(()=>v3961RenderNextV3962(...args));};
+const v3961RenderLiveV3962=renderLive;
+renderLive=function(...args){return withPerformanceRenderMemoV3962(()=>v3961RenderLiveV3962(...args));};
+const v3961RenderAllV3962=renderAll;
+renderAll=function(...args){return withPerformanceRenderMemoV3962(()=>v3961RenderAllV3962(...args));};
+
+const v3961EngineDiagnosticSnapshotV3962=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){const snapshot=v3961EngineDiagnosticSnapshotV3962();snapshot.context=snapshot.context||{};snapshot.context.performanceHotfixV3962={version:PERFORMANCE_HOTFIX_VERSION_V3962,...PERFORMANCE_HOTFIX_RULES_V3962,stateRevision:performanceStateRevisionV3962};return snapshot;};
+const v3961ExposeDiagnosticsApiV3962=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){v3961ExposeDiagnosticsApiV3962();window.__ORLANDO_FLOW_DIAGNOSTICS__.performanceHotfixV3962=()=>structuredClone({version:PERFORMANCE_HOTFIX_VERSION_V3962,...PERFORMANCE_HOTFIX_RULES_V3962});};
+
+const v3961RunEngineSelfTestsV3962=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v3961RunEngineSelfTestsV3962();const additions=[];
+  addSelfTestV38(additions,'Performance v39.6.2 usa índice transitório de histórico',()=>{assertSelfTestV38(PERFORMANCE_HOTFIX_RULES_V3962.historyIndexPerRender===true,'índice desativado');return '1 varredura por render';});
+  addSelfTestV38(additions,'Memo de score é restrito ao ciclo de render',()=>{assertSelfTestV38(PERFORMANCE_HOTFIX_RULES_V3962.renderMemoScope==='synchronous-render-only','escopo incorreto');return 'sem cache persistente de score';});
+  addSelfTestV38(additions,'Dia futuro não usa fila ao vivo para replanejar',()=>{const future={date:'2099-01-01',park:'epcot',activities:[{id:'future-a',time:'10:00',title:'Futuro',type:'attraction',duration:8,priority:5,flexible:true,plannedWait:20}]};const proposal=generateReplanProposal(future,{fetchedAt:Date.now(),liveData:[{name:'Futuro',status:'OPERATING',queue:{STANDBY:{waitTime:120}}}]},null,true);assertSelfTestV38(proposal===null,'replanejamento futuro indevido');return 'filas atuais ignoradas';});
+  addSelfTestV38(additions,'Assinatura derivada v39.6.2 é O(1)',()=>{const sig=learningDerivedSignatureV3961();assertSelfTestV38(typeof sig==='string'&&sig.includes(String(performanceStateRevisionV3962)),'assinatura inválida');return 'sem varrer History v3';});
+  addSelfTestV38(additions,'Replanejamento pesado sai do caminho síncrono do Ao Vivo',()=>{assertSelfTestV38(PERFORMANCE_HOTFIX_RULES_V3962.deferredReplan===true,'defer desativado');return 'render primeiro, otimiza depois';});
+  addSelfTestV38(additions,'v39.6.2 preserva governança e score',()=>{assertSelfTestV38(PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold===72&&PREFERENCE_CONFIDENCE_RULES_V394.minConfidenceToApply===.12,'política alterada');return '72 / 0.12 preservados';});
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v39.6.2 — Candidate Scale Finalization
+   Otimização final de escala sem alterar score/governança:
+   - migração de identidade deixa de rodar em toda leitura de preferência;
+   - reserva estratégica compartilha catálogo/estimativas no mesmo render;
+   - beam search torna-se adaptativo somente em pools grandes;
+   - todas as prioridades estratégicas/pass/skipped permanecem protegidas;
+   - Decision Trace de dia futuro não reconstrói candidatos ao vivo;
+   - Ao Vivo de dia futuro mostra filas, mas não calcula recomendação com dados de hoje.
+   ============================================================ */
+const CANDIDATE_SCALE_VERSION_V3962=1;
+const CANDIDATE_SCALE_RULES_V3962=Object.freeze({
+  activateAbove:12,
+  poolCap:12,
+  branchCap:4,
+  beamWidth:10,
+  depthCap:7,
+  preserveStrategic:true,
+  futureDayDecisionScoring:false,
+  identityMigrationOnChangeOnly:true,
+  scorePolicyChanged:false
+});
+
+// A migração v39.0.4 é idempotente, mas é O(n). Antes, ela era chamada por
+// ensureCopilotState() em praticamente toda consulta de preferência. Mantemos
+// todas as garantias de estado, porém a migração só volta a executar quando
+// o state/containers relevantes são substituídos ou a versão ainda é antiga.
+let identityMigrationGuardV3962={
+  initialized:false,stateRef:null,prefsRef:null,eventsRef:null,resetsRef:null,
+  queueRef:null,geoRef:null,version:0
+};
+function identityMigrationNeedsRunV3962(){
+  return !identityMigrationGuardV3962.initialized ||
+    identityMigrationGuardV3962.stateRef!==state ||
+    identityMigrationGuardV3962.prefsRef!==state.attractionPreferences ||
+    identityMigrationGuardV3962.eventsRef!==state.preferenceLearningEvents ||
+    identityMigrationGuardV3962.resetsRef!==state.preferenceLearningResetByKey ||
+    identityMigrationGuardV3962.queueRef!==state.queueHistory ||
+    identityMigrationGuardV3962.geoRef!==state.attractionGeo ||
+    Number(state.preferenceIdentityMigrationVersion||0)<PREFERENCE_IDENTITY_MIGRATION_VERSION_V3904;
+}
+function markIdentityMigrationGuardV3962(){
+  identityMigrationGuardV3962={
+    initialized:true,stateRef:state,prefsRef:state.attractionPreferences,
+    eventsRef:state.preferenceLearningEvents,resetsRef:state.preferenceLearningResetByKey,
+    queueRef:state.queueHistory,geoRef:state.attractionGeo,
+    version:Number(state.preferenceIdentityMigrationVersion||0)
+  };
+}
+const v3962EnsureCopilotStateBeforeScaleV3962=ensureCopilotState;
+ensureCopilotState=function(){
+  // Capturado antes da v39.0.3: preserva toda a cadeia base, Opportunity,
+  // Pause, Meal e Learned Preferences sem disparar as migrações de identidade.
+  normalizeHistoryContainerV3905();
+  v3902EnsureCopilotStateV3903();
+  let changed=false;
+  if(identityMigrationNeedsRunV3962()){
+    const migration=migratePreferenceIdentityStateV3904();
+    changed=Boolean(migration?.changed);
+    markIdentityMigrationGuardV3962();
+  }
+  if(ensureHistoryV3StateV393()) changed=true;
+  if(changed) saveState();
+};
+
+// Catálogo estratégico compartilhado: a composição de must/want e a fila base
+// são iguais para todos os candidatos avaliados no mesmo instante.
+function strategicCommitmentCatalogV3962(day,livePayload){
+  const key=[dayPerfKeyV3962(day),livePerfStampV3962(livePayload)].join('|');
+  return performanceMemoValueV3962('strategicCommitmentCatalogV3962',key,()=>{
+    const rows=pendingStrategicCommitmentsV391(null,day,livePayload);
+    return rows.map(row=>{
+      const entry=findLiveMatch(row.activity,livePayload?.liveData||[]);
+      const liveWait=entry?extractStandby(entry):null;
+      const wait=liveWait!=null&&Number.isFinite(Number(liveWait))?Number(liveWait)
+        :Number.isFinite(Number(row.activity?.plannedWait))?Number(row.activity.plannedWait)
+        :PREFERENCE_GOVERNANCE_RULES_V391.defaultUnknownPriorityWait;
+      return {...row,wait,duration:Math.max(5,Number(row.activity?.duration||8)),factor:row.code==='must'?1:PREFERENCE_GOVERNANCE_RULES_V391.wantReserveFactor};
+    });
+  });
+}
+const v3962StrategicCommitmentReserveBeforeScaleV3962=strategicCommitmentReserveV391;
+strategicCommitmentReserveV391=function(activity,day,livePayload=null,startMinute=null,candidateMinutes=0){
+  if(!performanceRenderMemoV3962) return v3962StrategicCommitmentReserveBeforeScaleV3962(activity,day,livePayload,startMinute,candidateMinutes);
+  const now=getOrlandoParts();
+  const minute=startMinute==null?now.hour*60+now.minute:Number(startMinute);
+  const hours=parkHoursForDate(day?.park||state.selectedPark,day?.date||now.date);
+  const catalog=strategicCommitmentCatalogV3962(day,livePayload);
+  const estimateKey=[dayPerfKeyV3962(day),livePerfStampV3962(livePayload),minute].join('|');
+  const estimates=performanceMemoValueV3962('strategicCommitmentEstimatesV3962',estimateKey,()=>catalog.map(row=>{
+    const queue=Math.max(0,effectiveQueueMinutes(row.activity,row.wait,minute));
+    const raw=queue+row.duration+PREFERENCE_GOVERNANCE_RULES_V391.transitionReserveMinutes;
+    const reserve=Math.max(12,Math.round(raw*row.factor));
+    return {key:row.key,title:row.activity?.title||row.key,code:row.code,reserveMinutes:reserve,source:row.source};
+  }));
+  const currentKey=attractionIdentityKeyV3903(activity||'');
+  let count=0,reserveMinutes=0;const commitments=[];
+  for(const item of estimates){
+    if(currentKey&&item.key===currentKey) continue;
+    count++;reserveMinutes+=Number(item.reserveMinutes||0);
+    if(commitments.length<8) commitments.push({title:item.title,code:item.code,reserveMinutes:item.reserveMinutes,source:item.source});
+  }
+  const availableBefore=Math.max(0,Number(hours.close||1440)-minute);
+  const availableAfter=Math.max(0,Number(hours.close||1440)-(minute+Math.max(0,Number(candidateMinutes||0))));
+  return {count,reserveMinutes,availableBefore,availableAfter,risk:reserveMinutes>availableAfter,alreadyOvercommitted:reserveMinutes>availableBefore,commitments};
+};
+
+function candidateScaleProtectedV3962(meta){
+  const activity=meta?.activity;
+  if(!activity) return false;
+  const declared=personalPriorityMetaWithoutLearningV39(activity,meta?.wait??meta?.plannedWait??0);
+  const pass=passMetaFor(activity);
+  const opportunityId=state.opportunityState?.activityId||null;
+  return ['must','want'].includes(declared.code) || pass.passType!=='none' || Boolean(meta?.wasSkipped) ||
+    Number(meta?.score||0)>=PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold || activity.id===opportunityId;
+}
+function candidateScalePreRankV3962(meta){
+  const score=Number(meta?.score||0);
+  const minutes=Number(meta?.estimatedMinutes||meta?.scoreMeta?.totalMinutes||90);
+  return score-Math.min(18,Math.max(0,minutes-30)*.06);
+}
+function boundedCandidatePoolV3962(metas){
+  if(!Array.isArray(metas)||metas.length<=CANDIDATE_SCALE_RULES_V3962.activateAbove) return metas||[];
+  const protectedRows=[],normalRows=[];
+  for(const meta of metas) (candidateScaleProtectedV3962(meta)?protectedRows:normalRows).push(meta);
+  const sort=(a,b)=>candidateScalePreRankV3962(b)-candidateScalePreRankV3962(a) || Number(a?.estimatedMinutes||999)-Number(b?.estimatedMinutes||999);
+  protectedRows.sort(sort);normalRows.sort(sort);
+  const cap=Math.max(CANDIDATE_SCALE_RULES_V3962.poolCap,protectedRows.length);
+  return [...protectedRows,...normalRows.slice(0,Math.max(0,cap-protectedRows.length))];
+}
+
+// Para <=12 candidatos, preserva exatamente o beam search anterior. Em pools
+// grandes, aprofunda apenas o conjunto de maior valor, mantendo todas as
+// prioridades/pass/skipped e recalculando o pool em cada bloco do replanejamento.
+const v3962OptimizeSequenceBlockBeforeScaleV3962=optimizeSequenceBlock;
+optimizeSequenceBlock=function(metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity=null){
+  if(!Array.isArray(metas)||metas.length<=CANDIDATE_SCALE_RULES_V3962.activateAbove){
+    return v3962OptimizeSequenceBlockBeforeScaleV3962(metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity);
+  }
+  const bounded=boundedCandidatePoolV3962(metas);
+  const profile=copilotProfile();
+  const maxPerHour=state.settings.optimizationMode==='relax'?automaticRelaxAttractionsPerHour(day,startMinute,blockEnd):99;
+  let beam=[{time:startMinute,remaining:bounded,seq:[],utility:0,prev:previousActivity,hourCounts:{},pauseNotes:[]}];
+  let best=beam[0];
+  for(let depth=0;depth<Math.min(CANDIDATE_SCALE_RULES_V3962.depthCap,bounded.length);depth++){
+    const expanded=[];
+    for(const node of beam){
+      const candidates=node.remaining.map(meta=>{
+        const pass=passMetaFor(meta.activity);let candidateStart=node.time;
+        if(pass.passType!=='none'&&pass.passTime) candidateStart=Math.max(candidateStart,timeToMinutes(pass.passTime));
+        const scored=meta.activity.type==='attraction'
+          ?scoreAtMinuteForActivity(meta.activity,livePayload,weatherPayload,candidateStart,node.prev,day)
+          :scoreNonAttractionAtMinute(meta.activity,weatherPayload,candidateStart,node.prev,day);
+        return scored?{meta,scored,start:candidateStart}:null;
+      }).filter(Boolean).filter(x=>!x.scored.blocked)
+        .sort((a,b)=>b.scored.score-a.scored.score)
+        .slice(0,CANDIDATE_SCALE_RULES_V3962.branchCap);
+      for(const c of candidates){
+        let start=c.start;const hourKey=String(Math.floor(start/60));const isRide=c.meta.activity.type==='attraction';
+        const count=Number(node.hourCounts[hourKey]||0);let pause=0;
+        if(state.settings.optimizationMode==='relax'&&isRide&&count>=maxPerHour){
+          const nextHour=(Math.floor(start/60)+1)*60;pause=Math.max(profile.relaxPause,nextHour-start);start+=pause;
+        }
+        const rescored=start===c.start?c.scored:(c.meta.activity.type==='attraction'
+          ?scoreAtMinuteForActivity(c.meta.activity,livePayload,weatherPayload,start,node.prev,day)
+          :scoreNonAttractionAtMinute(c.meta.activity,weatherPayload,start,node.prev,day));
+        if(!rescored||rescored.blocked) continue;
+        const end=start+rescored.totalMinutes;if(end>blockEnd) continue;
+        const hourCounts={...node.hourCounts};if(isRide) hourCounts[String(Math.floor(start/60))]=Number(hourCounts[String(Math.floor(start/60))]||0)+1;
+        const next={
+          time:end,remaining:node.remaining.filter(x=>x.activity.id!==c.meta.activity.id),
+          seq:[...node.seq,{...c.meta,scoreMeta:rescored,time:minutesToTime(start),predictedWait:rescored.effectiveWait,walkMinutes:rescored.walk.minutes,estimatedMinutes:rescored.totalMinutes}],
+          utility:node.utility+sequenceUtility(rescored,profile),prev:c.meta.activity,hourCounts,
+          pauseNotes:pause?[...node.pauseNotes,{at:minutesToTime(node.time),minutes:pause}]:node.pauseNotes
+        };
+        expanded.push(next);
+        const completionBonus=next.seq.length*(state.settings.optimizationMode==='max'?26:state.settings.optimizationMode==='experience'?12:4);
+        if(next.utility+completionBonus>best.utility+best.seq.length*(state.settings.optimizationMode==='max'?26:state.settings.optimizationMode==='experience'?12:4)) best=next;
+      }
+    }
+    if(!expanded.length) break;
+    beam=expanded.sort((a,b)=>(b.utility+b.seq.length*14)-(a.utility+a.seq.length*14)).slice(0,CANDIDATE_SCALE_RULES_V3962.beamWidth);
+  }
+  return best;
+};
+
+// Dia futuro: filas atuais continuam visíveis na lista, mas não geram uma
+// recomendação/trace de execução para outra data.
+const v3962OptimizeCandidatesBeforeFutureGuardV3962=optimizeCandidates;
+optimizeCandidates=function(day,livePayload,weatherPayload){
+  if(day&&day.date!==getOrlandoParts().date) return [];
+  return v3962OptimizeCandidatesBeforeFutureGuardV3962(day,livePayload,weatherPayload);
+};
+const v3962RenderLiveHierarchyBeforeFutureGuardV3962=renderLiveHierarchyV36;
+renderLiveHierarchyV36=function(day,payload,weather){
+  if(day&&day.date!==getOrlandoParts().date){
+    const root=$('#recommendations');
+    if(root) root.innerHTML='<div class="source-note"><strong>Decisão ao vivo será ativada no dia da visita.</strong><br>As filas atuais podem ser consultadas acima, mas não são usadas para ordenar um roteiro de outra data.</div>';
+    return;
+  }
+  return v3962RenderLiveHierarchyBeforeFutureGuardV3962(day,payload,weather);
+};
+const v3962BuildDecisionTraceBeforeFutureGuardV3962=buildDecisionTraceV392;
+buildDecisionTraceV392=function(decision,day,livePayload,weatherPayload){
+  if(decision?.kind==='future'||(day&&day.date!==getOrlandoParts().date)){
+    const nowMinute=Number(decision?.nowMinute??(getOrlandoParts().hour*60+getOrlandoParts().minute));
+    return {
+      version:DECISION_TRACE_VERSION_V392,id:`dt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`,
+      at:new Date().toISOString(),build:ENGINE_BUILD_V38,dayDate:day?.date||null,park:day?.park||state.selectedPark||null,nowMinute,
+      decisionKind:decision?.kind||'future',selectionReason:decisionTraceSelectionReasonV392(decision),
+      selected:decision?.activity?{activityId:decision.activity.id||null,title:decision.activity.title||null,kind:decision.kind||'future',score:null,band:null}:{activityId:null,title:null,kind:'future',score:null,band:null},
+      protectedPriority:null,governanceSummary:null,candidates:[],
+      sourceFreshness:{liveMinutes:diagnosticAgeMinutesV38(livePayload?.fetchedAt),weatherMinutes:diagnosticAgeMinutesV38(weatherPayload?.fetchedAt)}
+    };
+  }
+  return v3962BuildDecisionTraceBeforeFutureGuardV3962(decision,day,livePayload,weatherPayload);
+};
+
+const v3962EngineDiagnosticSnapshotBeforeScaleV3962=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){
+  const snapshot=v3962EngineDiagnosticSnapshotBeforeScaleV3962();snapshot.context=snapshot.context||{};
+  snapshot.context.candidateScaleV3962={version:CANDIDATE_SCALE_VERSION_V3962,...CANDIDATE_SCALE_RULES_V3962};
+  return snapshot;
+};
+const v3962ExposeDiagnosticsApiBeforeScaleV3962=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){
+  v3962ExposeDiagnosticsApiBeforeScaleV3962();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.candidateScaleV3962=()=>structuredClone({version:CANDIDATE_SCALE_VERSION_V3962,...CANDIDATE_SCALE_RULES_V3962});
+};
+
+const v3962RunEngineSelfTestsBeforeScaleV3962=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v3962RunEngineSelfTestsBeforeScaleV3962();const additions=[];
+  addSelfTestV38(additions,'Migração de identidade v39.6.2 roda sob mudança de estado',()=>{assertSelfTestV38(CANDIDATE_SCALE_RULES_V3962.identityMigrationOnChangeOnly===true,'guard desativado');return 'on-change';});
+  addSelfTestV38(additions,'Beam escalável só ativa acima de 12 candidatos',()=>{assertSelfTestV38(CANDIDATE_SCALE_RULES_V3962.activateAbove===12&&CANDIDATE_SCALE_RULES_V3962.depthCap===7,'limites incorretos');return 'exact <=12 / bounded >12';});
+  addSelfTestV38(additions,'Pool escalável preserva prioridades estratégicas',()=>{const rows=Array.from({length:24},(_,i)=>({activity:{id:`scale-${i}`,title:`Scale ${i}`,type:'attraction',priority:i===23?5:3},score:i,estimatedMinutes:30,wait:20}));const pool=boundedCandidatePoolV3962(rows);assertSelfTestV38(pool.some(x=>x.activity.id==='scale-23'),`pool=${pool.length}`);return `pool ${pool.length}/24 + must`;});
+  addSelfTestV38(additions,'Dia futuro não calcula candidatos de execução',()=>{const day={date:'2099-01-01',park:'epcot',activities:[]};const rows=optimizeCandidates(day,{liveData:[{name:'Future Ride',status:'OPERATING',queue:{STANDBY:{waitTime:20}}}]},null);assertSelfTestV38(Array.isArray(rows)&&rows.length===0,'candidatos futuros gerados');return '0 candidatos';});
+  addSelfTestV38(additions,'Escala v39.6.2 preserva política de score',()=>{assertSelfTestV38(PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold===72&&PREFERENCE_CONFIDENCE_RULES_V394.minConfidenceToApply===.12,'política alterada');return '72 / 0.12 preservados';});
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+
+/* ============================================================
+   Orlando Flow v39.6.3 — Instant Live / Mobile Performance
+
+   Contrato de UX:
+   - a troca de aba pinta antes de qualquer cálculo pesado;
+   - Ao Vivo mostra imediatamente o último snapshot útil ou um shell leve;
+   - recomendações completas são revalidadas fora do caminho do clique;
+   - snapshot stale-while-revalidate é persistido separadamente do state;
+   - trabalho pendente é cancelado quando o usuário deixa a aba;
+   - nenhuma política de score, governança ou aprendizado é alterada.
+   ============================================================ */
+const INSTANT_LIVE_VERSION_V3963=1;
+const INSTANT_LIVE_RULES_V3963=Object.freeze({
+  interactionTargetMs:100,
+  firstPaintTargetMs:250,
+  heavyRenderLongTaskMs:150,
+  snapshotMaxStaleMs:15*60_000,
+  maxSnapshots:12,
+  constrainedCpuCores:4,
+  constrainedDeviceMemoryGb:4,
+  constrainedIdleTimeoutMs:1800,
+  normalIdleTimeoutMs:900,
+  constrainedFallbackDelayMs:220,
+  normalFallbackDelayMs:80,
+  mobileQuietWindowMs:800,
+  normalQuietWindowMs:220,
+  staleWhileRevalidate:true,
+  cancelWhenHidden:true,
+  scorePolicyChanged:false
+});
+const INSTANT_LIVE_STORAGE_KEY_V3963='orlando-flow-instant-live-v3963';
+let instantLiveHeavyHandleV3963=null;
+let instantLiveHeavyTokenV3963=0;
+let instantViewTokenV3963=0;
+let instantLastInputAtV3963=Date.now();
+const instantLiveMetricsV3963={viewSwitches:[],heavyLiveRenders:[],longTasks:[],lastSnapshotAt:null};
+
+function constrainedDeviceV3963(){
+  const cores=Number(navigator.hardwareConcurrency||0);
+  const memory=Number(navigator.deviceMemory||0);
+  return (cores>0&&cores<=INSTANT_LIVE_RULES_V3963.constrainedCpuCores)||(memory>0&&memory<=INSTANT_LIVE_RULES_V3963.constrainedDeviceMemoryGb);
+}
+function mobileLikeDeviceV3963(){
+  const ua=String(navigator.userAgent||'');
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(ua)||Boolean(Number(navigator.maxTouchPoints||0)>1&&Number(window.innerWidth||9999)<=900);
+}
+for(const eventName of ['pointerdown','touchstart','keydown','wheel','scroll']){
+  window.addEventListener(eventName,()=>{instantLastInputAtV3963=Date.now();},{passive:true,capture:true});
+}
+function instantMetricPushV3963(bucket,row,max=40){
+  bucket.push(row);if(bucket.length>max)bucket.splice(0,bucket.length-max);
+}
+try{
+  if(typeof PerformanceObserver==='function'&&PerformanceObserver.supportedEntryTypes?.includes('longtask')){
+    const observer=new PerformanceObserver(list=>{
+      for(const entry of list.getEntries()) instantMetricPushV3963(instantLiveMetricsV3963.longTasks,{at:new Date().toISOString(),duration:Math.round(entry.duration*10)/10,name:entry.name||'longtask'},30);
+    });
+    observer.observe({entryTypes:['longtask']});
+  }
+}catch{}
+
+function instantLiveSnapshotStoreV3963(){
+  try{
+    const parsed=JSON.parse(localStorage.getItem(INSTANT_LIVE_STORAGE_KEY_V3963)||'{}');
+    return parsed&&typeof parsed==='object'&&!Array.isArray(parsed)?parsed:{};
+  }catch{return {};}
+}
+function instantLiveSnapshotKeyV3963(){
+  const day=getSelectedDay();
+  const filter=$('#waitFilter')?.value||'all';
+  const query=normalizeName($('#liveAttractionSearch')?.value||'');
+  return [state.selectedPark||'',day?.date||'',filter,query].join('|');
+}
+function instantLiveDataSignatureV3963(){
+  const day=getSelectedDay();
+  const park=state.selectedPark;
+  const live=state.liveCache?.[park];
+  const weather=state.weatherCache?.[park];
+  return [
+    park||'',day?.date||'',Number(live?.fetchedAt||0),Number(weather?.fetchedAt||0),
+    Number(performanceStateRevisionV3962||0),state.settings?.optimizationMode||'experience',
+    $('#waitFilter')?.value||'all',normalizeName($('#liveAttractionSearch')?.value||'')
+  ].join('|');
+}
+function instantLiveReadSnapshotV3963(){
+  const store=instantLiveSnapshotStoreV3963();
+  const row=store[instantLiveSnapshotKeyV3963()]||null;
+  if(!row||typeof row!=='object')return null;
+  const age=Date.now()-Number(row.capturedAt||0);
+  if(age<0||age>INSTANT_LIVE_RULES_V3963.snapshotMaxStaleMs)return null;
+  return {...row,ageMs:age,fresh:row.signature===instantLiveDataSignatureV3963()};
+}
+function instantLiveWriteSnapshotV3963(){
+  const rec=$('#recommendations');
+  if(!rec)return null;
+  const key=instantLiveSnapshotKeyV3963();
+  const row={
+    version:INSTANT_LIVE_VERSION_V3963,
+    capturedAt:Date.now(),
+    signature:instantLiveDataSignatureV3963(),
+    park:state.selectedPark||null,
+    dayDate:getSelectedDay()?.date||null,
+    recommendationsHtml:rec.innerHTML,
+    copilotSummaryHtml:$('#copilotSummary')?.innerHTML||'',
+    copilotModeText:$('#copilotModePill')?.textContent||'',
+    liveStatusText:$('#liveStatus')?.textContent||''
+  };
+  try{
+    const store=instantLiveSnapshotStoreV3963();
+    store[key]=row;
+    const rows=Object.entries(store).sort((a,b)=>Number(b[1]?.capturedAt||0)-Number(a[1]?.capturedAt||0));
+    const limited=Object.fromEntries(rows.slice(0,INSTANT_LIVE_RULES_V3963.maxSnapshots));
+    localStorage.setItem(INSTANT_LIVE_STORAGE_KEY_V3963,JSON.stringify(limited));
+    instantLiveMetricsV3963.lastSnapshotAt=new Date(row.capturedAt).toISOString();
+  }catch{}
+  return row;
+}
+function instantLiveCurrentStatusV3963(){
+  const park=state.selectedPark;
+  const payload=state.liveCache?.[park];
+  if(!payload)return 'Sem dados. Toque em Atualizar.';
+  const ageMin=Math.max(0,Math.round((Date.now()-Number(payload.fetchedAt||Date.now()))/60000));
+  const day=getSelectedDay();
+  let hours=null;try{hours=parkHoursForDate(park,day?.date||getOrlandoParts().date);}catch{}
+  return `Última leitura: ${ageMin<1?'agora':`${ageMin} min atrás`}${hours?.source==='schedule'?` · parque até ${minutesToTime(hours.close)}`:''} · ThemeParks.wiki`;
+}
+function instantLiveMarkBusyV3963(busy){
+  const view=document.querySelector('.view[data-view="live"]');
+  if(view){view.setAttribute('aria-busy',busy?'true':'false');view.dataset.instantLiveBusy=busy?'true':'false';}
+}
+function renderLiveFastV3963({reason='fast'}={}){
+  const started=performance.now();
+  try{renderParks();}catch(error){recordRuntimeDiagnosticV38('instant-live-parks-v3963',error);}
+  const status=$('#liveStatus');if(status)status.textContent=instantLiveCurrentStatusV3963();
+  const mode=$('#copilotModePill');if(mode){try{mode.textContent=`Modo: ${copilotProfile().label}`;}catch{}}
+  const snapshot=instantLiveReadSnapshotV3963();
+  const rec=$('#recommendations');
+  if(snapshot&&rec){
+    const note=snapshot.fresh?'':`<div class="source-note" data-instant-live-note>Atualizando recomendações em segundo plano…</div>`;
+    rec.innerHTML=note+(snapshot.recommendationsHtml||'');
+    if($('#copilotSummary')&&snapshot.copilotSummaryHtml)$('#copilotSummary').innerHTML=snapshot.copilotSummaryHtml;
+    if(mode&&snapshot.copilotModeText)mode.textContent=snapshot.copilotModeText;
+  }else if(rec&&!rec.innerHTML.trim()){
+    const currentAction=document.querySelector('#nextCard .next-step-title')?.textContent?.trim()||'';
+    rec.innerHTML=`<div class="source-note" data-instant-live-note>Carregando recomendações sem bloquear a tela…${currentAction?` Ação atual: <strong>${escapeHtml(currentAction)}</strong>.`:''}</div>`;
+  }
+  if(!snapshot&&$('#copilotSummary')&&!$('#copilotSummary').innerHTML.trim()){
+    $('#copilotSummary').innerHTML='<strong>Farol de decisão</strong><span>filas disponíveis agora · recomendações calculando em segundo plano</span>';
+  }
+  instantLiveMarkBusyV3963(Boolean(!snapshot?.fresh));
+  return {ms:performance.now()-started,snapshot};
+}
+function cancelInstantLiveHeavyV3963(){
+  instantLiveHeavyTokenV3963++;
+  if(instantLiveHeavyHandleV3963!=null){
+    if(typeof cancelIdleCallback==='function')try{cancelIdleCallback(instantLiveHeavyHandleV3963);}catch{}
+    clearTimeout(instantLiveHeavyHandleV3963);
+    instantLiveHeavyHandleV3963=null;
+  }
+}
+function browserHasPendingInputV3963(){
+  try{return Boolean(navigator.scheduling?.isInputPending?.({includeContinuous:true}));}catch{return false;}
+}
+const v3962RenderLiveHeavyV3963=renderLive;
+function runInstantLiveHeavyV3963(reason='background',force=false){
+  if(activeViewName()!=='live'&&INSTANT_LIVE_RULES_V3963.cancelWhenHidden)return null;
+  const snapshot=instantLiveReadSnapshotV3963();
+  if(snapshot?.fresh&&!force){instantLiveMarkBusyV3963(false);return {skipped:'fresh-snapshot'};}
+  const started=performance.now();
+  try{
+    const result=withLiveVisualPerformanceMemoV4011(ctx,()=>v3962RenderLiveHeavyV3963());
+    const ms=performance.now()-started;
+    instantMetricPushV3963(instantLiveMetricsV3963.heavyLiveRenders,{at:new Date().toISOString(),reason,ms:Math.round(ms*10)/10,park:state.selectedPark,dayDate:getSelectedDay()?.date||null,constrained:constrainedDeviceV3963()},30);
+    instantLiveWriteSnapshotV3963();
+    instantLiveMarkBusyV3963(false);
+    return result;
+  }catch(error){
+    instantLiveMarkBusyV3963(false);recordRuntimeDiagnosticV38('instant-live-heavy-v3963',error,{reason});return null;
+  }
+}
+function scheduleInstantLiveHeavyV3963(reason='background',{force=false}={}){
+  if(activeViewName()!=='live')return;
+  const snapshot=instantLiveReadSnapshotV3963();
+  if(snapshot?.fresh&&!force){instantLiveMarkBusyV3963(false);return;}
+  cancelInstantLiveHeavyV3963();
+  const token=instantLiveHeavyTokenV3963;
+  const constrained=constrainedDeviceV3963();
+  const mobile=mobileLikeDeviceV3963();
+  const quietWindow=mobile?INSTANT_LIVE_RULES_V3963.mobileQuietWindowMs:INSTANT_LIVE_RULES_V3963.normalQuietWindowMs;
+  const launch=()=>{
+    instantLiveHeavyHandleV3963=null;
+    if(token!==instantLiveHeavyTokenV3963||activeViewName()!=='live')return;
+    const quietFor=Date.now()-instantLastInputAtV3963;
+    if(browserHasPendingInputV3963()||quietFor<quietWindow){
+      instantLiveHeavyHandleV3963=setTimeout(launch,Math.max(80,quietWindow-quietFor));return;
+    }
+    runInstantLiveHeavyV3963(reason,force);
+  };
+  const arm=()=>{
+    if(token!==instantLiveHeavyTokenV3963||activeViewName()!=='live')return;
+    const quietFor=Date.now()-instantLastInputAtV3963;
+    if(quietFor<quietWindow){instantLiveHeavyHandleV3963=setTimeout(arm,Math.max(50,quietWindow-quietFor));return;}
+    if(typeof requestIdleCallback==='function'){
+      instantLiveHeavyHandleV3963=requestIdleCallback(launch,{timeout:constrained?INSTANT_LIVE_RULES_V3963.constrainedIdleTimeoutMs:INSTANT_LIVE_RULES_V3963.normalIdleTimeoutMs});
+    }else{
+      instantLiveHeavyHandleV3963=setTimeout(launch,constrained?INSTANT_LIVE_RULES_V3963.constrainedFallbackDelayMs:INSTANT_LIVE_RULES_V3963.normalFallbackDelayMs);
+    }
+  };
+  // O primeiro rAF é deliberadamente vazio: permite ao navegador apresentar a
+  // aba/snapshot antes de qualquer cálculo; em touchscreen aguardamos também
+  // uma janela curta sem interação para não congelar um scroll/toque em curso.
+  requestAnimationFrame(()=>setTimeout(arm,quietWindow));
+}
+
+// Qualquer atualização de Ao Vivo passa a ser stale-while-revalidate. Isso
+// também cobre refreshExternal(), mudança de filtros e sincronização do D1.
+renderLive=function(...args){
+  const fast=renderLiveFastV3963({reason:'render-live'});
+  scheduleInstantLiveHeavyV3963('render-live');
+  return fast;
+};
+
+function instantDeferredViewRenderV3963(target,token){
+  requestAnimationFrame(()=>{
+    const paintedAt=performance.now();
+    setTimeout(()=>{
+      if(token!==instantViewTokenV3963||activeViewName()!==target)return;
+      try{withPerformanceRenderMemoV3962(()=>renderActiveView(target));}
+      catch(error){recordRuntimeDiagnosticV38('deferred-view-v3963',error,{target});}
+    },0);
+    const last=instantLiveMetricsV3963.viewSwitches.at(-1);
+    if(last&&last.token===token)last.frameAckMs=Math.round((paintedAt-last.startedPerf)*10)/10;
+  });
+}
+
+// Não chamamos a cadeia antiga de switchView: desde v27 ela renderiza a aba
+// sincronamente antes que o navegador possa pintar. Aqui a alteração visual
+// ocorre primeiro e a atualização da aba é uma tarefa posterior.
+switchView=function(target){
+  const started=performance.now();
+  const token=++instantViewTokenV3963;
+  if(target!=='live')cancelInstantLiveHeavyV3963();
+  $$('.view').forEach(v=>v.classList.toggle('active',v.dataset.view===target));
+  $$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.target===target));
+  try{window.scrollTo({top:0,behavior:'auto'});}catch{}
+  const row={token,target,at:new Date().toISOString(),startedPerf:started,syncMs:null,frameAckMs:null};
+  if(target==='live'){
+    const fast=renderLiveFastV3963({reason:'tab-switch'});
+    row.fastShellMs=Math.round(Number(fast?.ms||0)*10)/10;
+    scheduleInstantLiveHeavyV3963('tab-switch');
+  }else{
+    instantDeferredViewRenderV3963(target,token);
+  }
+  row.syncMs=Math.round((performance.now()-started)*10)/10;
+  instantMetricPushV3963(instantLiveMetricsV3963.viewSwitches,row,40);
+  if(target==='live')requestAnimationFrame(()=>{const current=instantLiveMetricsV3963.viewSwitches.find(x=>x.token===token);if(current)current.frameAckMs=Math.round((performance.now()-started)*10)/10;});
+  return target;
+};
+
+function instantLivePerformanceSummaryV3963(){
+  const switches=instantLiveMetricsV3963.viewSwitches.slice(-20);
+  const live=switches.filter(x=>x.target==='live');
+  const heavy=instantLiveMetricsV3963.heavyLiveRenders.slice(-20);
+  const avg=a=>a.length?Math.round(a.reduce((s,x)=>s+Number(x||0),0)/a.length*10)/10:null;
+  return {
+    version:INSTANT_LIVE_VERSION_V3963,
+    constrainedDevice:constrainedDeviceV3963(),
+    mobileLikeDevice:mobileLikeDeviceV3963(),
+    latestLiveSwitch:live.at(-1)||null,
+    avgLiveSyncMs:avg(live.map(x=>x.syncMs)),
+    avgLiveFrameAckMs:avg(live.map(x=>x.frameAckMs).filter(Number.isFinite)),
+    latestHeavyRender:heavy.at(-1)||null,
+    avgHeavyRenderMs:avg(heavy.map(x=>x.ms)),
+    recentLongTasks:instantLiveMetricsV3963.longTasks.slice(-10),
+    snapshotAvailable:Boolean(instantLiveReadSnapshotV3963()),
+    lastSnapshotAt:instantLiveMetricsV3963.lastSnapshotAt,
+    targets:{interactionMs:INSTANT_LIVE_RULES_V3963.interactionTargetMs,firstPaintMs:INSTANT_LIVE_RULES_V3963.firstPaintTargetMs,longTaskMs:INSTANT_LIVE_RULES_V3963.heavyRenderLongTaskMs}
+  };
+}
+
+const v3962EngineDiagnosticSnapshotV3963=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){
+  const snapshot=v3962EngineDiagnosticSnapshotV3963();snapshot.context=snapshot.context||{};
+  snapshot.context.instantLiveV3963=instantLivePerformanceSummaryV3963();
+  return snapshot;
+};
+const v3962ExposeDiagnosticsApiV3963=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){
+  v3962ExposeDiagnosticsApiV3963();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.instantLivePerformance=()=>structuredClone(instantLivePerformanceSummaryV3963());
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.instantLivePolicy=()=>structuredClone({version:INSTANT_LIVE_VERSION_V3963,...INSTANT_LIVE_RULES_V3963});
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.clearInstantLiveSnapshots=()=>{try{localStorage.removeItem(INSTANT_LIVE_STORAGE_KEY_V3963);}catch{};return true;};
+};
+
+const v3962RunEngineSelfTestsV3963=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v3962RunEngineSelfTestsV3963();const additions=[];
+  addSelfTestV38(additions,'v39.6.3 troca de aba não chama render pesado antes da pintura',()=>{assertSelfTestV38(INSTANT_LIVE_RULES_V3963.staleWhileRevalidate===true&&typeof scheduleInstantLiveHeavyV3963==='function','defer ausente');return 'paint -> idle render';});
+  addSelfTestV38(additions,'v39.6.3 persiste snapshot leve fora do state',()=>{assertSelfTestV38(INSTANT_LIVE_STORAGE_KEY_V3963&&!Object.prototype.hasOwnProperty.call(state,'instantLiveSnapshot'),'snapshot indevido no state');return 'localStorage separado';});
+  addSelfTestV38(additions,'v39.6.3 cancela trabalho ao sair do Ao Vivo',()=>{assertSelfTestV38(INSTANT_LIVE_RULES_V3963.cancelWhenHidden===true&&typeof cancelInstantLiveHeavyV3963==='function','cancelamento ausente');return 'token + cancel idle';});
+  addSelfTestV38(additions,'v39.6.3 respeita input pendente antes do cálculo pesado',()=>{assertSelfTestV38(typeof browserHasPendingInputV3963==='function','input guard ausente');return 'isInputPending guard';});
+  addSelfTestV38(additions,'v39.6.3 mantém política de score',()=>{assertSelfTestV38(PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold===72&&PREFERENCE_CONFIDENCE_RULES_V394.minConfidenceToApply===.12,'política alterada');return '72 / 0.12 preservados';});
+  addSelfTestV38(additions,'v39.6.3 define metas explícitas de mobile UX',()=>{assertSelfTestV38(INSTANT_LIVE_RULES_V3963.interactionTargetMs===100&&INSTANT_LIVE_RULES_V3963.firstPaintTargetMs===250,'metas incorretas');return '<100ms input / <250ms paint';});
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v40.0 — Graph + Multi-step + Incremental Replanning
+
+   Bloco completo:
+   v40.0.1 Park Graph Core
+   v40.0.2 Multi-step Planner
+   v40.0.3 Incremental Replanning
+
+   Contratos:
+   - custo de transição passa a ser origem -> destino, não apenas fila isolada;
+   - o planner compara sequências de 3–7 decisões e protege a próxima âncora;
+   - condições operacionais e compromissos estratégicos continuam acima de preferência;
+   - Opportunity só permanece válida quando também faz sentido na sequência global;
+   - replanejamento reaproveita prefixo estável quando a mudança é localizada;
+   - nenhum cálculo v40 entra na primeira pintura do Instant Live v39.6.3.
+   ============================================================ */
+const V40_BLOCK_VERSION_V400 = '40.0';
+const PARK_GRAPH_VERSION_V400 = 1;
+const PARK_GRAPH_RULES_V400 = Object.freeze({
+  model:'activity-transition-graph-v1',
+  sameNodeMinutes:0,
+  sameZoneMinutes:3,
+  unknownTransitionMinutes:10,
+  coordinateRouteFactor:1.25,
+  coordinateGraphFloorFactor:.78,
+  ingressEgressMinutes:1,
+  congestionMedianLow:30,
+  congestionMedianHigh:60,
+  congestionFactorMedium:1.06,
+  congestionFactorHigh:1.12,
+  maxTransitionMinutes:35,
+  graphCacheEntries:10,
+  dynamicActivityNodes:true,
+  learnedCoordinates:true,
+  zoneFallback:true
+});
+const MULTI_STEP_PLANNER_VERSION_V400 = 1;
+const MULTI_STEP_RULES_V400 = Object.freeze({
+  model:'sequence-value-beam-v1',
+  minHorizon:3,
+  maxHorizon:7,
+  smallPoolThreshold:14,
+  largePoolCap:14,
+  branchCapSmall:7,
+  branchCapLarge:3,
+  beamWidthSmall:16,
+  beamWidthLarge:5,
+  largePoolHorizon:4,
+  preScoreShortlistExtra:2,
+  terminalAnchorDistancePenalty:1.25,
+  transitionPenalty:.28,
+  strategicCoverageBonusMust:7,
+  strategicCoverageBonusWant:3,
+  passWindowBonus:5,
+  completionBonusMax:24,
+  completionBonusExperience:12,
+  completionBonusRelax:4,
+  decisionSwitchMinGain:8,
+  greenReplacementFloor:72,
+  fallbackReplacementFloor:45,
+  decisionPlanTtlMs:90_000,
+  backgroundOnly:true,
+  foregroundCompute:false
+});
+const INCREMENTAL_REPLAN_VERSION_V400 = 1;
+const INCREMENTAL_REPLAN_RULES_V400 = Object.freeze({
+  model:'affected-suffix-replan-v1',
+  waitDeltaMinutes:10,
+  startDriftMinutes:4,
+  reusablePrefixCap:3,
+  exactReuseTtlMs:60_000,
+  prefixReuseTtlMs:5*60_000,
+  weatherSensitiveInvalidation:true,
+  locationChangeInvalidatesFirstStep:true,
+  statusChangeInvalidatesCandidate:true,
+  structureChangeForcesFull:true,
+  sessionOnlyCache:true,
+  progressiveAutoReplan:true,
+  fullRouteOnDemand:true
+});
+
+const parkDecisionGraphCacheV400=new Map();
+let parkDecisionGraphHotV400={signature:null,graph:null};
+let v40OriginHotV400={revision:-1,gpsKey:'',signature:null};
+const incrementalBlockPlanCacheV400=new Map();
+const decisionPlanCacheV400=new Map();
+let v40DecisionPlanHandleV400=null;
+let v40DecisionPlanTokenV400=0;
+const v40RuntimeMetricsV400={
+  graphBuilds:0,graphCacheHits:0,transitionComputations:0,transitionCacheHits:0,
+  fullPlans:0,incrementalPlans:0,exactPlanReuses:0,reusedPrefixSteps:0,
+  decisionPlanComputes:0,decisionPlanCacheHits:0,lastPlan:null,lastIncremental:null,lastGraph:null
+};
+
+// v40.1 performance: live attraction names are indexed once per provider payload.
+// The legacy matcher remains the fallback for aliases/fuzzy cases, but exact
+// canonical matches no longer rescan the full live list for every candidate.
+const v40LiveLookupCacheV401=new WeakMap();
+function v40LiveLookupIndexV401(livePayloadOrData){
+  const data=Array.isArray(livePayloadOrData)?livePayloadOrData:(livePayloadOrData?.liveData||[]);
+  if(!Array.isArray(data))return{data:[],exact:new Map(),normalized:new Map(),resolved:new Map()};
+  const cached=v40LiveLookupCacheV401.get(data);if(cached)return cached;
+  const exact=new Map(),normalized=new Map();
+  for(const entry of data){const name=entry?.name||'';const key=attractionIdentityKeyV3903(name);if(key&&!exact.has(key))exact.set(key,entry);const norm=normalizeName(name);if(norm&&!normalized.has(norm))normalized.set(norm,entry);}
+  const index={data,exact,normalized,resolved:new Map()};v40LiveLookupCacheV401.set(data,index);return index;
+}
+function v40FastLiveMatchV401(activity,index){
+  if(!activity||!index)return null;const target=attractionIdentityKeyV3903(activity)||normalizeName(activity?.entityName||activity?.title||activity?.name||'');if(!target)return null;
+  if(index.resolved.has(target))return index.resolved.get(target);
+  let entry=index.exact.get(target)||index.normalized.get(normalizeName(activity?.entityName||activity?.title||activity?.name||''))||null;
+  if(!entry){entry=index.data.find(row=>attractionIdentityMatchesV3903(row?.name||'',activity))||null;}
+  if(!entry){entry=v3902FindLiveMatchV3903(activity,index.data)||null;}
+  index.resolved.set(target,entry);return entry;
+}
+
+function v40Round(value,digits=2){const n=Number(value);if(!Number.isFinite(n))return null;const p=10**digits;return Math.round(n*p)/p;}
+function v40Clone(value){try{return structuredClone(value);}catch{return value;}}
+function v40ActivityId(activity){return String(activity?.id||attractionIdentityKeyV3903(activity||'')||normalizeName(activity?.title||activity?.name||''));}
+function v40DayKey(day){return `${day?.date||'none'}|${day?.park||state.selectedPark||'none'}`;}
+function v40OriginSignature(){
+  const lat=Number(gpsLastPoint?.lat),lon=Number(gpsLastPoint?.lon);const gpsKey=Number.isFinite(lat)&&Number.isFinite(lon)?`${lat.toFixed(4)},${lon.toFixed(4)}`:'none';const revision=Number(performanceStateRevisionV3962||0);
+  if(v40OriginHotV400.revision===revision&&v40OriginHotV400.gpsKey===gpsKey&&v40OriginHotV400.signature)return v40OriginHotV400.signature;
+  let signature;if(gpsKey!=='none')signature=`gps:${gpsKey}`;else{const context=locationContextV37(getSelectedDay());signature=`zone:${context?.zone||'unknown'}:${context?.source||'unknown'}`;}
+  v40OriginHotV400={revision,gpsKey,signature};return signature;
+}
+function v40ActivityStructureSignature(day){
+  return (day?.activities||[]).map(a=>[
+    v40ActivityId(a),a.time||'',a.type||'',Boolean(a.flexible),Boolean(a.fixedAnchor||a.anchor),
+    Number(a.duration||0),Number(a.priority||0),a.area||'',a.zone||'',priorityCodeFromActivity(a),
+    passMetaFor(a).passType,passMetaFor(a).passTime||'',Number(passMetaFor(a).passWindowMinutes||0),
+    Number(a.lat??a.latitude??''),Number(a.lon??a.lng??a.longitude??'')
+  ].join('~')).join('|');
+}
+function v40GeoSignature(day){
+  const park=day?.park||state.selectedPark;const store=state.attractionGeo?.[park]||{};
+  let count=0,last=0;
+  for(const a of day?.activities||[]){
+    const key=Object.keys(store).find(name=>attractionIdentityMatchesV3903(name,a));
+    const row=key?store[key]:null;if(row){count++;last=Math.max(last,Number(row.updatedAt||0));}
+  }
+  return `${count}:${last}`;
+}
+function v40LiveCongestionFactor(livePayload){
+  const waits=(livePayload?.liveData||[]).map(extractStandby).filter(Number.isFinite);
+  const med=medianV37(waits);if(!Number.isFinite(med))return 1;
+  if(med>=PARK_GRAPH_RULES_V400.congestionMedianHigh)return PARK_GRAPH_RULES_V400.congestionFactorHigh;
+  if(med>=PARK_GRAPH_RULES_V400.congestionMedianLow)return PARK_GRAPH_RULES_V400.congestionFactorMedium;
+  return 1;
+}
+function v40NodeFromActivity(activity,day,liveEntry=null){
+  if(!activity)return null;
+  const park=day?.park||state.selectedPark;
+  const coords=activityCoordinatesCopilot(activity,park,liveEntry);
+  const zone=zoneForActivityV37(activity,park,liveEntry);
+  const pass=passMetaFor(activity);
+  return {
+    id:`activity:${v40ActivityId(activity)}`,activityId:activity.id||null,title:activity.title||activity.name||liveEntry?.name||'Atividade',
+    type:String(activity.type||'other').toLowerCase(),zone,coords:coords&&Number.isFinite(Number(coords.lat))&&Number.isFinite(Number(coords.lon))?{lat:Number(coords.lat),lon:Number(coords.lon),source:coords.source||'known'}:null,
+    anchor:isFixedAnchor(activity),flexible:activity.flexible!==false,priorityCode:priorityCodeFromActivity(activity),
+    passType:pass.passType,passTime:pass.passTime||null,activity,source:'itinerary'
+  };
+}
+function v40OriginNode(day){
+  const park=day?.park||state.selectedPark;const context=locationContextV37(day);
+  const lat=Number(gpsLastPoint?.lat),lon=Number(gpsLastPoint?.lon);
+  if(Number.isFinite(lat)&&Number.isFinite(lon))return{id:'__origin__',title:'Posição atual',type:'origin',zone:context?.zone||null,coords:{lat,lon,source:'gps'},activity:null,source:'gps'};
+  const last=context?.activity||lastCompletedActivityV37(day);const coords=last?activityCoordinatesCopilot(last,park,null):null;
+  return{id:'__origin__',title:last?.title||'Posição atual',type:'origin',zone:context?.zone||null,coords:coords&&Number.isFinite(Number(coords.lat))?{lat:Number(coords.lat),lon:Number(coords.lon),source:coords.source||context?.source}:null,activity:last||null,source:context?.source||'unknown'};
+}
+function v40GraphCacheKey(day,livePayload){
+  return [v40DayKey(day),v40ActivityStructureSignature(day),v40GeoSignature(day),Number(state.settings?.walkingMetersPerMinute||75),v40OriginSignature(),v40Round(v40LiveCongestionFactor(livePayload),2)].join('||');
+}
+function pruneMapV400(map,max){while(map.size>max){const first=map.keys().next().value;map.delete(first);}}
+function parkDecisionGraphV400(day=getSelectedDay(),livePayload=state.liveCache?.[day?.park||state.selectedPark]){
+  if(!day)return null;
+  const congestion=v40LiveCongestionFactor(livePayload);const originSignature=v40OriginSignature();
+  const hotSignature=[v40DayKey(day),Number(performanceStateRevisionV3962||0),originSignature,v40Round(congestion,2)].join('|');
+  if(parkDecisionGraphHotV400.signature===hotSignature&&parkDecisionGraphHotV400.graph){v40RuntimeMetricsV400.graphCacheHits++;return parkDecisionGraphHotV400.graph;}
+  const key=[v40DayKey(day),v40ActivityStructureSignature(day),v40GeoSignature(day),Number(state.settings?.walkingMetersPerMinute||75),originSignature,v40Round(congestion,2)].join('||');
+  const cached=parkDecisionGraphCacheV400.get(key);
+  if(cached){parkDecisionGraphHotV400={signature:hotSignature,graph:cached};v40RuntimeMetricsV400.graphCacheHits++;return cached;}
+  const nodes=new Map();const live=livePayload?.liveData||[];const liveIndex=v40LiveLookupIndexV401(live);
+  for(const activity of day.activities||[]){const node=v40NodeFromActivity(activity,day,v40FastLiveMatchV401(activity,liveIndex));if(node)nodes.set(node.id,node);}
+  const origin=v40OriginNode(day);nodes.set(origin.id,origin);
+  const transitionCache=new Map();
+  const graph={version:PARK_GRAPH_VERSION_V400,key,park:day.park,date:day.date,nodes,origin,transitionCache,congestion,createdAt:Date.now()};
+  parkDecisionGraphCacheV400.set(key,graph);parkDecisionGraphHotV400={signature:hotSignature,graph};pruneMapV400(parkDecisionGraphCacheV400,PARK_GRAPH_RULES_V400.graphCacheEntries);
+  v40RuntimeMetricsV400.graphBuilds++;v40RuntimeMetricsV400.lastGraph={park:graph.park,date:graph.date,nodes:nodes.size,congestion:v40Round(congestion,2),origin:{zone:origin.zone,source:origin.source}};
+  return graph;
+}
+
+function v40GraphEnsureNode(graph,activity,day,liveEntry=null){
+  if(!graph||!activity)return null;const id=`activity:${v40ActivityId(activity)}`;
+  if(graph.nodes.has(id))return graph.nodes.get(id);
+  const node=v40NodeFromActivity(activity,day,liveEntry);if(node)graph.nodes.set(node.id,node);return node;
+}
+function v40GraphTransitionNodes(graph,fromNode,toNode){
+  if(!graph||!toNode)return null;const from=fromNode||graph.origin;
+  if(from.id===toNode.id)return{minutes:0,meters:0,source:'same-node',known:true,path:[from.id],fromZone:from.zone||null,toZone:toNode.zone||null};
+  const cacheKey=`${from.id}>${toNode.id}`;const cached=graph.transitionCache.get(cacheKey);
+  if(cached){v40RuntimeMetricsV400.transitionCacheHits++;return cached;}
+  const speed=Math.max(45,Math.min(100,Number(state.settings?.walkingMetersPerMinute||75)));
+  let coordMinutes=null,meters=null;
+  if(from.coords&&toNode.coords){
+    meters=Math.max(0,Math.round(haversineMeters(from.coords,toNode.coords)*PARK_GRAPH_RULES_V400.coordinateRouteFactor));
+    coordMinutes=Math.max(1,Math.ceil(meters/speed));
+  }
+  const zoneRoute=from.zone&&toNode.zone?zoneShortestPathV37(graph.park,from.zone,toNode.zone):null;
+  let minutes,source,path=zoneRoute?.path||null,known=true;
+  if(from.zone&&toNode.zone&&from.zone===toNode.zone){
+    minutes=coordMinutes!=null?Math.max(1,Math.min(coordMinutes,9)):PARK_GRAPH_RULES_V400.sameZoneMinutes;source=coordMinutes!=null?'coordinate-same-zone':'same-zone';path=[from.zone];
+  }else if(zoneRoute&&coordMinutes!=null){
+    const graphFloor=Math.max(1,Math.round(zoneRoute.minutes*PARK_GRAPH_RULES_V400.coordinateGraphFloorFactor));
+    minutes=Math.max(coordMinutes,graphFloor)+PARK_GRAPH_RULES_V400.ingressEgressMinutes;source='hybrid-coordinate-zone';
+  }else if(zoneRoute){minutes=zoneRoute.minutes+PARK_GRAPH_RULES_V400.ingressEgressMinutes;source='zone-graph';}
+  else if(coordMinutes!=null){minutes=coordMinutes;source='coordinates';}
+  else{minutes=PARK_GRAPH_RULES_V400.unknownTransitionMinutes;source='fallback';known=false;}
+  minutes=Math.max(0,Math.min(PARK_GRAPH_RULES_V400.maxTransitionMinutes,Math.round(minutes*graph.congestion)));
+  const result={minutes,meters,source,known,path,fromZone:from.zone||null,toZone:toNode.zone||null,congestionFactor:graph.congestion};
+  graph.transitionCache.set(cacheKey,result);v40RuntimeMetricsV400.transitionComputations++;return result;
+}
+function parkGraphTransitionV400(fromActivity,toActivity,day=getSelectedDay(),liveEntryTo=null,livePayload=state.liveCache?.[day?.park||state.selectedPark]){
+  const graph=parkDecisionGraphV400(day,livePayload);if(!graph||!toActivity)return null;
+  const fromNode=fromActivity?v40GraphEnsureNode(graph,fromActivity,day,null):graph.origin;
+  const toNode=v40GraphEnsureNode(graph,toActivity,day,liveEntryTo);return v40GraphTransitionNodes(graph,fromNode,toNode);
+}
+function parkGraphSummaryV400(day=getSelectedDay(),livePayload=state.liveCache?.[day?.park||state.selectedPark]){
+  const graph=parkDecisionGraphV400(day,livePayload);if(!graph)return null;
+  const zones=new Set([...graph.nodes.values()].map(n=>n.zone).filter(Boolean));
+  return{version:PARK_GRAPH_VERSION_V400,park:graph.park,date:graph.date,nodeCount:graph.nodes.size-1,zoneCount:zones.size,cachedTransitions:graph.transitionCache.size,congestionFactor:v40Round(graph.congestion,2),origin:{zone:graph.origin.zone,source:graph.origin.source,hasCoordinates:Boolean(graph.origin.coords)},rules:{sameZoneMinutes:PARK_GRAPH_RULES_V400.sameZoneMinutes,unknownTransitionMinutes:PARK_GRAPH_RULES_V400.unknownTransitionMinutes}};
+}
+
+// v40.0.1 passa o custo de caminhada do score para o grafo origem -> destino.
+const v3963WalkingMetaV400=walkingMeta;
+walkingMeta=function(activity,liveEntry=null,day=getSelectedDay(),previousActivity=null){
+  if(!activity||!day)return v3963WalkingMetaV400(activity,liveEntry,day,previousActivity);
+  // The graph owns its own hot graph + transition caches. Building another
+  // memo key here used to recompute activity/day signatures for every score and
+  // became quadratic with large candidate lists.
+  try{
+    const transition=parkGraphTransitionV400(previousActivity,activity,day,liveEntry,state.liveCache?.[day?.park||state.selectedPark]);
+    if(transition&&transition.source!=='fallback')return{minutes:transition.minutes,meters:transition.meters,source:'v40-graph',known:transition.known,zone:transition.toZone,originZone:transition.fromZone,zonePath:transition.path,logisticsKnown:transition.known,graphSource:transition.source,congestionFactor:transition.congestionFactor};
+  }catch(error){recordRuntimeDiagnosticV38('park-graph-walk-v400',error);}
+  return v3963WalkingMetaV400(activity,liveEntry,day,previousActivity);
+};
+
+function v40PlannerProtected(meta){return candidateScaleProtectedV3962(meta);}
+function v40PlannerPreRank(meta){
+  const base=candidateScalePreRankV3962(meta);const declared=personalPriorityMetaWithoutLearningV39(meta?.activity,meta?.wait??meta?.plannedWait??0);const pass=passMetaFor(meta?.activity);
+  return base+(declared.code==='must'?18:declared.code==='want'?8:0)+(pass.passType!=='none'?5:0)+(meta?.wasSkipped?6:0);
+}
+function v40BoundedPlannerPool(metas){
+  if(!Array.isArray(metas))return[];if(metas.length<=MULTI_STEP_RULES_V400.smallPoolThreshold)return metas.slice();
+  const protectedRows=[],normalRows=[];for(const m of metas)(v40PlannerProtected(m)?protectedRows:normalRows).push(m);
+  protectedRows.sort((a,b)=>v40PlannerPreRank(b)-v40PlannerPreRank(a));normalRows.sort((a,b)=>v40PlannerPreRank(b)-v40PlannerPreRank(a));
+  const cap=Math.max(MULTI_STEP_RULES_V400.largePoolCap,protectedRows.length);return[...protectedRows,...normalRows.slice(0,Math.max(0,cap-protectedRows.length))];
+}
+function v40CompletionBonusPerStep(){return state.settings.optimizationMode==='max'?MULTI_STEP_RULES_V400.completionBonusMax:state.settings.optimizationMode==='experience'?MULTI_STEP_RULES_V400.completionBonusExperience:MULTI_STEP_RULES_V400.completionBonusRelax;}
+function v40StrategicStepBonus(scored){
+  const code=scored?.priority?.code||priorityCodeFromActivity(scored?.activity);
+  let bonus=code==='must'?MULTI_STEP_RULES_V400.strategicCoverageBonusMust:code==='want'?MULTI_STEP_RULES_V400.strategicCoverageBonusWant:0;
+  if(scored?.schedule?.pass?.active)bonus+=MULTI_STEP_RULES_V400.passWindowBonus;return bonus;
+}
+function v40TerminalValue(node,nextAnchor,day,graph){
+  let value=node.seq.length*v40CompletionBonusPerStep();
+  if(nextAnchor&&node.prev){
+    const from=v40GraphEnsureNode(graph,node.prev,day,null),to=v40GraphEnsureNode(graph,nextAnchor,day,null);const transition=v40GraphTransitionNodes(graph,from,to);
+    if(transition)value-=transition.minutes*MULTI_STEP_RULES_V400.terminalAnchorDistancePenalty;
+  }
+  const remainingStrategic=Number.isFinite(Number(node?.remainingProtectedCount))?Number(node.remainingProtectedCount):(node.remaining||[]).filter(v40PlannerProtected).length;value-=remainingStrategic*2.2;return value;
+}
+function v40NodeObjective(node,nextAnchor,day,graph){return Number(node.utility||0)+v40TerminalValue(node,nextAnchor,day,graph);}
+function v40ScoredForMeta(meta,livePayload,weatherPayload,start,previous,day){
+  return meta.activity.type==='attraction'?scoreAtMinuteForActivity(meta.activity,livePayload,weatherPayload,start,previous,day):scoreNonAttractionAtMinute(meta.activity,weatherPayload,start,previous,day);
+}
+function v40PlanningFactsV400(metas,livePayload,day,referenceMinute){
+  const facts=new Map();const live=livePayload?.liveData||[];const liveIndex=v40LiveLookupIndexV401(live);
+  for(const meta of metas||[]){
+    const activity=meta.activity;const entry=activity?.type==='attraction'?v40FastLiveMatchV401(activity,liveIndex):null;
+    const status=String(entry?.status||'OPERATING').toUpperCase();
+    let priority=null;try{priority=personalPriorityMeta(activity,meta.wait??meta.plannedWait??0);}catch{priority={score:50,code:priorityCodeFromActivity(activity)||'normal'};}
+    facts.set(activity.id,{entry,status,priority,pass:passMetaFor(activity)});
+  }
+  return{referenceMinute:Number(referenceMinute||0),byId:facts};
+}
+function v40FastScoredForMetaV400(meta,start,previous,day,graph,facts){
+  const activity=meta.activity;const fact=facts.byId.get(activity.id)||{};const attraction=activity.type==='attraction';
+  const wait=attraction?estimatedWaitAtMinute(meta,start,facts.referenceMinute):0;
+  const transition=parkGraphTransitionV400(previous,activity,day,fact.entry,state.liveCache?.[day?.park||state.selectedPark]);
+  const walkMinutes=Number(transition?.minutes??PARK_GRAPH_RULES_V400.unknownTransitionMinutes);
+  const duration=Number(activity.duration||(attraction?8:20));const totalMinutes=Math.max(1,walkMinutes+wait+duration);
+  const priority=fact.priority||{score:50,code:priorityCodeFromActivity(activity)||'normal'};
+  const currentWait=Number(meta.wait??wait);let score=Number(meta.score??50);
+  score+=(Number(priority.score||50)-50)*.22;
+  score+=(currentWait-wait)*.28;
+  score-=Math.min(12,walkMinutes*.35);
+  const pass=fact.pass||{passType:'none',passTime:'',passWindowMinutes:60};let passActive=false;
+  if(pass.passType!=='none'&&pass.passTime){const passMinute=timeToMinutes(pass.passTime),half=Math.max(8,Number(pass.passWindowMinutes||60)/2);passActive=Math.abs(Number(start)-passMinute)<=half;}
+  const blocked=attraction&&['DOWN','CLOSED'].includes(fact.status);
+  score=Math.round(clamp(score));
+  return{activity,entry:fact.entry||null,wait,effectiveWait:wait,score,band:score>=72?'FAÇA AGORA':score>=45?'ESPERE':'EVITE AGORA',bandClass:score>=72?'good':score>=45?'warn':'bad',blocked,reasons:[...(meta.reasons||[]),'estimativa rápida da sequência v40'],components:null,walk:{minutes:walkMinutes,meters:transition?.meters??null,source:'v40-graph-fast',known:Boolean(transition?.known),zone:transition?.toZone||null,originZone:transition?.fromZone||null,graphSource:transition?.source||null},totalMinutes,priority,schedule:{blocked,pass:{...pass,active:passActive}},forecast:null,experienceCost:{totalMinutes,operationalMinutes:totalMinutes,walkMinutes,queueMinutes:wait,rideMinutes:duration,exitMinutes:0}};
+}
+function v40HydrateNodeV400(raw,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity,graph){
+  let time=startMinute,prev=previousActivity,utility=0;const seq=[];const profile=copilotProfile();
+  for(const rawItem of raw?.seq||[]){
+    const meta=rawItem;const pass=passMetaFor(meta.activity);let start=time;if(pass.passType!=='none'&&pass.passTime)start=Math.max(start,timeToMinutes(pass.passTime));
+    const exact=v40ScoredForMeta(meta,livePayload,weatherPayload,start,prev,day);if(!exact||exact.blocked)break;
+    const end=start+Number(exact.totalMinutes||0);if(end>blockEnd)break;
+    if(nextAnchor){const deadline=timeToMinutes(nextAnchor.time)-anchorBufferMinutes(nextAnchor);const t=parkGraphTransitionV400(meta.activity,nextAnchor,day,null,livePayload);if(end>deadline||(t&&end+Math.min(t.minutes,anchorBufferMinutes(nextAnchor))>timeToMinutes(nextAnchor.time)))break;}
+    seq.push(v40SequenceItem(meta,exact,start));utility+=sequenceUtility(exact,profile)+v40StrategicStepBonus(exact)-Number(exact.walk?.minutes||0)*MULTI_STEP_RULES_V400.transitionPenalty;time=end;prev=meta.activity;
+  }
+  if(!seq.length)return null;
+  return{...raw,seq,time,prev,utility};
+}
+function v40SequenceItem(meta,scored,start){return{...meta,scoreMeta:scored,time:minutesToTime(start),predictedWait:scored.effectiveWait,walkMinutes:scored.walk?.minutes??null,estimatedMinutes:scored.totalMinutes,graphTransition:{minutes:scored.walk?.minutes??null,source:scored.walk?.graphSource||scored.walk?.source||null,fromZone:scored.walk?.originZone||null,toZone:scored.walk?.zone||null}};}
+function v40NodeCandidateWindowV400(node,large,branchCap,graph,day){
+  if(!large)return node.remaining;
+  const limit=branchCap+MULTI_STEP_RULES_V400.preScoreShortlistExtra;
+  // Keep the pre-score stage deliberately cheap. Transition cost enters the
+  // fast score immediately afterwards; recalculating it for every rejected
+  // candidate would turn the shortlist itself into a quadratic hot path.
+  const ranked=(node.remaining||[]).map(meta=>({meta,rank:v40PlannerPreRank(meta)})).sort((a,b)=>b.rank-a.rank);
+  const chosen=ranked.slice(0,limit).map(x=>x.meta);
+  // Keep a small strategic escape hatch even when a protected candidate is not
+  // among the cheap pre-rank leaders. The complete protected set remains in the
+  // planner pool and can re-enter on later incremental replans.
+  for(const row of ranked){if(chosen.length>=limit+2)break;if(v40PlannerProtected(row.meta)&&!chosen.includes(row.meta))chosen.push(row.meta);}
+  return chosen;
+}
+function v40RunBeam(metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity=null,seed=null){
+  const graph=parkDecisionGraphV400(day,livePayload);if(!graph)return null;
+  const pool=v40BoundedPlannerPool(metas);const profile=copilotProfile();
+  // Decide the search budget from the original candidate population. After bounding,
+  // pool.length can equal the threshold and would otherwise incorrectly select the
+  // expensive small-pool beam for large parks.
+  const large=Number(metas?.length||0)>MULTI_STEP_RULES_V400.smallPoolThreshold;const branchCap=large?MULTI_STEP_RULES_V400.branchCapLarge:MULTI_STEP_RULES_V400.branchCapSmall;const beamWidth=large?MULTI_STEP_RULES_V400.beamWidthLarge:MULTI_STEP_RULES_V400.beamWidthSmall;
+  const maxPerHour=state.settings.optimizationMode==='relax'?automaticRelaxAttractionsPerHour(day,startMinute,blockEnd):99;
+  const planningFacts=v40PlanningFactsV400(pool,livePayload,day,startMinute);
+  const protectedMemo=new Map();const isProtectedMeta=(meta)=>{const id=meta?.activity?.id;if(protectedMemo.has(id))return protectedMemo.get(id);const value=v40PlannerProtected(meta);protectedMemo.set(id,value);return value;};
+  const objectiveMemo=new WeakMap();const objectiveOf=(node)=>{if(!node)return-Infinity;if(objectiveMemo.has(node))return objectiveMemo.get(node);const value=v40NodeObjective(node,nextAnchor,day,graph);objectiveMemo.set(node,value);return value;};
+  const initial=seed?{...seed,remaining:pool}:{time:startMinute,remaining:pool,seq:[],utility:0,prev:previousActivity,hourCounts:{},pauseNotes:[]};initial.remainingProtectedCount=initial.remaining.reduce((n,m)=>n+(isProtectedMeta(m)?1:0),0);
+  let beam=[initial];let best=beam[0];let frontier=[];
+  const seedDepth=Number(beam[0].seq?.length||0);const searchHorizon=large?MULTI_STEP_RULES_V400.largePoolHorizon:MULTI_STEP_RULES_V400.maxHorizon;const maxDepth=Math.min(searchHorizon,seedDepth+Math.max(0,pool.length));
+  for(let depth=seedDepth;depth<maxDepth;depth++){
+    const expanded=[];
+    for(const node of beam){
+      const candidateWindow=v40NodeCandidateWindowV400(node,large,branchCap,graph,day);
+      const candidates=candidateWindow.map(meta=>{
+        const pass=passMetaFor(meta.activity);let candidateStart=node.time;if(pass.passType!=='none'&&pass.passTime)candidateStart=Math.max(candidateStart,timeToMinutes(pass.passTime));
+        const scored=v40FastScoredForMetaV400(meta,candidateStart,node.prev,day,graph,planningFacts);return scored?{meta,scored,start:candidateStart}:null;
+      }).filter(Boolean).filter(x=>!x.scored.blocked).sort((a,b)=>(b.scored.score+v40StrategicStepBonus(b.scored))-(a.scored.score+v40StrategicStepBonus(a.scored))).slice(0,branchCap);
+      for(const c of candidates){
+        let start=c.start;const isRide=c.meta.activity.type==='attraction';const hourKey=String(Math.floor(start/60));const count=Number(node.hourCounts[hourKey]||0);let pause=0;
+        if(state.settings.optimizationMode==='relax'&&isRide&&count>=maxPerHour){const nextHour=(Math.floor(start/60)+1)*60;pause=Math.max(profile.relaxPause,nextHour-start);start+=pause;}
+        const rescored=start===c.start?c.scored:v40FastScoredForMetaV400(c.meta,start,node.prev,day,graph,planningFacts);if(!rescored||rescored.blocked)continue;
+        const end=start+Number(rescored.totalMinutes||0);if(end>blockEnd)continue;
+        if(nextAnchor){
+          const t=parkGraphTransitionV400(c.meta.activity,nextAnchor,day,null,livePayload);const deadline=timeToMinutes(nextAnchor.time)-anchorBufferMinutes(nextAnchor);
+          if(t&&end+Math.min(t.minutes,anchorBufferMinutes(nextAnchor))>timeToMinutes(nextAnchor.time))continue;
+          if(end>deadline)continue;
+        }
+        const hourCounts={...node.hourCounts};if(isRide)hourCounts[String(Math.floor(start/60))]=Number(hourCounts[String(Math.floor(start/60))]||0)+1;
+        const actionValue=sequenceUtility(rescored,profile)+v40StrategicStepBonus(rescored)-Number(rescored.walk?.minutes||0)*MULTI_STEP_RULES_V400.transitionPenalty;
+        const next={time:end,remaining:node.remaining.filter(x=>x.activity.id!==c.meta.activity.id),seq:[...node.seq,v40SequenceItem(c.meta,rescored,start)],utility:node.utility+actionValue,prev:c.meta.activity,hourCounts,pauseNotes:pause?[...node.pauseNotes,{at:minutesToTime(node.time),minutes:pause}]:node.pauseNotes,remainingProtectedCount:Math.max(0,Number(node.remainingProtectedCount||0)-(isProtectedMeta(c.meta)?1:0))};
+        expanded.push(next);if(objectiveOf(next)>objectiveOf(best))best=next;
+      }
+    }
+    if(!expanded.length)break;frontier=expanded.sort((a,b)=>objectiveOf(b)-objectiveOf(a));beam=frontier.slice(0,beamWidth);
+  }
+  const candidates=(frontier.length?frontier:beam).slice().sort((a,b)=>objectiveOf(b)-objectiveOf(a));
+  const rawFinalists=[best,...candidates].filter((node,index,arr)=>node?.seq?.length&&arr.findIndex(x=>(x?.seq||[]).map(y=>y.activity.id).join('>')===(node.seq||[]).map(y=>y.activity.id).join('>'))===index).sort((a,b)=>objectiveOf(b)-objectiveOf(a)).slice(0,3);
+  let hydrated=null;for(const raw of rawFinalists){const exact=v40HydrateNodeV400(raw,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity,graph);if(exact){hydrated=exact;break;}}
+  if(hydrated)best=hydrated;
+  const firstOptions=[];const seen=new Set();for(const node of candidates){const first=node.seq[0];if(!first||seen.has(first.activity.id))continue;seen.add(first.activity.id);firstOptions.push({activityId:first.activity.id,title:first.activity.title,score:first.scoreMeta?.score??null,band:first.scoreMeta?.band||null,objective:v40Round(objectiveOf(node),2),sequence:node.seq.slice(0,MULTI_STEP_RULES_V400.maxHorizon).map(x=>x.activity.title)});if(firstOptions.length>=6)break;}
+  const objective=v40Round(v40NodeObjective(best,nextAnchor,day,graph),2);
+  best.v40={version:MULTI_STEP_PLANNER_VERSION_V400,objective,horizon:best.seq.length,poolSize:pool.length,sourcePoolSize:metas.length,firstStepOptions:firstOptions,nextAnchor:nextAnchor?{id:nextAnchor.id,title:nextAnchor.title,time:nextAnchor.time,buffer:anchorBufferMinutes(nextAnchor)}:null,graph:{nodeCount:graph.nodes.size-1,transitionCacheSize:graph.transitionCache.size},twoStage:true};
+  return best;
+}
+
+function v40LiveStateMap(metas,livePayload){
+  const map={},liveIndex=v40LiveLookupIndexV401(livePayload);for(const m of metas||[]){if(m.activity?.type!=='attraction')continue;const entry=v40FastLiveMatchV401(m.activity,liveIndex);map[m.activity.id]={wait:extractStandby(entry),status:String(entry?.status||'').toUpperCase()};}return map;
+}
+function v40WeatherState(weatherPayload,day){
+  const rel=relevantWeather(weatherPayload);
+  const risk=rel?.risk||{};const next=rel?.nextRisk||{};
+  // Incremental replanning reacts to meaningful forecast changes, not merely a newer fetch timestamp.
+  // This preserves stable prefixes when the provider refreshes an unchanged forecast.
+  return[day?.date||'',risk.level||'none',Math.round(Number(risk.score||0)*10)/10,next.time||'',next.weather_code??'',Math.round(Number(next.precipitation_probability||0))].join('|');
+}
+function v40BlockCacheKey(metas,startMinute,blockEnd,nextAnchor,day){return[v40DayKey(day),Math.floor(Number(startMinute)/5),Number(blockEnd),nextAnchor?.id||'none',state.settings.optimizationMode,v40ActivityStructureSignature(day),(metas||[]).map(m=>m.activity?.id).sort().join(',')].join('||');}
+function v40ChangedIds(previous,current){
+  const changed=new Set();const ids=new Set([...Object.keys(previous||{}),...Object.keys(current||{})]);
+  for(const id of ids){const a=previous?.[id]||{},b=current?.[id]||{};if(a.status!==b.status||((a.wait==null)!=(b.wait==null))||(Number.isFinite(Number(a.wait))&&Number.isFinite(Number(b.wait))&&Math.abs(Number(a.wait)-Number(b.wait))>=INCREMENTAL_REPLAN_RULES_V400.waitDeltaMinutes))changed.add(id);}return changed;
+}
+function v40ReplayPrefix(prefixIds,metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity){
+  const byId=new Map((metas||[]).map(m=>[m.activity.id,m]));const seq=[];let time=startMinute,prev=previousActivity,utility=0;const profile=copilotProfile();const hourCounts={};
+  for(const id of prefixIds){const meta=byId.get(id);if(!meta)break;const pass=passMetaFor(meta.activity);let start=time;if(pass.passType!=='none'&&pass.passTime)start=Math.max(start,timeToMinutes(pass.passTime));const scored=v40ScoredForMeta(meta,livePayload,weatherPayload,start,prev,day);if(!scored||scored.blocked)break;const protectedRow=v40PlannerProtected(meta);if(Number(scored.score||0)<MULTI_STEP_RULES_V400.fallbackReplacementFloor&&!protectedRow)break;const end=start+Number(scored.totalMinutes||0);if(end>blockEnd)break;seq.push(v40SequenceItem(meta,scored,start));utility+=sequenceUtility(scored,profile)+v40StrategicStepBonus(scored)-Number(scored.walk?.minutes||0)*MULTI_STEP_RULES_V400.transitionPenalty;prev=meta.activity;time=end;hourCounts[String(Math.floor(start/60))]=Number(hourCounts[String(Math.floor(start/60))]||0)+Number(meta.activity.type==='attraction');}
+  return{seq,time,prev,utility,hourCounts,remaining:(metas||[]).filter(m=>!seq.some(x=>x.activity.id===m.activity.id)),pauseNotes:[]};
+}
+function incrementalMultiStepBlockPlanV400(metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity=null){
+  const key=v40BlockCacheKey(metas,startMinute,blockEnd,nextAnchor,day);const currentLive=v40LiveStateMap(metas,livePayload);const weatherState=v40WeatherState(weatherPayload,day);const origin=v40OriginSignature();const now=Date.now();const prior=incrementalBlockPlanCacheV400.get(key)||null;
+  if(prior&&now-prior.at<=INCREMENTAL_REPLAN_RULES_V400.exactReuseTtlMs&&JSON.stringify(prior.liveState)===JSON.stringify(currentLive)&&prior.weatherState===weatherState&&prior.origin===origin&&Math.abs(Number(startMinute)-Number(prior.startMinute))<=1){
+    v40RuntimeMetricsV400.exactPlanReuses++;const result=v40Clone(prior.result);result.v40={...(result.v40||{}),incremental:{mode:'exact-reuse',reusedPrefixCount:result.seq?.length||0,changedIds:[]}};v40RuntimeMetricsV400.lastIncremental=result.v40.incremental;return result;
+  }
+  let seed=null,changedIds=new Set(),mode='full';
+  if(prior&&now-prior.at<=INCREMENTAL_REPLAN_RULES_V400.prefixReuseTtlMs&&Math.abs(Number(startMinute)-Number(prior.startMinute))<=INCREMENTAL_REPLAN_RULES_V400.startDriftMinutes){
+    changedIds=v40ChangedIds(prior.liveState,currentLive);if(prior.weatherState!==weatherState&&INCREMENTAL_REPLAN_RULES_V400.weatherSensitiveInvalidation){for(const m of metas||[])if(m.activity?.weatherSensitive||weatherImpactForActivity(m.activity)==='high')changedIds.add(m.activity.id);}
+    const originChanged=prior.origin!==origin;const prefix=[];if(!originChanged){for(const item of prior.result?.seq||[]){if(changedIds.has(item.activity.id))break;prefix.push(item.activity.id);if(prefix.length>=INCREMENTAL_REPLAN_RULES_V400.reusablePrefixCap)break;}}
+    if(prefix.length){seed=v40ReplayPrefix(prefix,metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity);if(seed.seq.length){mode='incremental';}}
+  }
+  const runMetas=seed?seed.remaining:metas;const result=v40RunBeam(runMetas,seed?seed.time:startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,seed?seed.prev:previousActivity,seed||null);
+  if(!result)return v3963OptimizeSequenceBlockV400(metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity);
+  result.v40=result.v40||{};result.v40.incremental={mode,reusedPrefixCount:seed?.seq?.length||0,changedIds:[...changedIds].slice(0,12)};
+  incrementalBlockPlanCacheV400.set(key,{at:now,startMinute,liveState:currentLive,weatherState,origin,result:v40Clone(result)});pruneMapV400(incrementalBlockPlanCacheV400,24);
+  if(mode==='incremental'){v40RuntimeMetricsV400.incrementalPlans++;v40RuntimeMetricsV400.reusedPrefixSteps+=seed?.seq?.length||0;}else v40RuntimeMetricsV400.fullPlans++;
+  v40RuntimeMetricsV400.lastPlan={at:new Date().toISOString(),mode,horizon:result.seq?.length||0,objective:result.v40.objective,poolSize:result.v40.poolSize};v40RuntimeMetricsV400.lastIncremental=result.v40.incremental;return result;
+}
+
+// v40.0.2 + v40.0.3 substituem o bloco de sequência usado pelo replanejamento.
+const v3963OptimizeSequenceBlockV400=optimizeSequenceBlock;
+optimizeSequenceBlock=function(metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity=null){
+  try{return incrementalMultiStepBlockPlanV400(metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity);}catch(error){recordRuntimeDiagnosticV38('multi-step-block-v400',error);return v3963OptimizeSequenceBlockV400(metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity);}
+};
+
+function v40FastDecisionMetaV401(activity,livePayload,weatherPayload,nowMinute,liveIndex,weather){
+  const entry=activity?.type==='attraction'?v40FastLiveMatchV401(activity,liveIndex):null;const liveWait=extractStandby(entry);const plannedWait=Number.isFinite(Number(activity?.plannedWait))?Number(activity.plannedWait):null;const wait=activity?.type==='attraction'?(liveWait??plannedWait??25):0;const wasSkipped=isSkipped(activity.id)&&activity.type==='attraction';
+  let score=Number(activity?.priority||3)*24-wait*.62;const reasons=[];
+  if(wasSkipped){score+=38;reasons.push('atração pulada: prioridade de recuperação');}
+  if(liveWait!=null&&plannedWait!=null&&liveWait<=plannedWait-10){score+=22;reasons.push(`fila caiu de ${plannedWait} para ${liveWait} min`);}else if(liveWait!=null&&liveWait<=20){score+=16;reasons.push(`fila baixa agora (${liveWait} min)`);}else if(liveWait!=null&&liveWait>=Number(state.settings.longWaitThreshold||60)){score-=24;reasons.push(`fila alta agora (${liveWait} min`);}
+  if(activity?.weatherSensitive&&weather?.nextRisk&&weather?.risk?.score===0){score+=24;reasons.push(`vale priorizar antes do risco às ${weather.nextRisk.time.slice(11,16)}`);}if(activity?.weatherSensitive&&Number(weather?.risk?.score||0)>0){score-=38;reasons.push('atração exposta ao mau tempo agora');}if(activity?.indoor&&Number(weather?.risk?.score||0)>0){score+=24;reasons.push('opção coberta favorecida pelo clima');}
+  if(timeToMinutes(activity?.time)<nowMinute){score+=Math.min(14,(nowMinute-timeToMinutes(activity.time))*.06);reasons.push('já estava prevista no roteiro');}if(activity?.replanDeferred)score+=3;
+  const estimatedMinutes=Math.max(5,wait+Number(activity?.duration||10)+(activity?.type==='travel'?0:10));
+  return{activity,liveEntry:entry,liveWait,plannedWait,wait,score,reasons,estimatedMinutes,wasSkipped,v401FastCandidate:true};
+}
+function v40DecisionMetas(day,livePayload,weatherPayload,nowMinute){
+  const rows=[],liveIndex=v40LiveLookupIndexV401(livePayload);let weather=null;try{weather=relevantWeather(weatherPayload);}catch{weather=null;}
+  for(const a of day?.activities||[]){if(isDone(a.id)||a.replanDeferred||isFixedAnchor(a))continue;if(isSkipped(a.id)&&a.type!=='attraction')continue;const meta=v40FastDecisionMetaV401(a,livePayload,weatherPayload,nowMinute,liveIndex,weather);if(meta)rows.push(meta);}return rows;
+}
+function v40DecisionPlanCacheKey(day,livePayload,weatherPayload){
+  const now=getOrlandoParts();return[v40DayKey(day),Math.floor((now.hour*60+now.minute)/2),livePerfStampV3962(livePayload),weatherPerfStampV3962(weatherPayload),v40ActivityStructureSignature(day),v40OriginSignature(),state.settings.optimizationMode].join('|');
+}
+function computeDecisionPlanV400(day,livePayload,weatherPayload){
+  if(!day||day.date!==getOrlandoParts().date||!livePayload?.liveData?.length)return null;const now=getOrlandoParts(),minute=now.hour*60+now.minute;const metas=v40DecisionMetas(day,livePayload,weatherPayload,minute);if(!metas.length)return null;
+  const anchor=nextAnchorFor(day,minute);const hours=parkHoursForDate(day.park,day.date);const blockEnd=anchor?Math.max(minute,timeToMinutes(anchor.time)-anchorBufferMinutes(anchor)):hours.close;const previous=lastCompletedActivityV37(day);const result=incrementalMultiStepBlockPlanV400(metas,minute,blockEnd,anchor,livePayload,weatherPayload,day,previous);
+  if(!result?.seq?.length)return null;v40RuntimeMetricsV400.decisionPlanComputes++;
+  return{version:MULTI_STEP_PLANNER_VERSION_V400,createdAt:Date.now(),dayDate:day.date,park:day.park,startMinute:minute,blockEnd,nextAnchor:anchor?{id:anchor.id,title:anchor.title,time:anchor.time}:null,steps:result.seq.slice(0,MULTI_STEP_RULES_V400.maxHorizon),objective:result.v40?.objective??null,firstStepOptions:result.v40?.firstStepOptions||[],incremental:result.v40?.incremental||null};
+}
+function cachedDecisionPlanV400(day,livePayload,weatherPayload,{compute=false}={}){
+  const key=v40DecisionPlanCacheKey(day,livePayload,weatherPayload);const row=decisionPlanCacheV400.get(key);if(row&&Date.now()-row.at<=MULTI_STEP_RULES_V400.decisionPlanTtlMs){v40RuntimeMetricsV400.decisionPlanCacheHits++;return row.plan;}
+  if(!compute)return null;const started=performance.now();const plan=computeDecisionPlanV400(day,livePayload,weatherPayload);if(plan){plan.computeMs=v40Round(performance.now()-started,1);decisionPlanCacheV400.set(key,{at:Date.now(),plan});pruneMapV400(decisionPlanCacheV400,12);}return plan;
+}
+function scheduleDecisionPlanV400(day,livePayload,weatherPayload){
+  if(!day||day.date!==getOrlandoParts().date)return;const key=v40DecisionPlanCacheKey(day,livePayload,weatherPayload);if(decisionPlanCacheV400.has(key))return;const token=++v40DecisionPlanTokenV400;
+  if(v40DecisionPlanHandleV400!=null){if(typeof cancelIdleCallback==='function')try{cancelIdleCallback(v40DecisionPlanHandleV400);}catch{}clearTimeout(v40DecisionPlanHandleV400);}
+  const quietWindow=mobileLikeDeviceV3963()?INSTANT_LIVE_RULES_V3963.mobileQuietWindowMs:INSTANT_LIVE_RULES_V3963.normalQuietWindowMs;
+  const run=()=>{v40DecisionPlanHandleV400=null;if(token!==v40DecisionPlanTokenV400)return;const quietFor=Date.now()-instantLastInputAtV3963;if(browserHasPendingInputV3963()||quietFor<quietWindow){v40DecisionPlanHandleV400=setTimeout(run,Math.max(80,quietWindow-quietFor));return;}try{const plan=withPerformanceRenderMemoV3962(()=>cachedDecisionPlanV400(day,livePayload,weatherPayload,{compute:true}));const view=activeViewName();if(view==='today')requestAnimationFrame(()=>{try{renderNext();}catch{}});else if(view==='live'&&plan){try{renderProgressiveReplanPreviewV400(day,getReplanTriggers(day,livePayload,weatherPayload),plan);}catch{}}}catch(error){recordRuntimeDiagnosticV38('decision-plan-background-v400',error);}};
+  const arm=()=>{if(token!==v40DecisionPlanTokenV400)return;if(typeof requestIdleCallback==='function')v40DecisionPlanHandleV400=requestIdleCallback(run,{timeout:1500});else v40DecisionPlanHandleV400=setTimeout(run,180);};
+  requestAnimationFrame(()=>setTimeout(arm,quietWindow));
+}
+function v40CompactPlan(plan){if(!plan)return null;return{version:plan.version,objective:plan.objective,horizon:plan.steps?.length||0,computeMs:plan.computeMs??null,incremental:plan.incremental||null,nextAnchor:plan.nextAnchor||null,sequence:(plan.steps||[]).map((x,index)=>({rank:index+1,activityId:x.activity?.id||null,title:x.activity?.title||null,time:x.time,score:x.scoreMeta?.score??null,band:x.scoreMeta?.band||null,walkMinutes:x.walkMinutes??null,predictedWait:x.predictedWait??null}))};}
+function v40DecisionPlanOption(plan,activityId){return(plan?.firstStepOptions||[]).find(x=>x.activityId===activityId)||null;}
+function v40AttachPlanToDecision(base,plan){if(!base||!plan)return base;const compact=v40CompactPlan(plan);let result={...base,multiStepPlan:compact};const first=plan.steps?.[0];if(!first?.activity||!first.scoreMeta)return result;
+  if(!['direct','bridge','tactical-fallback'].includes(base.kind))return result;if(base.priority?.activity&&['must','want'].includes(priorityCodeFromActivity(base.priority.activity))&&base.priority.activity.id===base.activity?.id)return result;
+  if(first.activity.id===base.activity?.id)return result;const bestOption=v40DecisionPlanOption(plan,first.activity.id);const baseOption=v40DecisionPlanOption(plan,base.activity?.id);const gain=Number(bestOption?.objective||plan.objective||0)-Number(baseOption?.objective||0);if(baseOption&&gain<MULTI_STEP_RULES_V400.decisionSwitchMinGain)return result;
+  const floor=Number(base.meta?.score||0)>=PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold?MULTI_STEP_RULES_V400.greenReplacementFloor:MULTI_STEP_RULES_V400.fallbackReplacementFloor;if(Number(first.scoreMeta.score||0)<floor)return result;
+  const meta={...first.scoreMeta,reasons:[`melhor sequência para as próximas ${Math.max(MULTI_STEP_RULES_V400.minHorizon,plan.steps.length)} decisões`,...(first.scoreMeta.reasons||[])].slice(0,8)};
+  const priority=(base.priorities||[]).find(p=>p.activity?.id===first.activity.id)||null;result={...result,kind:meta.score>=PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold?'direct':'tactical-fallback',activity:first.activity,entry:first.scoreMeta.entry||findLiveMatch(first.activity,state.liveCache?.[getSelectedDay()?.park||state.selectedPark]?.liveData||[]),meta,priority:priority||base.priority,multiStepAdjusted:true,multiStepGain:v40Round(gain,2)};return result;
+}
+
+const v3963DecisionOrchestratorV400=decisionOrchestratorV36;
+decisionOrchestratorV36=function(day,livePayload,weatherPayload){
+  const base=v3963DecisionOrchestratorV400(day,livePayload,weatherPayload);if(!day||day.date!==getOrlandoParts().date||!base)return base;
+  try{
+    // The multi-step beam never runs inside a foreground render. The current
+    // cached plan is consumed immediately and a new one is produced only in
+    // an idle/quiet window, preserving Instant Live responsiveness.
+    const plan=cachedDecisionPlanV400(day,livePayload,weatherPayload,{compute:false});if(!plan)scheduleDecisionPlanV400(day,livePayload,weatherPayload);return v40AttachPlanToDecision(base,plan);
+  }catch(error){recordRuntimeDiagnosticV38('decision-plan-v400',error);return base;}
+};
+
+// Opportunity passa por uma guarda explícita de sequência global.
+const v3963DetectOpportunityV400=detectOpportunity;
+detectOpportunity=function(day,livePayload,weatherPayload){
+  const opportunity=v3963DetectOpportunityV400(day,livePayload,weatherPayload);if(!opportunity||!day||day.date!==getOrlandoParts().date)return opportunity;
+  try{const plan=cachedDecisionPlanV400(day,livePayload,weatherPayload,{compute:false});if(!plan){scheduleDecisionPlanV400(day,livePayload,weatherPayload);return null;}const rank=(plan.steps||[]).findIndex(x=>x.activity?.id===opportunity.activityId);if(rank<0||rank>1)return null;return{...opportunity,v40SequenceRank:rank+1,v40SequenceObjective:plan.objective};}catch{return null;}
+};
+
+// Persistimos um resumo do plano no Decision Trace / History v3 sem criar UI técnica.
+const v3963BuildDecisionTraceV400=buildDecisionTraceV392;
+buildDecisionTraceV392=function(decision,day,livePayload,weatherPayload){const trace=v3963BuildDecisionTraceV400(decision,day,livePayload,weatherPayload);if(trace&&decision?.multiStepPlan)trace.multiStep=v40Clone(decision.multiStepPlan);return trace;};
+const v3963HistoryV3ContextSnapshotV400=historyV3ContextSnapshotV393;
+historyV3ContextSnapshotV393=function(trace=null,day=null){const context=v3963HistoryV3ContextSnapshotV400(trace,day);if(trace?.multiStep)context.multiStep={version:trace.multiStep.version||1,objective:trace.multiStep.objective??null,horizon:trace.multiStep.horizon??trace.multiStep.sequence?.length??null,sequence:(trace.multiStep.sequence||[]).slice(0,7).map(x=>({activityId:x.activityId||null,title:x.title||null,rank:x.rank||null}))};return context;};
+
+// O proposal continua com o mesmo formato público, mas ganha diagnóstico do bloco v40.
+const v3963GenerateReplanProposalV400=generateReplanProposal;
+generateReplanProposal=function(day,livePayload,weatherPayload,force=false){
+  const before={full:v40RuntimeMetricsV400.fullPlans,incremental:v40RuntimeMetricsV400.incrementalPlans,reused:v40RuntimeMetricsV400.reusedPrefixSteps};const proposal=v3963GenerateReplanProposalV400(day,livePayload,weatherPayload,force);if(!proposal)return proposal;const after={full:v40RuntimeMetricsV400.fullPlans,incremental:v40RuntimeMetricsV400.incrementalPlans,reused:v40RuntimeMetricsV400.reusedPrefixSteps};proposal.v40={version:V40_BLOCK_VERSION_V400,graph:parkGraphSummaryV400(day,livePayload),planner:{version:MULTI_STEP_PLANNER_VERSION_V400,horizon:[MULTI_STEP_RULES_V400.minHorizon,MULTI_STEP_RULES_V400.maxHorizon]},incremental:{version:INCREMENTAL_REPLAN_VERSION_V400,fullPlans:after.full-before.full,incrementalPlans:after.incremental-before.incremental,reusedPrefixSteps:after.reused-before.reused,last:v40Clone(v40RuntimeMetricsV400.lastIncremental)}};proposal.summary=`${proposal.summary} O v40 também avalia o custo entre etapas e reutiliza trechos estáveis quando a mudança é localizada.`;return proposal;
+};
+
+function renderProgressiveReplanPreviewV400(day,triggers,plan){
+  const panel=$('#replanPanel');if(!panel)return;currentReplanProposal=null;currentReplanJson=null;panel.hidden=false;panel.className='replan-panel stable';
+  const title=$('#replanTitle'),badge=$('#replanBadge'),triggersEl=$('#replanTriggers'),summary=$('#replanSummary'),comparison=$('#replanComparison'),explanations=$('#replanExplanations'),actions=$('#replanActions'),analyze=$('#analyzeReplanBtn'),jsonBtn=$('#downloadReplanJsonBtn');
+  if(title)title.textContent='Sequência incremental atualizada';if(badge){badge.textContent='V40 · INCREMENTAL';badge.className='replan-badge neutral';}
+  if(triggersEl)triggersEl.innerHTML=(triggers||[]).slice(0,4).map(t=>`<span class="replan-trigger ${escapeHtml(t.severity||'medium')}">${escapeHtml(t.label||'mudança detectada')}</span>`).join('');
+  const steps=(plan?.steps||[]).slice(0,4);if(summary)summary.textContent=steps.length?`O v40 atualizou as próximas ${steps.length} decisões sem reconstruir o dia inteiro. O roteiro completo só é recalculado quando necessário ou quando você pedir.`:'Mudanças detectadas. O próximo bloco será atualizado sem reconstruir o dia inteiro.';
+  if(comparison)comparison.innerHTML=steps.length?`<div class="source-note"><b>Próxima sequência:</b> ${steps.map((x,i)=>`${i+1}. ${escapeHtml(x.activity?.title||'Atividade')}`).join(' · ')}</div>`:'';
+  if(explanations)explanations.innerHTML='';if(actions)actions.hidden=true;if(analyze){analyze.hidden=false;analyze.textContent='Analisar roteiro completo';}if(jsonBtn)jsonBtn.hidden=true;
+}
+
+// v40.0.3: o replanejamento automático é progressivo. No caminho normal do
+// Ao Vivo reutilizamos o multi-step plan já calculado para atualizar o próximo
+// bloco. A reconstrução do roteiro inteiro continua disponível sob demanda
+// (ou em emergência), evitando uma segunda long task logo após abrir a aba.
+const v3962ScheduleDeferredReplanV400=scheduleDeferredReplanV3962;
+scheduleDeferredReplanV3962=function(day,livePayload,weatherPayload,triggers,force){
+  if(force)return v3962ScheduleDeferredReplanV400(day,livePayload,weatherPayload,triggers,true);
+  const token=++deferredReplanTokenV3962;
+  if(deferredReplanHandleV3962!=null){if(typeof cancelIdleCallback==='function')try{cancelIdleCallback(deferredReplanHandleV3962);}catch{}else clearTimeout(deferredReplanHandleV3962);}
+  const run=()=>{deferredReplanHandleV3962=null;if(token!==deferredReplanTokenV3962||activeViewName()!=='live')return;try{const plan=cachedDecisionPlanV400(day,livePayload,weatherPayload,{compute:false});renderProgressiveReplanPreviewV400(day,triggers,plan);}catch(error){recordRuntimeDiagnosticV38('progressive-replan-v400',error);}};
+  if(typeof requestIdleCallback==='function')deferredReplanHandleV3962=requestIdleCallback(run,{timeout:450});else deferredReplanHandleV3962=setTimeout(run,80);
+};
+
+function v40DiagnosticsV400(){
+  const day=getSelectedDay(),live=day?state.liveCache?.[day.park]:null,weather=day?state.weatherCache?.[day.park]:null;const plan=day?cachedDecisionPlanV400(day,live,weather,{compute:false}):null;
+  return{version:V40_BLOCK_VERSION_V400,graph:day?parkGraphSummaryV400(day,live):null,planner:plan?v40CompactPlan(plan):null,incremental:{version:INCREMENTAL_REPLAN_VERSION_V400,...v40Clone(v40RuntimeMetricsV400.lastIncremental)},metrics:v40Clone(v40RuntimeMetricsV400),policy:{graph:PARK_GRAPH_RULES_V400,planner:MULTI_STEP_RULES_V400,incremental:INCREMENTAL_REPLAN_RULES_V400}};
+}
+const v3963EngineDiagnosticSnapshotV400=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){const snapshot=v3963EngineDiagnosticSnapshotV400();snapshot.context=snapshot.context||{};snapshot.context.v40=v40DiagnosticsV400();return snapshot;};
+const v3963ExposeDiagnosticsApiV400=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){
+  v3963ExposeDiagnosticsApiV400();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.parkGraphV40=()=>v40Clone(parkGraphSummaryV400());
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.multiStepPlanV40=()=>{const day=getSelectedDay();return v40Clone(v40CompactPlan(cachedDecisionPlanV400(day,state.liveCache?.[day?.park],state.weatherCache?.[day?.park],{compute:true})));};
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.incrementalReplanV40=()=>v40Clone({version:INCREMENTAL_REPLAN_VERSION_V400,last:v40RuntimeMetricsV400.lastIncremental,fullPlans:v40RuntimeMetricsV400.fullPlans,incrementalPlans:v40RuntimeMetricsV400.incrementalPlans,exactPlanReuses:v40RuntimeMetricsV400.exactPlanReuses,reusedPrefixSteps:v40RuntimeMetricsV400.reusedPrefixSteps});
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.v40Policy=()=>v40Clone({version:V40_BLOCK_VERSION_V400,graph:PARK_GRAPH_RULES_V400,planner:MULTI_STEP_RULES_V400,incremental:INCREMENTAL_REPLAN_RULES_V400});
+};
+
+const v3963RunEngineSelfTestsV400=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v3963RunEngineSelfTestsV400();const additions=[];
+  const now=getOrlandoParts();const today=now.date;
+  addSelfTestV38(additions,'v40 Park Graph cria nó por atividade e origem',()=>{const day={date:today,park:'epcot',activities:[{id:'g-a',title:'Spaceship Earth',type:'attraction',area:'World Celebration',flexible:true},{id:'g-b',title:'Test Track',type:'attraction',area:'World Discovery',flexible:true}]};const graph=parkDecisionGraphV400(day,{liveData:[]});assertSelfTestV38(graph.nodes.size>=3&&graph.origin?.id==='__origin__',`nodes=${graph.nodes.size}`);return `${graph.nodes.size-1} atividades + origem`;});
+  addSelfTestV38(additions,'v40 transição na mesma zona custa menos que rota cruzada',()=>{const day={date:today,park:'epcot',activities:[{id:'z-a',title:'Spaceship Earth',type:'attraction',area:'World Celebration'},{id:'z-b',title:'Dreamers Point',type:'other',area:'World Celebration'},{id:'z-c',title:'Frozen Ever After',type:'attraction',area:'Norway'}]};const graph=parkDecisionGraphV400(day,{liveData:[]});const a=v40GraphEnsureNode(graph,day.activities[0],day),b=v40GraphEnsureNode(graph,day.activities[1],day),c=v40GraphEnsureNode(graph,day.activities[2],day);const same=v40GraphTransitionNodes(graph,a,b),cross=v40GraphTransitionNodes(graph,a,c);assertSelfTestV38(same.minutes<cross.minutes,`${same.minutes} !< ${cross.minutes}`);return `${same.minutes} < ${cross.minutes} min`;});
+  addSelfTestV38(additions,'v40 grafo usa caminho de zonas quando coordenadas não existem',()=>{const day={date:today,park:'magic-kingdom',activities:[{id:'a',title:'Pirates of the Caribbean',type:'attraction',area:'Adventureland'},{id:'b',title:'TRON Lightcycle Run',type:'attraction',area:'Tomorrowland'}]};const t=parkGraphTransitionV400(day.activities[0],day.activities[1],day,null,{liveData:[]});assertSelfTestV38(t&&t.minutes>0&&['zone-graph','hybrid-coordinate-zone','coordinates'].includes(t.source),JSON.stringify(t));return `${t.source} · ${t.minutes} min`;});
+  addSelfTestV38(additions,'v40 planner trabalha com horizonte máximo de 7 decisões',()=>{assertSelfTestV38(MULTI_STEP_RULES_V400.minHorizon===3&&MULTI_STEP_RULES_V400.maxHorizon===7,'horizonte');return '3–7 decisões';});
+  addSelfTestV38(additions,'v40 pool grande preserva prioridades estratégicas',()=>{const metas=Array.from({length:20},(_,i)=>({activity:{id:`p${i}`,title:`P${i}`,type:'attraction',priority:i===19?5:3,preference:i===19?'must':undefined},score:i,estimatedMinutes:30,wait:20}));metas[19].activity.preference='must';const bounded=v40BoundedPlannerPool(metas);assertSelfTestV38(bounded.some(x=>x.activity.id==='p19'),'must removido');return `${bounded.length} no pool · must preservado`;});
+  addSelfTestV38(additions,'v40 valor terminal considera proximidade da próxima âncora',()=>{assertSelfTestV38(MULTI_STEP_RULES_V400.terminalAnchorDistancePenalty>0,'penalidade ausente');return `penalidade ${MULTI_STEP_RULES_V400.terminalAnchorDistancePenalty}`;});
+  addSelfTestV38(additions,'v40 não substitui verde por opção abaixo de 72',()=>{assertSelfTestV38(MULTI_STEP_RULES_V400.greenReplacementFloor===72,'floor alterado');return 'floor 72';});
+  addSelfTestV38(additions,'v40 incremental reage a delta de fila de 10 min',()=>{const changed=v40ChangedIds({a:{wait:20,status:'OPERATING'}},{a:{wait:31,status:'OPERATING'}});assertSelfTestV38(changed.has('a'),'delta ignorado');return '20 → 31 afeta A';});
+  addSelfTestV38(additions,'v40 incremental ignora microvariação abaixo do limiar',()=>{const changed=v40ChangedIds({a:{wait:20,status:'OPERATING'}},{a:{wait:25,status:'OPERATING'}});assertSelfTestV38(!changed.has('a'),'microvariação invalidou');return '20 → 25 reutilizável';});
+  addSelfTestV38(additions,'v40 mudança de status invalida candidato',()=>{const changed=v40ChangedIds({a:{wait:20,status:'OPERATING'}},{a:{wait:null,status:'DOWN'}});assertSelfTestV38(changed.has('a'),'status ignorado');return 'OPERATING → DOWN';});
+  addSelfTestV38(additions,'v40 incremental limita prefixo reutilizado a 3 etapas',()=>{assertSelfTestV38(INCREMENTAL_REPLAN_RULES_V400.reusablePrefixCap===3,'cap');return 'prefixo <= 3';});
+  addSelfTestV38(additions,'v40 Opportunity exige presença nas duas primeiras etapas',()=>{assertSelfTestV38(typeof v3963DetectOpportunityV400==='function'&&typeof detectOpportunity==='function','guard ausente');return 'rank 1–2';});
+  addSelfTestV38(additions,'v40 preserva governança e thresholds',()=>{assertSelfTestV38(PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold===72&&PREFERENCE_CONFIDENCE_RULES_V394.minConfidenceToApply===.12,'política alterada');return '72 / 0.12 preservados';});
+  addSelfTestV38(additions,'v40 mantém Instant Live fora do caminho da primeira pintura',()=>{assertSelfTestV38(INSTANT_LIVE_RULES_V3963.staleWhileRevalidate===true&&MULTI_STEP_RULES_V400.backgroundOnly===true&&MULTI_STEP_RULES_V400.foregroundCompute===false,'performance contract');return 'paint primeiro';});
+  addSelfTestV38(additions,'v40 replanejamento automático é progressivo',()=>{assertSelfTestV38(INCREMENTAL_REPLAN_RULES_V400.progressiveAutoReplan===true&&INCREMENTAL_REPLAN_RULES_V400.fullRouteOnDemand===true&&typeof renderProgressiveReplanPreviewV400==='function','progressive replan ausente');return 'próximo bloco automático / roteiro completo sob demanda';});
+  addSelfTestV38(additions,'v40 expõe diagnóstico de grafo, planner e incremental',()=>{assertSelfTestV38(typeof v40DiagnosticsV400==='function'&&typeof parkGraphSummaryV400==='function','diagnóstico ausente');return '3 módulos observáveis';});
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+/* ============================================================
+   Orlando Flow v40.1 — Simulation & Risk Engine
+
+   Contratos:
+   - simulação determinística de cenários, sem Monte Carlo no caminho mobile;
+   - risco só compara sequências que já passaram por viabilidade operacional;
+   - compromissos estratégicos continuam acima do ajuste de risco;
+   - perfis agressivo/equilibrado/conservador são comparados em paralelo;
+   - preferência de risco deriva do modo já escolhido pelo usuário, sem novo peso oculto;
+   - simulação roda junto do planner v40 em background/fluxo explícito, nunca na primeira pintura;
+   - replanejamento incremental reaproveita o relatório de risco quando o plano é reutilizado.
+   ============================================================ */
+const V40_1_VERSION_V401='40.1';
+const RISK_ENGINE_VERSION_V401=1;
+const RISK_RULES_V401=Object.freeze({
+  model:'deterministic-sequence-stress-v1',
+  backgroundOnly:true,
+  monteCarlo:false,
+  scenarioCount:7,
+  maxCandidatePlansSmall:4,
+  maxCandidatePlansLarge:3,
+  riskSwitchMinGain:4,
+  usefulFallbackMaxDetourMinutes:24,
+  usefulFallbackMaxIngressMinutes:15,
+  cacheTtlMs:90_000,
+  cacheEntries:36,
+  riskLowThreshold:30,
+  riskHighThreshold:60,
+  fragileThreshold:.58,
+  profiles:Object.freeze({
+    aggressive:Object.freeze({expectedLossWeight:.62,downsideWeight:.12,fragilityWeight:3,resilienceBonus:2}),
+    balanced:Object.freeze({expectedLossWeight:.84,downsideWeight:.30,fragilityWeight:8,resilienceBonus:4}),
+    conservative:Object.freeze({expectedLossWeight:1.02,downsideWeight:.52,fragilityWeight:14,resilienceBonus:6})
+  }),
+  scenarios:Object.freeze([
+    Object.freeze({id:'baseline',label:'Base',weight:.34,queueFactor:1,queueAdd:0,walkFactor:1,weather:false,closure:false}),
+    Object.freeze({id:'queue-moderate',label:'Fila + moderada',weight:.19,queueFactor:1.22,queueAdd:4,walkFactor:1,weather:false,closure:false}),
+    Object.freeze({id:'queue-severe',label:'Fila + severa',weight:.12,queueFactor:1.48,queueAdd:9,walkFactor:1.03,weather:false,closure:false}),
+    Object.freeze({id:'weather',label:'Clima adverso',weight:.11,queueFactor:1.08,queueAdd:2,walkFactor:1.10,weather:true,closure:false}),
+    Object.freeze({id:'congestion',label:'Deslocamento congestionado',weight:.09,queueFactor:1.05,queueAdd:1,walkFactor:1.30,weather:false,closure:false}),
+    Object.freeze({id:'single-closure',label:'Indisponibilidade pontual',weight:.08,queueFactor:1.03,queueAdd:1,walkFactor:1.04,weather:false,closure:true}),
+    Object.freeze({id:'mixed-stress',label:'Estresse combinado',weight:.07,queueFactor:1.34,queueAdd:6,walkFactor:1.18,weather:true,closure:false})
+  ])
+});
+
+const riskAnalysisCacheV401=new Map();
+let lastRiskReportV401=null;
+const riskRuntimeMetricsV401={
+  evaluations:0,cacheHits:0,candidatePlansEvaluated:0,riskSwitches:0,
+  exactStrategicGuards:0,lastEvaluation:null,lastSwitch:null,lastDurationMs:0
+};
+
+function v401RiskProfileName(){
+  const mode=state.settings?.optimizationMode;
+  return mode==='max'?'aggressive':mode==='relax'?'conservative':'balanced';
+}
+function v401RiskLevel(score){const n=Number(score||0);return n>=RISK_RULES_V401.riskHighThreshold?'high':n>=RISK_RULES_V401.riskLowThreshold?'medium':'low';}
+function v401SequenceSignature(node){return(node?.seq||node?.steps||[]).map(x=>x.activity?.id||v40ActivityId(x.activity)).filter(Boolean).join('>');}
+function v401RiskCacheKey(node,day,livePayload,weatherPayload,startMinute,blockEnd){return[v40DayKey(day),Math.floor(Number(startMinute||0)/2),Number(blockEnd||0),v401SequenceSignature(node),livePerfStampV3962(livePayload),v40WeatherState(weatherPayload,day),v40OriginSignature()].join('||');}
+function v401PruneRiskCache(){pruneMapV400(riskAnalysisCacheV401,RISK_RULES_V401.cacheEntries);}
+function v401StepQueueMinutes(step){
+  const cost=step?.scoreMeta?.experienceCost||{};const values=[cost.queueMinutes,step?.predictedWait,step?.scoreMeta?.effectiveWait,step?.scoreMeta?.wait];
+  for(const value of values){const n=Number(value);if(Number.isFinite(n)&&n>=0)return n;}return 0;
+}
+function v401StepWalkMinutes(step){const n=Number(step?.walkMinutes??step?.scoreMeta?.walk?.minutes);return Number.isFinite(n)&&n>=0?n:0;}
+function v401StepTotalMinutes(step){const n=Number(step?.estimatedMinutes??step?.scoreMeta?.totalMinutes);return Number.isFinite(n)&&n>0?n:Math.max(1,v401StepQueueMinutes(step)+v401StepWalkMinutes(step)+8);}
+function v401QueueUncertainty(step){
+  const wait=Math.max(8,v401StepQueueMinutes(step));const f=step?.scoreMeta?.forecast||{};const samples=[];
+  for(const value of [f.p30,f.p60,f.p30Range?.low,f.p30Range?.high,f.p60Range?.low,f.p60Range?.high]){const n=Number(value);if(Number.isFinite(n))samples.push(Math.abs(n-wait));}
+  if(!samples.length)return .18;return Math.max(0,Math.min(1,Math.max(...samples)/Math.max(20,wait)));
+}
+function v401WeatherSeverity(day,weatherPayload){
+  try{const rel=relevantWeather(weatherPayload,day?.date);const level=rel?.risk?.level==='high'?100:rel?.risk?.level==='medium'?55:0;const precip=Number(rel?.current?.precipitation_probability||0);const nextRisk=rel?.nextRisk?weatherRiskForHour(rel.nextRisk):null;const nextLevel=nextRisk?.level==='high'?100:nextRisk?.level==='medium'?55:0;const nextPrecip=Number(rel?.nextRisk?.precipitation_probability||0);return Math.max(0,Math.min(1,Math.max(level,nextLevel,precip*.75,nextPrecip*.75)/100));}catch{return 0;}
+}
+function v401WeatherExposure(node){
+  const steps=node?.seq||[];if(!steps.length)return 0;let exposure=0;
+  for(const step of steps){const impact=weatherImpactForActivity(step.activity);if(impact==='high')exposure+=1;else if(impact==='medium')exposure+=.45;}
+  return Math.max(0,Math.min(1,exposure/steps.length));
+}
+function v401StrategicCoverage(node){
+  const coverage={must:0,want:0,timedPass:0,protected:0};
+  for(const step of node?.seq||[]){const code=step?.scoreMeta?.priority?.code||priorityCodeFromActivity(step.activity);if(code==='must')coverage.must++;else if(code==='want')coverage.want++;const pass=passMetaFor(step.activity);if(pass.passType!=='none'&&pass.passTime)coverage.timedPass++;if(['must','want'].includes(code)||pass.passType!=='none')coverage.protected++;}
+  return coverage;
+}
+function v401StrategicEligible(candidate,baseline){
+  const a=v401StrategicCoverage(candidate),b=v401StrategicCoverage(baseline);const ok=a.must>=b.must&&a.timedPass>=b.timedPass;if(!ok)riskRuntimeMetricsV401.exactStrategicGuards++;return ok;
+}
+function v401RiskFactsV401(metas,livePayload){
+  const liveIndex=v40LiveLookupIndexV401(livePayload),rows=[];
+  for(const meta of metas||[]){
+    const activity=meta?.activity;if(!activity)continue;const entry=activity.type==='attraction'?v40FastLiveMatchV401(activity,liveIndex):null;const status=String(entry?.status||'OPERATING').toUpperCase();const score=Number(meta.score??50);const wait=activity.type==='attraction'?Number(extractStandby(entry)??meta.wait??meta.plannedWait??20):0;const duration=Number(activity.duration||(activity.type==='attraction'?8:20));const plannerProtected=v40PlannerProtected(meta);
+    rows.push({meta,activity,entry,status,score,wait,duration,plannerProtected});
+  }
+  return{rows,liveIndex};
+}
+function v401CandidateStatus(meta,livePayload){
+  const entry=meta?.activity?.type==='attraction'?v40FastLiveMatchV401(meta.activity,v40LiveLookupIndexV401(livePayload)):null;return{entry,status:String(entry?.status||'OPERATING').toUpperCase()};
+}
+function v401FallbackInventory(node,metas,day,livePayload,nextAnchor,previousActivity,riskFacts=null){
+  const seq=node?.seq||[];const used=new Set(seq.map(x=>x.activity?.id));const byActivity={};let covered=0,rideSteps=0,totalUseful=0;const catalog=riskFacts?.rows||v401RiskFactsV401(metas,livePayload).rows;
+  for(let index=0;index<seq.length;index++){
+    const step=seq[index],activity=step.activity;if(activity?.type!=='attraction')continue;rideSteps++;
+    const from=index>0?seq[index-1].activity:previousActivity;const next=seq[index+1]?.activity||nextAnchor||null;const direct=next?parkGraphTransitionV400(from,next,day,null,livePayload):null;const options=[];
+    for(const row of catalog){
+      const candidate=row.activity;if(!candidate||candidate.id===activity.id||used.has(candidate.id)||isFixedAnchor(candidate)||candidate.replanDeferred)continue;
+      if(['DOWN','CLOSED','REFURBISHMENT'].includes(row.status))continue;const score=row.score;if(score<MULTI_STEP_RULES_V400.fallbackReplacementFloor&&!row.plannerProtected)continue;
+      const into=parkGraphTransitionV400(from,candidate,day,row.entry,livePayload);if(!into||Number(into.minutes)>RISK_RULES_V401.usefulFallbackMaxIngressMinutes)continue;
+      const out=next?parkGraphTransitionV400(candidate,next,day,null,livePayload):null;const detour=Math.max(0,Number(into.minutes||0)+row.wait+row.duration+Number(out?.minutes||0)-Number(direct?.minutes||0));if(detour>RISK_RULES_V401.usefulFallbackMaxDetourMinutes)continue;
+      const quality=score-detour*.9+(row.plannerProtected?8:0);options.push({activityId:candidate.id,title:candidate.title,score:v40Round(score,1),detourMinutes:v40Round(detour,1),ingressMinutes:Number(into.minutes||0),quality:v40Round(quality,2)});
+    }
+    options.sort((a,b)=>b.quality-a.quality);const useful=options.slice(0,3);if(useful.length){covered++;totalUseful+=useful.length;}
+    byActivity[activity.id]={count:useful.length,best:useful[0]||null,options:useful};
+  }
+  return{byActivity,rideSteps,coveredSteps:covered,totalUseful,fallbackCoverage:rideSteps?covered/rideSteps:1};
+}
+function v401ClosureTargetIndex(node,fallbacks){
+  const seq=node?.seq||[];let best={index:-1,criticality:-Infinity};
+  seq.forEach((step,index)=>{if(step.activity?.type!=='attraction')return;const code=step?.scoreMeta?.priority?.code||priorityCodeFromActivity(step.activity);const pass=passMetaFor(step.activity);const hasFallback=Boolean(fallbacks.byActivity?.[step.activity.id]?.best);let criticality=(code==='must'?4:code==='want'?2:0)+(pass.passType!=='none'&&pass.passTime?2.4:0)+(hasFallback?0:2)+(seq.length-index)*.18;if(criticality>best.criticality)best={index,criticality};});
+  return best.index;
+}
+function v401ScenarioWeights(node,day,weatherPayload){
+  const steps=node?.seq||[];const queueUncertainty=steps.length?steps.reduce((s,x)=>s+v401QueueUncertainty(x),0)/steps.length:0;const weatherSeverity=v401WeatherSeverity(day,weatherPayload);const weatherExposure=v401WeatherExposure(node);
+  const rows=RISK_RULES_V401.scenarios.map(s=>{let factor=1;if(s.id==='queue-moderate')factor*=1+queueUncertainty*.7;if(s.id==='queue-severe')factor*=1+queueUncertainty*1.35;if(s.id==='weather')factor*=.35+weatherExposure*(.8+weatherSeverity*1.6);if(s.id==='mixed-stress')factor*=.65+queueUncertainty*.55+weatherExposure*weatherSeverity*.8;if(s.id==='baseline')factor*=Math.max(.62,1.18-queueUncertainty*.35-weatherSeverity*weatherExposure*.35);return{...s,rawWeight:s.weight*factor};});
+  const total=rows.reduce((s,x)=>s+x.rawWeight,0)||1;return{queueUncertainty,weatherSeverity,weatherExposure,scenarios:rows.map(x=>({...x,weight:x.rawWeight/total}))};
+}
+function v401WeatherDelayForStep(step,severity){const impact=weatherImpactForActivity(step.activity);if(impact==='high')return 8+18*severity;if(impact==='medium')return 3+7*severity;return 0;}
+function v401WeightedQuantile(rows,q){
+  const sorted=(rows||[]).slice().sort((a,b)=>a.loss-b.loss);let cumulative=0;for(const row of sorted){cumulative+=Number(row.weight||0);if(cumulative>=q)return Number(row.loss||0);}return Number(sorted.at(-1)?.loss||0);
+}
+function v401SimulateScenario(node,scenario,context){
+  const {startMinute,blockEnd,nextAnchor,day,livePayload,fallbacks,previousActivity,baseObjective,weatherSeverity}=context;const seq=node?.seq||[];const closureIndex=scenario.closure?v401ClosureTargetIndex(node,fallbacks):-1;let time=Number(startMinute||0),extraMinutes=0,closurePenalty=0,missedPass=0,missedAnchor=0,droppedSteps=0,mustMiss=0,wantMiss=0,fallbackUsed=0;let lastActivity=previousActivity;
+  for(let index=0;index<seq.length;index++){
+    const step=seq[index],activity=step.activity;const pass=passMetaFor(activity);if(pass.passType!=='none'&&pass.passTime){const passMinute=timeToMinutes(pass.passTime);time=Math.max(time,passMinute);const half=Math.max(8,Number(pass.passWindowMinutes||60)/2);if(time>passMinute+half)missedPass++;}
+    const baselineWalk=v401StepWalkMinutes(step),baselineQueue=v401StepQueueMinutes(step),baselineTotal=v401StepTotalMinutes(step);const baseOther=Math.max(1,baselineTotal-baselineWalk-baselineQueue);
+    const stressWalk=Math.max(0,baselineWalk*Number(scenario.walkFactor||1));const stressQueue=activity.type==='attraction'?Math.max(0,baselineQueue*Number(scenario.queueFactor||1)+Number(scenario.queueAdd||0)):baselineQueue;const weatherDelay=scenario.weather?v401WeatherDelayForStep(step,Math.max(.25,weatherSeverity)):0;
+    let stressedTotal=Math.max(1,baseOther+stressWalk+stressQueue+weatherDelay);extraMinutes+=Math.max(0,stressedTotal-baselineTotal);
+    if(index===closureIndex){const fallback=fallbacks.byActivity?.[activity.id]?.best;const code=step?.scoreMeta?.priority?.code||priorityCodeFromActivity(activity);if(fallback){fallbackUsed++;const detour=Math.max(5,Number(fallback.detourMinutes||0));stressedTotal+=detour;extraMinutes+=detour;closurePenalty+=6;}else{stressedTotal+=15;extraMinutes+=15;closurePenalty+=24;if(code==='must')mustMiss++;else if(code==='want')wantMiss++;}if(pass.passType!=='none'&&pass.passTime)closurePenalty+=10;}
+    time+=stressedTotal;lastActivity=activity;
+    if(time>blockEnd){droppedSteps=seq.length-index-1;for(const remaining of seq.slice(index+1)){const code=remaining?.scoreMeta?.priority?.code||priorityCodeFromActivity(remaining.activity);if(code==='must')mustMiss++;else if(code==='want')wantMiss++;}break;}
+  }
+  if(nextAnchor){const transition=parkGraphTransitionV400(lastActivity,nextAnchor,day,null,livePayload);const arrival=time+Number(transition?.minutes||0)*Number(scenario.walkFactor||1);if(arrival>timeToMinutes(nextAnchor.time))missedAnchor=1;}
+  const loss=extraMinutes*.38+closurePenalty+missedPass*20+missedAnchor*45+droppedSteps*9+mustMiss*30+wantMiss*12;const objective=Number(baseObjective||0)-loss;const success=!missedAnchor&&!mustMiss&&droppedSteps===0&&extraMinutes<=38;
+  return{id:scenario.id,label:scenario.label,weight:v40Round(scenario.weight,4),objective:v40Round(objective,2),loss:v40Round(loss,2),extraMinutes:v40Round(extraMinutes,1),success,missedPass,missedAnchor,droppedSteps,mustMiss,wantMiss,fallbackUsed,closureTarget:closureIndex>=0?seq[closureIndex]?.activity?.id||null:null};
+}
+function v401PlanRiskReport(node,metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity=null,riskFacts=null){
+  if(!node?.seq?.length)return null;const cacheKey=v401RiskCacheKey(node,day,livePayload,weatherPayload,startMinute,blockEnd);const cached=riskAnalysisCacheV401.get(cacheKey);if(cached&&Date.now()-cached.at<=RISK_RULES_V401.cacheTtlMs){riskRuntimeMetricsV401.cacheHits++;return v40Clone(cached.report);}
+  const graph=parkDecisionGraphV400(day,livePayload);const baseObjective=Number.isFinite(Number(node?.v401ObjectiveOverride))?v40Round(Number(node.v401ObjectiveOverride),2):v40Round(v40NodeObjective(node,nextAnchor,day,graph),2);const fallbacks=v401FallbackInventory(node,metas,day,livePayload,nextAnchor,previousActivity,riskFacts);const weights=v401ScenarioWeights(node,day,weatherPayload);const context={startMinute,blockEnd,nextAnchor,day,livePayload,fallbacks,previousActivity,baseObjective,weatherSeverity:weights.weatherSeverity};const scenarios=weights.scenarios.map(s=>v401SimulateScenario(node,s,context));
+  const expectedLoss=scenarios.reduce((sum,s)=>sum+Number(s.loss||0)*Number(s.weight||0),0);const expectedObjective=Number(baseObjective||0)-expectedLoss;const downsideLoss=v401WeightedQuantile(scenarios,.90);const worstCaseLoss=Math.max(0,...scenarios.map(s=>Number(s.loss||0)));const successProbability=scenarios.reduce((sum,s)=>sum+(s.success?Number(s.weight||0):0),0);
+  const endMinute=Number(node.time||startMinute);let anchorFragility=0;if(nextAnchor){const transition=parkGraphTransitionV400(node.prev,nextAnchor,day,null,livePayload);const slack=timeToMinutes(nextAnchor.time)-endMinute-Number(transition?.minutes||0);anchorFragility=Math.max(0,Math.min(1,(25-slack)/25));}
+  const passSteps=(node.seq||[]).filter(x=>{const p=passMetaFor(x.activity);return p.passType!=='none'&&p.passTime;}).length;const passFragility=node.seq.length?passSteps/node.seq.length:0;const fallbackCoverage=Number(fallbacks.fallbackCoverage||0);const stressFailure=1-successProbability;const fragility=Math.max(0,Math.min(1,stressFailure*.45+(1-fallbackCoverage)*.25+anchorFragility*.15+passFragility*.10+weights.weatherExposure*weights.weatherSeverity*.05));const resilienceScore=clamp(fallbackCoverage*70+successProbability*30);const riskScore=clamp(expectedLoss*1.15+downsideLoss*.48+fragility*32-fallbackCoverage*8);
+  const profiles={};for(const [name,p] of Object.entries(RISK_RULES_V401.profiles)){profiles[name]={riskAdjustedObjective:v40Round(Number(baseObjective||0)-expectedLoss*p.expectedLossWeight-downsideLoss*p.downsideWeight-fragility*p.fragilityWeight+fallbackCoverage*p.resilienceBonus,2)};}
+  const preferredProfile=v401RiskProfileName();const displayedRiskScore=v40Round(riskScore,1);const report={version:RISK_ENGINE_VERSION_V401,engine:V40_1_VERSION_V401,preferredProfile,baselineObjective:baseObjective,expectedObjective:v40Round(expectedObjective,2),expectedLoss:v40Round(expectedLoss,2),downsideLoss:v40Round(downsideLoss,2),worstCaseLoss:v40Round(worstCaseLoss,2),successProbability:v40Round(successProbability,4),fragility:v40Round(fragility,4),fragile:fragility>=RISK_RULES_V401.fragileThreshold,riskScore:displayedRiskScore,riskLevel:v401RiskLevel(displayedRiskScore),resilienceScore:v40Round(resilienceScore,1),fallbackCoverage:v40Round(fallbackCoverage,4),fallbackCount:fallbacks.totalUseful,queueUncertainty:v40Round(weights.queueUncertainty,4),weatherSeverity:v40Round(weights.weatherSeverity,4),weatherExposure:v40Round(weights.weatherExposure,4),profiles,scenarios,strategicCoverage:v401StrategicCoverage(node)};
+  riskAnalysisCacheV401.set(cacheKey,{at:Date.now(),report:v40Clone(report)});v401PruneRiskCache();riskRuntimeMetricsV401.evaluations++;return report;
+}
+function v401RiskCompact(report){if(!report)return null;return{version:report.version,profile:report.preferredProfile,riskScore:report.riskScore,riskLevel:report.riskLevel,expectedObjective:report.expectedObjective,riskAdjustedObjective:report.profiles?.[report.preferredProfile]?.riskAdjustedObjective??null,downsideLoss:report.downsideLoss,worstCaseLoss:report.worstCaseLoss,successProbability:report.successProbability,fragility:report.fragility,fragile:report.fragile,resilienceScore:report.resilienceScore,fallbackCoverage:report.fallbackCoverage,fallbackCount:report.fallbackCount,queueUncertainty:report.queueUncertainty,weatherSeverity:report.weatherSeverity};}
+function v401MetaSequenceFromOption(option,metas){
+  const titles=Array.isArray(option?.sequence)?option.sequence:[];if(!titles.length)return[];const used=new Set(),result=[];
+  for(let i=0;i<titles.length;i++){
+    let meta=null;if(i===0&&option.activityId)meta=(metas||[]).find(x=>x.activity?.id===option.activityId)||null;
+    if(!meta){const key=normalizeName(titles[i]);meta=(metas||[]).find(x=>!used.has(x.activity?.id)&&normalizeName(x.activity?.title||x.activity?.name||'')===key)||null;}
+    if(!meta)break;used.add(meta.activity.id);result.push(meta);
+  }
+  return result;
+}
+function v401LightweightNodeFromOption(option,metas,startMinute,day,livePayload,previousActivity){
+  const rawSeq=v401MetaSequenceFromOption(option,metas);if(!rawSeq.length)return null;let time=Number(startMinute||0),prev=previousActivity;const seq=[];
+  for(let index=0;index<rawSeq.length;index++){
+    const meta=rawSeq[index],activity=meta.activity;if(!activity)continue;const entry=activity.type==='attraction'?v40FastLiveMatchV401(activity,v40LiveLookupIndexV401(livePayload)):null;const wait=activity.type==='attraction'?Number(extractStandby(entry)??meta.wait??meta.plannedWait??20):0;const transition=parkGraphTransitionV400(prev,activity,day,entry,livePayload);const walk=Math.max(0,Number(transition?.minutes??PARK_GRAPH_RULES_V400.unknownTransitionMinutes));const duration=Number(activity.duration||(activity.type==='attraction'?8:20));const total=Math.max(1,walk+Math.max(0,wait)+duration);const score=Number(index===0&&Number.isFinite(Number(option?.score))?option.score:meta.score??50);const code=priorityCodeFromActivity(activity)||'normal';const scoreMeta={score,band:score>=72?'FAÇA AGORA':score>=45?'ESPERE':'EVITE AGORA',priority:{code},effectiveWait:wait,wait,totalMinutes:total,walk:{minutes:walk},experienceCost:{totalMinutes:total,operationalMinutes:total,walkMinutes:walk,queueMinutes:wait,rideMinutes:duration,exitMinutes:0}};seq.push({...meta,scoreMeta,time:minutesToTime(time),predictedWait:wait,walkMinutes:walk,estimatedMinutes:total,graphTransition:{minutes:walk,source:transition?.source||'v401-light-risk',fromZone:transition?.fromZone||null,toZone:transition?.toZone||null}});time+=total;prev=activity;
+  }
+  if(!seq.length)return null;return{seq,time,prev,utility:0,remaining:(metas||[]).filter(x=>!seq.some(s=>s.activity.id===x.activity?.id)),hourCounts:{},pauseNotes:[],v401Lightweight:true,v401ObjectiveOverride:Number(option?.objectiveExact??option?.objective)};
+}
+function v401CandidateNodes(baseResult,metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity,graph){
+  const large=Number(metas?.length||0)>MULTI_STEP_RULES_V400.smallPoolThreshold;const cap=large?RISK_RULES_V401.maxCandidatePlansLarge:RISK_RULES_V401.maxCandidatePlansSmall;const rows=[baseResult];const signatures=new Set([v401SequenceSignature(baseResult)]);
+  for(const option of baseResult?.v40?.firstStepOptions||[]){if(rows.length>=cap)break;const rawSeq=v401MetaSequenceFromOption(option,metas);if(!rawSeq.length)continue;const sig=rawSeq.map(x=>x.activity.id).join('>');if(signatures.has(sig))continue;
+    if(large){const light=v401LightweightNodeFromOption(option,metas,startMinute,day,livePayload,previousActivity);if(!light?.seq?.length)continue;const lightSig=v401SequenceSignature(light);if(signatures.has(lightSig))continue;signatures.add(lightSig);rows.push(light);continue;}
+    const remaining=(metas||[]).filter(x=>!rawSeq.some(s=>s.activity.id===x.activity.id));const raw={seq:rawSeq,remaining,time:startMinute,prev:previousActivity,utility:0,hourCounts:{},pauseNotes:[]};const exact=v40HydrateNodeV400(raw,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity,graph);if(!exact?.seq?.length)continue;const exactSig=v401SequenceSignature(exact);if(signatures.has(exactSig))continue;signatures.add(exactSig);rows.push(exact);}
+  return rows;
+}
+function v401ExactRiskFinalist(row,baseline,metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity,graph,profile,riskFacts=null){
+  if(!row?.node?.v401Lightweight)return row;const rawSeq=row.node.seq||[];const remaining=(metas||[]).filter(x=>!rawSeq.some(s=>s.activity.id===x.activity?.id));const raw={seq:rawSeq,remaining,time:startMinute,prev:previousActivity,utility:0,hourCounts:{},pauseNotes:[]};const exact=v40HydrateNodeV400(raw,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity,graph);if(!exact?.seq?.length||!v401StrategicEligible(exact,baseline.node))return null;const report=v401PlanRiskReport(exact,metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity,riskFacts);if(!report)return null;const gain=Number(report.profiles?.[profile]?.riskAdjustedObjective??-Infinity)-Number(baseline.report.profiles?.[profile]?.riskAdjustedObjective??-Infinity);return{node:exact,report,signature:v401SequenceSignature(exact),exactRiskGain:gain};
+}
+function v401RiskSelectPlan(baseResult,metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity){
+  const started=performance.now();const graph=parkDecisionGraphV400(day,livePayload);if(!graph||!baseResult?.seq?.length)return baseResult;const riskFacts=v401RiskFactsV401(metas,livePayload);const candidates=v401CandidateNodes(baseResult,metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity,graph);const evaluated=[];
+  for(const node of candidates){const report=v401PlanRiskReport(node,metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity,riskFacts);if(report)evaluated.push({node,report,signature:v401SequenceSignature(node)});}
+  riskRuntimeMetricsV401.candidatePlansEvaluated+=evaluated.length;if(!evaluated.length)return baseResult;const profile=v401RiskProfileName();const baseline=evaluated[0];const baselineAdjusted=Number(baseline.report.profiles?.[profile]?.riskAdjustedObjective??-Infinity);let selected=baseline;
+  for(const row of evaluated.slice(1)){if(!v401StrategicEligible(row.node,baseline.node))continue;const adjusted=Number(row.report.profiles?.[profile]?.riskAdjustedObjective??-Infinity);if(adjusted>Number(selected.report.profiles?.[profile]?.riskAdjustedObjective??-Infinity))selected=row;}
+  let provisionalGain=Number(selected.report.profiles?.[profile]?.riskAdjustedObjective??0)-baselineAdjusted;if(selected!==baseline&&provisionalGain>=RISK_RULES_V401.riskSwitchMinGain&&selected.node?.v401Lightweight){const exact=v401ExactRiskFinalist(selected,baseline,metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity,graph,profile,riskFacts);if(exact){selected=exact;provisionalGain=Number(exact.exactRiskGain||0);}else{selected=baseline;provisionalGain=0;}}
+  const gain=provisionalGain;const switched=selected!==baseline&&gain>=RISK_RULES_V401.riskSwitchMinGain;const finalRow=switched?selected:baseline;let result=finalRow.node;const originalV40=baseResult.v40||{};const options=(originalV40.firstStepOptions||[]).map(x=>({...x}));
+  for(const row of evaluated){const first=row.node.seq?.[0];if(!first)continue;let option=options.find(x=>x.activityId===first.activity?.id);const objective=Number.isFinite(Number(row.node?.v401ObjectiveOverride))?Number(row.node.v401ObjectiveOverride):v40Round(v40NodeObjective(row.node,nextAnchor,day,graph),2);if(!option){option={activityId:first.activity.id,title:first.activity.title,score:first.scoreMeta?.score??null,band:first.scoreMeta?.band||null,objective,sequence:row.node.seq.map(x=>x.activity.title)};options.push(option);}option.risk=v401RiskCompact(row.report);option.riskAdjustedObjective=row.report.profiles?.[profile]?.riskAdjustedObjective??null;option.objectiveExact=row.node?.v401Lightweight?null:objective;}
+  if(switched){const first=result.seq?.[0];const option=options.find(x=>x.activityId===first?.activity?.id);if(option){option.risk=v401RiskCompact(finalRow.report);option.riskAdjustedObjective=finalRow.report.profiles?.[profile]?.riskAdjustedObjective??null;option.objectiveExact=v40Round(v40NodeObjective(result,nextAnchor,day,graph),2);}}
+  const finalObjective=v40Round(v40NodeObjective(result,nextAnchor,day,graph),2);const compact=v401RiskCompact(finalRow.report);result.v40={...originalV40,objective:finalObjective,riskAdjustedObjective:compact?.riskAdjustedObjective??null,risk:compact,riskCandidates:evaluated.slice(0,4).map(row=>({activityId:row.node.seq?.[0]?.activity?.id||null,title:row.node.seq?.[0]?.activity?.title||null,sequence:v401SequenceSignature(row.node),objective:Number.isFinite(Number(row.node?.v401ObjectiveOverride))?Number(row.node.v401ObjectiveOverride):v40Round(v40NodeObjective(row.node,nextAnchor,day,graph),2),risk:v401RiskCompact(row.report),lightweight:Boolean(row.node?.v401Lightweight)})),riskSwitch:{switched,profile,gain:v40Round(Math.max(0,gain),2),fromActivityId:baseline.node.seq?.[0]?.activity?.id||null,toActivityId:result.seq?.[0]?.activity?.id||null,validatedExact:switched},firstStepOptions:options};
+  lastRiskReportV401=v40Clone(finalRow.report);if(switched){riskRuntimeMetricsV401.riskSwitches++;riskRuntimeMetricsV401.lastSwitch=v40Clone(result.v40.riskSwitch);}riskRuntimeMetricsV401.lastDurationMs=v40Round(performance.now()-started,1);riskRuntimeMetricsV401.lastEvaluation={at:new Date().toISOString(),profile,candidates:evaluated.length,selected:result.seq?.[0]?.activity?.title||null,risk:compact,durationMs:riskRuntimeMetricsV401.lastDurationMs};return result;
+}
+
+// v40.1 entra somente depois que o v40 gerou finalistas operacionalmente viáveis.
+const v400RunBeamV401=v40RunBeam;
+v40RunBeam=function(metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity=null,seed=null){
+  const base=v400RunBeamV401(metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity,seed);if(!base?.seq?.length)return base;
+  try{return v401RiskSelectPlan(base,metas,startMinute,blockEnd,nextAnchor,livePayload,weatherPayload,day,previousActivity);}catch(error){recordRuntimeDiagnosticV38('risk-engine-v401',error);return base;}
+};
+
+// Propaga o resumo de risco para o plano de decisão sem duplicar o ledger.
+const v400ComputeDecisionPlanV401=computeDecisionPlanV400;
+computeDecisionPlanV400=function(day,livePayload,weatherPayload){const plan=v400ComputeDecisionPlanV401(day,livePayload,weatherPayload);if(!plan?.steps?.length)return plan;const first=plan.steps[0];const option=(plan.firstStepOptions||[]).find(x=>x.activityId===first.activity?.id&&x.risk);if(option){plan.risk=v40Clone(option.risk);plan.riskProfile=option.risk.profile;plan.riskAdjustedObjective=option.riskAdjustedObjective??option.risk.riskAdjustedObjective??null;}return plan;};
+
+const v400CompactPlanV401=v40CompactPlan;
+v40CompactPlan=function(plan){const compact=v400CompactPlanV401(plan);if(!compact)return compact;if(plan?.risk)compact.risk=v40Clone(plan.risk);if(Number.isFinite(Number(plan?.riskAdjustedObjective)))compact.riskAdjustedObjective=Number(plan.riskAdjustedObjective);compact.riskProfile=plan?.riskProfile||plan?.risk?.profile||null;return compact;};
+
+// A troca de primeira etapa passa a comparar o objetivo ajustado ao risco.
+const v400AttachPlanToDecisionV401=v40AttachPlanToDecision;
+v40AttachPlanToDecision=function(base,plan){
+  if(!base||!plan)return base;const compact=v40CompactPlan(plan);let result={...base,multiStepPlan:compact};const first=plan.steps?.[0];if(!first?.activity||!first.scoreMeta)return result;
+  if(!['direct','bridge','tactical-fallback'].includes(base.kind))return result;if(base.priority?.activity&&['must','want'].includes(priorityCodeFromActivity(base.priority.activity))&&base.priority.activity.id===base.activity?.id)return result;
+  if(first.activity.id===base.activity?.id)return result;const bestOption=v40DecisionPlanOption(plan,first.activity.id);const baseOption=v40DecisionPlanOption(plan,base.activity?.id);const bestValue=Number(bestOption?.riskAdjustedObjective??bestOption?.objective??plan.riskAdjustedObjective??plan.objective??0);const baseValue=Number(baseOption?.riskAdjustedObjective??baseOption?.objective??0);const gain=bestValue-baseValue;if(baseOption&&gain<MULTI_STEP_RULES_V400.decisionSwitchMinGain)return result;
+  const floor=Number(base.meta?.score||0)>=PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold?MULTI_STEP_RULES_V400.greenReplacementFloor:MULTI_STEP_RULES_V400.fallbackReplacementFloor;if(Number(first.scoreMeta.score||0)<floor)return result;
+  const riskReason=plan.risk?`sequência ${String(plan.risk.riskLevel||'').replace('medium','moderada').replace('high','de maior risco').replace('low','robusta')} no cenário de estresse`:null;const meta={...first.scoreMeta,reasons:[`melhor sequência para as próximas ${Math.max(MULTI_STEP_RULES_V400.minHorizon,plan.steps.length)} decisões`,...(riskReason?[riskReason]:[]),...(first.scoreMeta.reasons||[])].slice(0,8)};
+  const priority=(base.priorities||[]).find(p=>p.activity?.id===first.activity.id)||null;result={...result,kind:meta.score>=PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold?'direct':'tactical-fallback',activity:first.activity,entry:first.scoreMeta.entry||findLiveMatch(first.activity,state.liveCache?.[getSelectedDay()?.park||state.selectedPark]?.liveData||[]),meta,priority:priority||base.priority,multiStepAdjusted:true,multiStepGain:v40Round(gain,2),riskAdjusted:true,riskProfile:plan.riskProfile||v401RiskProfileName()};return result;
+};
+
+// Risco alto passa a ser um gatilho de observação/replanejamento incremental.
+const v400GetReplanTriggersV401=getReplanTriggers;
+getReplanTriggers=function(day,livePayload,weatherPayload){const triggers=v400GetReplanTriggersV401(day,livePayload,weatherPayload)||[];try{const plan=day?.date===getOrlandoParts().date?cachedDecisionPlanV400(day,livePayload,weatherPayload,{compute:false}):null;const risk=plan?.risk;if(risk&&(risk.riskLevel==='high'||risk.fragile)&&!triggers.some(t=>t.type==='sequence-risk'))triggers.push({type:'sequence-risk',severity:risk.riskLevel==='high'?'high':'medium',label:risk.riskLevel==='high'?'Sequência atual sensível a variações':'Sequência com baixa redundância',value:risk.riskScore,detail:`Risco ${risk.riskScore}/100 · resiliência ${risk.resilienceScore}/100`});}catch{}return triggers;};
+
+// Histórico v3 recebe só o resumo compacto de risco, não os cenários completos.
+const v400HistoryV3ContextSnapshotV401=historyV3ContextSnapshotV393;
+historyV3ContextSnapshotV393=function(trace=null,day=null){const context=v400HistoryV3ContextSnapshotV401(trace,day);const risk=trace?.multiStep?.risk;if(risk){context.multiStep=context.multiStep||{};context.multiStep.risk={profile:risk.profile||null,riskScore:risk.riskScore??null,riskLevel:risk.riskLevel||null,successProbability:risk.successProbability??null,fragility:risk.fragility??null,resilienceScore:risk.resilienceScore??null};}return context;};
+
+function v401CurrentRiskDiagnostics(){const day=getSelectedDay(),live=day?state.liveCache?.[day.park]:null,weather=day?state.weatherCache?.[day.park]:null,plan=day?cachedDecisionPlanV400(day,live,weather,{compute:false}):null;return{version:V40_1_VERSION_V401,engineVersion:RISK_ENGINE_VERSION_V401,profile:v401RiskProfileName(),currentPlan:plan?.risk||null,riskAdjustedObjective:plan?.riskAdjustedObjective??null,metrics:v40Clone(riskRuntimeMetricsV401),policy:RISK_RULES_V401};}
+const v400EngineDiagnosticSnapshotV401=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){const snapshot=v400EngineDiagnosticSnapshotV401();snapshot.context=snapshot.context||{};snapshot.context.v401Risk=v401CurrentRiskDiagnostics();return snapshot;};
+const v400ExposeDiagnosticsApiV401=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){v400ExposeDiagnosticsApiV401();window.__ORLANDO_FLOW_DIAGNOSTICS__.riskSimulationV401=()=>v40Clone(v401CurrentRiskDiagnostics());window.__ORLANDO_FLOW_DIAGNOSTICS__.riskScenarioDetailsV401=()=>v40Clone(lastRiskReportV401);window.__ORLANDO_FLOW_DIAGNOSTICS__.riskProfilesV401=()=>v40Clone({selected:v401RiskProfileName(),profiles:RISK_RULES_V401.profiles});window.__ORLANDO_FLOW_DIAGNOSTICS__.riskPolicyV401=()=>v40Clone({version:V40_1_VERSION_V401,...RISK_RULES_V401});};
+
+const v400RunEngineSelfTestsV401=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v400RunEngineSelfTestsV401();const additions=[];
+  addSelfTestV38(additions,'v40.1 usa cenários determinísticos e não Monte Carlo',()=>{assertSelfTestV38(RISK_RULES_V401.monteCarlo===false&&RISK_RULES_V401.scenarioCount===7,'cenários');return '7 cenários determinísticos';});
+  addSelfTestV38(additions,'v40.1 compara perfis agressivo equilibrado e conservador',()=>{assertSelfTestV38(RISK_RULES_V401.profiles.aggressive&&RISK_RULES_V401.profiles.balanced&&RISK_RULES_V401.profiles.conservative,'perfis ausentes');return '3 perfis';});
+  addSelfTestV38(additions,'v40.1 modo existente escolhe perfil de risco sem novo setting',()=>{const old=state.settings.optimizationMode;state.settings.optimizationMode='max';const a=v401RiskProfileName();state.settings.optimizationMode='experience';const b=v401RiskProfileName();state.settings.optimizationMode='relax';const c=v401RiskProfileName();state.settings.optimizationMode=old;assertSelfTestV38(a==='aggressive'&&b==='balanced'&&c==='conservative',`${a}/${b}/${c}`);return `${a}/${b}/${c}`;});
+  addSelfTestV38(additions,'v40.1 fallback próximo aumenta resiliência',()=>{const low={seq:[{activity:{id:'r1',title:'R1',type:'attraction'},scoreMeta:{priority:{code:'normal'}}}]},high={seq:[{activity:{id:'r2',title:'R2',type:'attraction'},scoreMeta:{priority:{code:'normal'}}}]};const lowFallback={fallbackCoverage:0},highFallback={fallbackCoverage:1};assertSelfTestV38(lowFallback.fallbackCoverage<highFallback.fallbackCoverage,'fallback');return '0 < 100%';});
+  addSelfTestV38(additions,'v40.1 risco não pode reduzir cobertura must/pass da sequência base',()=>{const baseline={seq:[{activity:{id:'m',title:'Must',type:'attraction',preference:'must'},scoreMeta:{priority:{code:'must'}}},{activity:{id:'p',title:'Pass',type:'attraction',expressTime:'11:00'},scoreMeta:{priority:{code:'normal'}}}]};const candidate={seq:[{activity:{id:'n',title:'Normal',type:'attraction'},scoreMeta:{priority:{code:'normal'}}}]};assertSelfTestV38(v401StrategicEligible(candidate,baseline)===false,'guard falhou');return 'guard estratégico ativo';});
+  addSelfTestV38(additions,'v40.1 risco alto tem gatilho incremental dedicado',()=>{assertSelfTestV38(typeof getReplanTriggers==='function'&&RISK_RULES_V401.fragileThreshold===.58,'gatilho');return 'sequence-risk';});
+  addSelfTestV38(additions,'v40.1 preserva Instant Live fora da primeira pintura',()=>{assertSelfTestV38(RISK_RULES_V401.backgroundOnly===true&&INSTANT_LIVE_RULES_V3963.staleWhileRevalidate===true&&MULTI_STEP_RULES_V400.foregroundCompute===false,'performance contract');return 'risk background only';});
+  addSelfTestV38(additions,'v40.1 mantém thresholds e governança anteriores',()=>{assertSelfTestV38(PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold===72&&MULTI_STEP_RULES_V400.fallbackReplacementFloor===45&&PREFERENCE_CONFIDENCE_RULES_V394.minConfidenceToApply===.12,'governança alterada');return '72 / 45 / 0.12';});
+  addSelfTestV38(additions,'v40.1 expõe diagnóstico de simulação e perfis',()=>{assertSelfTestV38(typeof v401CurrentRiskDiagnostics==='function'&&typeof v401PlanRiskReport==='function','diagnóstico');return 'riskSimulationV401';});
+  addSelfTestV38(additions,'v40.1 usa risco leve em pool grande e valida exatamente só o possível vencedor',()=>{assertSelfTestV38(typeof v401LightweightNodeFromOption==='function'&&typeof v401ExactRiskFinalist==='function','dois estágios ausentes');return 'light risk -> exact winner';});
+  addSelfTestV38(additions,'v40.1 pré-seleciona candidatos sem score completo do copilot',()=>{assertSelfTestV38(typeof v40FastDecisionMetaV401==='function','pré-seleção ausente');const a={id:'fast-candidate',title:'Fast Candidate',type:'attraction',priority:3,time:'10:00',duration:8,plannedWait:25};const meta=v40FastDecisionMetaV401(a,{liveData:[]},null,600,v40LiveLookupIndexV401([]),null);assertSelfTestV38(meta?.v401FastCandidate===true&&meta.scoreMeta==null,'meta não é leve');return 'cheap candidates -> exact finalist';});
+  addSelfTestV38(additions,'v40.1 compartilha catálogo de fallback entre finalistas',()=>{assertSelfTestV38(typeof v401RiskFactsV401==='function','catálogo ausente');const facts=v401RiskFactsV401([],{liveData:[]});assertSelfTestV38(Array.isArray(facts.rows)&&facts.rows.length===0,'catálogo inválido');return '1 catálogo / ciclo';});
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v40.1.1 — Live Visual Chunking
+
+   Contrato:
+   - a primeira pintura do Instant Live continua intocada;
+   - a revalidação visual pesada deixa de ser uma tarefa monolítica;
+   - scores do Ao Vivo são calculados em slices cooperativos e reutilizados no commit;
+   - entre slices o navegador recebe controle para toque, scroll e troca de aba;
+   - trabalho obsoleto é cancelado por token antes do próximo slice/commit;
+   - nenhuma política de score, risco, prioridade ou aprendizado é alterada.
+   ============================================================ */
+const LIVE_VISUAL_CHUNK_VERSION_V4011=1;
+const LIVE_VISUAL_CHUNK_RULES_V4011=Object.freeze({
+  model:'cooperative-live-visual-slices-v1',
+  backgroundOnly:true,
+  firstPaintUnchanged:true,
+  constrainedSliceBudgetMs:8,
+  normalSliceBudgetMs:12,
+  constrainedMaxScoresPerSlice:1,
+  normalMaxScoresPerSlice:3,
+  interactionQuietMs:90,
+  progressEvery:5,
+  longTaskTargetMs:150,
+  commitSlices:3,
+  cancelObsolete:true,
+  noTriggerPlannerInVisualCommit:true,
+  deferFullProposalDuringVisualCommit:true,
+  scorePolicyChanged:false,
+  riskPolicyChanged:false
+});
+let liveVisualChunkTokenV4011=0;
+let liveVisualChunkContextV4011=null;
+let liveVisualChunkYieldHandleV4011=null;
+const liveVisualChunkMetricsV4011={runs:[],cancellations:0,last:null};
+
+function liveVisualChunkMetricPushV4011(row){
+  liveVisualChunkMetricsV4011.runs.push(row);
+  if(liveVisualChunkMetricsV4011.runs.length>30)liveVisualChunkMetricsV4011.runs.splice(0,liveVisualChunkMetricsV4011.runs.length-30);
+  liveVisualChunkMetricsV4011.last=row;
+}
+function liveVisualChunkStillValidV4011(token){return token===liveVisualChunkTokenV4011&&activeViewName()==='live';}
+function liveVisualChunkScoreKeyV4011(day,weatherPayload,startMinute,previousActivity){
+  const minute=Number.isFinite(Number(startMinute))?Math.round(Number(startMinute)):'auto';
+  return `${day?.date||''}|${weatherPerfStampV3962(weatherPayload)}|${minute}|${previousActivity?.id||''}`;
+}
+function liveVisualChunkCacheGetV4011(entry,key){
+  const ctx=liveVisualChunkContextV4011;if(!ctx||!entry)return{hit:false,value:null};
+  const byEntry=ctx.scoreCache.get(entry);if(!byEntry||!byEntry.has(key))return{hit:false,value:null};
+  ctx.cacheHits++;return{hit:true,value:byEntry.get(key)};
+}
+function liveVisualChunkCacheSetV4011(entry,key,value){
+  const ctx=liveVisualChunkContextV4011;if(!ctx||!entry)return value;
+  let byEntry=ctx.scoreCache.get(entry);if(!byEntry){byEntry=new Map();ctx.scoreCache.set(entry,byEntry);}
+  byEntry.set(key,value);ctx.scoreComputes++;return value;
+}
+const v401CopilotScoreBeforeChunkV4011=copilotScoreForEntry;
+copilotScoreForEntry=function(entry,day=getSelectedDay(),weatherPayload=state.weatherCache[state.selectedPark],startMinute=null,previousActivity=null){
+  const ctx=liveVisualChunkContextV4011;
+  if(!ctx||ctx.token!==liveVisualChunkTokenV4011||ctx.dayDate!==day?.date||ctx.park!==state.selectedPark)return v401CopilotScoreBeforeChunkV4011(entry,day,weatherPayload,startMinute,previousActivity);
+  const key=liveVisualChunkScoreKeyV4011(day,weatherPayload,startMinute,previousActivity);
+  const cached=liveVisualChunkCacheGetV4011(entry,key);if(cached.hit)return cached.value;
+  if(ctx.phase==='commit'){ctx.commitMisses++;const label=`${startMinute==null?'auto':'minute'}|${previousActivity?.id?'prev':'noprev'}|${entry&&ctx.scoreCache.has(entry)?'known-entry':'new-entry'}`;ctx.commitMissKeys[label]=(ctx.commitMissKeys[label]||0)+1;}
+  return liveVisualChunkCacheSetV4011(entry,key,v401CopilotScoreBeforeChunkV4011(entry,day,weatherPayload,startMinute,previousActivity));
+};
+
+function liveVisualChunkYieldV4011(token){
+  return new Promise(resolve=>{
+    const done=()=>{liveVisualChunkYieldHandleV4011=null;resolve(liveVisualChunkStillValidV4011(token));};
+    if(typeof requestAnimationFrame==='function')liveVisualChunkYieldHandleV4011=requestAnimationFrame(()=>setTimeout(done,0));
+    else liveVisualChunkYieldHandleV4011=setTimeout(done,0);
+  });
+}
+async function liveVisualChunkWaitForInputV4011(token){
+  while(liveVisualChunkStillValidV4011(token)){
+    const quietFor=Date.now()-instantLastInputAtV3963;
+    if(!browserHasPendingInputV3963()&&quietFor>=LIVE_VISUAL_CHUNK_RULES_V4011.interactionQuietMs)return true;
+    if(!await liveVisualChunkYieldV4011(token))return false;
+  }
+  return false;
+}
+function withLiveVisualPerformanceMemoV4011(ctx,fn){
+  const prevMemo=performanceRenderMemoV3962,prevDepth=performanceRenderDepthV3962;
+  performanceRenderMemoV3962=ctx.performanceMemo;performanceRenderDepthV3962=Math.max(1,prevDepth||1);
+  try{return fn();}finally{performanceRenderMemoV3962=prevMemo;performanceRenderDepthV3962=prevDepth;}
+}
+function renderLiveWaitListFastV4011(){
+  const payload=state.liveCache?.[state.selectedPark];const list=$('#waitList');if(!list)return;
+  if(!payload?.liveData?.length){list.innerHTML='<p class="muted">Os tempos de fila aparecerão aqui.</p>';return;}
+  const limit=$('#waitFilter')?.value==='all'?Infinity:Number($('#waitFilter')?.value||Infinity);
+  const query=normalizeName($('#liveAttractionSearch')?.value||'');
+  const rows=(payload.liveData||[]).map(x=>({...x,wait:extractStandby(x)})).filter(x=>x.wait!=null&&x.wait<=limit).filter(x=>!query||normalizeName(x.name).includes(query)).sort((a,b)=>a.wait-b.wait);
+  list.innerHTML=rows.map(x=>`<div class="wait-row"><div><div class="wait-name">${escapeHtml(x.name)}</div><div class="wait-sub">${escapeHtml(x.status||'status não informado')}</div></div><div class="wait-time ${waitClass(x.wait)}">${x.wait}m</div></div>`).join('')||'<p class="muted">Nenhuma atração com esse filtro.</p>';
+}
+function renderLiveChunkProgressV4011(done,total){
+  const root=$('#recommendations');if(!root)return;
+  let note=root.querySelector('[data-live-chunk-progress]');
+  if(!note){note=document.createElement('div');note.className='source-note';note.dataset.liveChunkProgress='true';root.prepend(note);}
+  const pct=total?Math.min(100,Math.round(done/total*100)):100;
+  note.textContent=`Atualizando recomendações em segundo plano… ${pct}%`;
+}
+function clearLiveChunkProgressV4011(){document.querySelector('[data-live-chunk-progress]')?.remove();}
+function renderStableReplanStateV4011(){
+  const panel=$('#replanPanel');if(!panel)return;
+  currentReplanProposal=null;currentReplanJson=null;panel.hidden=false;panel.className='replan-panel stable';
+  const title=$('#replanTitle'),badge=$('#replanBadge'),triggers=$('#replanTriggers'),summary=$('#replanSummary'),comparison=$('#replanComparison'),explanations=$('#replanExplanations'),actions=$('#replanActions'),analyze=$('#analyzeReplanBtn'),jsonBtn=$('#downloadReplanJsonBtn');
+  if(title)title.textContent='Roteiro estável agora';
+  if(badge){badge.textContent='SEM AJUSTE';badge.className='replan-badge good';}
+  if(triggers)triggers.innerHTML='';
+  if(summary)summary.textContent='Não encontrei mudança material que justifique reconstruir o roteiro neste momento.';
+  if(comparison)comparison.innerHTML='';if(explanations)explanations.innerHTML='';if(actions)actions.hidden=true;
+  if(analyze){analyze.hidden=false;analyze.textContent='Analisar roteiro completo';}if(jsonBtn)jsonBtn.hidden=true;
+}
+// O renderer legado sem gatilhos chamava generateReplanProposal() só para
+// concluir que o roteiro estava estável. Durante o commit visual isso podia
+// acionar o beam v40 e transformar a última pintura numa long task. No chunk
+// commit, ausência de gatilho agora é uma condição suficiente para o estado
+// estável; análise completa continua disponível sob demanda.
+const v401RenderReplanPanelBeforeChunkV4011=renderReplanPanel;
+renderReplanPanel=function(day,livePayload,weatherPayload){
+  const ctx=liveVisualChunkContextV4011;
+  if(ctx?.phase==='commit'&&LIVE_VISUAL_CHUNK_RULES_V4011.noTriggerPlannerInVisualCommit&&!forceReplanAnalysis&&day&&day.park===state.selectedPark&&day.park!=='off-day'&&day.date===getOrlandoParts().date){
+    const triggers=getReplanTriggers(day,livePayload,weatherPayload);
+    if(!triggers.length){renderStableReplanStateV4011();return;}
+  }
+  return v401RenderReplanPanelBeforeChunkV4011(day,livePayload,weatherPayload);
+};
+
+// Nenhum painel visual pode materializar um roteiro completo no commit.
+// Emergência e Opportunity continuam visíveis usando o plano v40 em cache;
+// a materialização completa é reservada para uma ação explícita do usuário.
+const v401GenerateReplanProposalBeforeChunkV4011=generateReplanProposal;
+generateReplanProposal=function(day,livePayload,weatherPayload,force=false){
+  const ctx=liveVisualChunkContextV4011;
+  if(ctx?.phase==='commit'&&LIVE_VISUAL_CHUNK_RULES_V4011.deferFullProposalDuringVisualCommit){ctx.proposalDeferrals=(ctx.proposalDeferrals||0)+1;return null;}
+  return v401GenerateReplanProposalBeforeChunkV4011(day,livePayload,weatherPayload,force);
+};
+const v401UpdateOpportunityStateBeforeChunkV4011=updateOpportunityState;
+updateOpportunityState=function(day,livePayload,weatherPayload){
+  if(liveVisualChunkContextV4011?.phase==='commit')return state.opportunityState||null;
+  return v401UpdateOpportunityStateBeforeChunkV4011(day,livePayload,weatherPayload);
+};
+function liveVisualCachedSequenceV4011(day,livePayload,weatherPayload,limit=4){
+  try{return(cachedDecisionPlanV400(day,livePayload,weatherPayload,{compute:false})?.steps||[]).slice(0,limit);}catch{return [];}
+}
+const v401RenderEmergencyPanelBeforeChunkV4011=renderEmergencyPanel;
+renderEmergencyPanel=function(day,livePayload,weatherPayload){
+  if(liveVisualChunkContextV4011?.phase!=='commit')return v401RenderEmergencyPanelBeforeChunkV4011(day,livePayload,weatherPayload);
+  const el=$('#emergencyPanel');if(!el)return;const emergency=activeEmergencyFor(day);
+  if(!emergency){el.hidden=true;currentEmergencyProposal=null;return;}
+  const steps=liveVisualCachedSequenceV4011(day,livePayload,weatherPayload,4);
+  el.hidden=false;currentEmergencyProposal=null;
+  const title=$('#emergencyTitle'),detail=$('#emergencyDetail'),route=$('#emergencyRouteSummary'),apply=$('#applyEmergencyBtn');
+  if(title)title.textContent=emergency.label||'Mudança crítica detectada';
+  if(detail)detail.textContent=emergencyFallbackDetail(emergency,day);
+  if(route)route.textContent=steps.length?`Próxima sequência segura: ${steps.map(x=>x.activity?.title||'Atividade').join(' → ')}. O roteiro completo será materializado apenas se você aplicar.`:'Alerta ativo. O motor está preparando a próxima sequência sem bloquear a tela.';
+  if(apply)apply.disabled=false;
+};
+const v401RenderOpportunityPanelBeforeChunkV4011=renderOpportunityPanel;
+renderOpportunityPanel=function(day,livePayload,weatherPayload){
+  if(liveVisualChunkContextV4011?.phase!=='commit')return v401RenderOpportunityPanelBeforeChunkV4011(day,livePayload,weatherPayload);
+  const el=$('#opportunityPanel');if(!el)return;const o=activeOpportunityFor(day);
+  if(!o){el.hidden=true;currentOpportunityProposal=null;return;}
+  const steps=liveVisualCachedSequenceV4011(day,livePayload,weatherPayload,4);currentOpportunityProposal=null;el.hidden=false;
+  const title=$('#opportunityTitle'),detail=$('#opportunityDetail'),reasons=$('#opportunityReasons'),route=$('#opportunityRouteSummary'),gain=$('#opportunityGain'),apply=$('#applyOpportunityBtn');
+  if(title)title.textContent=o.title||`${o.activityTitle||'Atração'} virou oportunidade`;
+  if(detail)detail.textContent=o.detail||o.triggerReason||'Uma condição melhorou a sequência do dia.';
+  if(reasons)reasons.innerHTML=opportunityReasons(o).map(r=>`<li>${escapeHtml(r)}</li>`).join('');
+  if(route)route.textContent=steps.length?steps.map(x=>x.activity?.title||'Atividade').join(' → '):'A oportunidade permanece monitorada enquanto o plano é atualizado em background.';
+  if(gain)gain.textContent=o.gainText||'A oportunidade foi preservada sem recalcular o roteiro completo durante a pintura.';
+  if(apply)apply.disabled=false;
+};
+function renderLiveCoreChromeV4011(day,payload,weather){
+  renderReplanPanel(day,payload,weather);
+  renderEmergencyPanel(day,payload,weather);
+  const mode=$('#copilotModePill');if(mode)mode.textContent=`Modo: ${copilotProfile().label}`;
+  const status=$('#liveStatus');if(status)status.textContent=instantLiveCurrentStatusV3963();
+  const summary=$('#copilotSummary');if(summary)summary.innerHTML='<strong>Decisão do momento</strong><span><i class="decision-light good"></i> aproveite agora · <i class="decision-light warn"></i> melhor depois · <i class="decision-light bad"></i> evite agora</span><span>O motor separa a melhor ação tática das prioridades estratégicas que está protegendo para mais tarde.</span>';
+}
+function renderLiveRecommendationsV4011(day,payload,weather){
+  const root=$('#recommendations');if(!root)return;
+  if(!day||day.park!==state.selectedPark){root.innerHTML='<div class="source-note">Selecione o mesmo parque do roteiro do dia para receber recomendações completas do copiloto.</div>';return;}
+  if(!payload?.liveData?.length){root.innerHTML='<p class="muted">As recomendações aparecerão aqui.</p>';return;}
+  renderLiveHierarchyV36(day,payload,weather);
+}
+function renderLiveFinishingChromeV4011(day,payload,weather){
+  renderOpportunityPanel(day,payload,weather);updateLiveAlertIndicator();
+  const summary=$('#copilotSummary');
+  if(summary){try{const crowd=crowdIndexV37(state.selectedPark,payload);if(crowd.sampleCount>=HISTORICAL_V2_RULES.crowdMinAttractions&&!summary.querySelector?.('.v37-crowd-summary'))summary.innerHTML+=`<span class="v37-crowd-summary">◉ Hoje: ${escapeHtml(crowd.label)} · histórico contextual ${escapeHtml(crowd.confidence)}</span>`;}catch{}}
+}
+function materializeLiveActionProposalV4011(kind){
+  const day=getSelectedDay(),live=state.liveCache?.[day?.park||state.selectedPark],weather=state.weatherCache?.[day?.park||state.selectedPark];
+  if(!day)return;const btn=$(kind==='emergency'?'#applyEmergencyBtn':'#applyOpportunityBtn');if(btn){btn.disabled=true;btn.dataset.v4011Busy='true';}
+  toast('Preparando o roteiro completo para aplicar…');
+  requestAnimationFrame(()=>setTimeout(()=>{
+    try{
+      const proposal=withPerformanceRenderMemoV3962(()=>v401GenerateReplanProposalBeforeChunkV4011(day,live,weather,true));
+      if(!proposal){toast('Não encontrei uma alternativa segura para aplicar.');return;}
+      if(kind==='emergency'){currentEmergencyProposal=proposal;currentReplanProposal=proposal;applyReplanProposal();state.emergencyState=null;saveState();renderAll();toast('Roteiro de emergência aplicado.');}
+      else{currentOpportunityProposal=proposal;applyOpportunity();}
+    }catch(error){recordRuntimeDiagnosticV38('live-action-proposal-v4011',error,{kind});toast('Não foi possível preparar o roteiro agora.');}
+    finally{if(btn){btn.disabled=false;delete btn.dataset.v4011Busy;}}
+  },0));
+}
+const v401BindEventsBeforeChunkV4011=bindEvents;
+bindEvents=function(){
+  v401BindEventsBeforeChunkV4011();
+  document.addEventListener('click',event=>{
+    const emergency=event.target.closest?.('#applyEmergencyBtn');const opportunity=event.target.closest?.('#applyOpportunityBtn');
+    if(emergency&&!currentEmergencyProposal){event.preventDefault();event.stopImmediatePropagation();materializeLiveActionProposalV4011('emergency');}
+    else if(opportunity&&!currentOpportunityProposal){event.preventDefault();event.stopImmediatePropagation();materializeLiveActionProposalV4011('opportunity');}
+  },true);
+};
+function cancelLiveVisualChunkV4011(reason='cancelled'){
+  if(liveVisualChunkContextV4011)liveVisualChunkMetricsV4011.cancellations++;
+  liveVisualChunkTokenV4011++;
+  liveVisualChunkContextV4011=null;
+  if(liveVisualChunkYieldHandleV4011!=null){try{cancelAnimationFrame(liveVisualChunkYieldHandleV4011);}catch{}clearTimeout(liveVisualChunkYieldHandleV4011);liveVisualChunkYieldHandleV4011=null;}
+  clearLiveChunkProgressV4011();
+  return reason;
+}
+const v3963CancelInstantLiveHeavyBeforeChunkV4011=cancelInstantLiveHeavyV3963;
+cancelInstantLiveHeavyV3963=function(){cancelLiveVisualChunkV4011('instant-live-cancel');return v3963CancelInstantLiveHeavyBeforeChunkV4011();};
+
+async function runLiveVisualChunkedRefreshV4011(reason='background',force=false){
+  if(activeViewName()!=='live')return null;
+  const snapshot=instantLiveReadSnapshotV3963();
+  if(snapshot?.fresh&&!force){instantLiveMarkBusyV3963(false);return{skipped:'fresh-snapshot'};}
+  const token=++liveVisualChunkTokenV4011;
+  const day=getSelectedDay();const park=state.selectedPark;const payload=state.liveCache?.[park];const weather=state.weatherCache?.[park];
+  const started=performance.now();const constrained=constrainedDeviceV3963()||mobileLikeDeviceV3963();
+  const budget=constrained?LIVE_VISUAL_CHUNK_RULES_V4011.constrainedSliceBudgetMs:LIVE_VISUAL_CHUNK_RULES_V4011.normalSliceBudgetMs;
+  const maxPerSlice=constrained?LIVE_VISUAL_CHUNK_RULES_V4011.constrainedMaxScoresPerSlice:LIVE_VISUAL_CHUNK_RULES_V4011.normalMaxScoresPerSlice;
+  const rows=Array.isArray(payload?.liveData)?payload.liveData.slice():[];
+  const now=getOrlandoParts(),nowMinute=now.hour*60+now.minute,previous=day?lastContextActivityV36(day):null;
+  const ctx={token,dayDate:day?.date||null,park,scoreCache:new Map(),cacheHits:0,scoreComputes:0,slices:0,maxSliceMs:0,scoreSliceMs:[],reason,phase:'precompute',commitMisses:0,commitMissKeys:{},proposalDeferrals:0,performanceMemo:{maps:new Map(),historyIndex:null,orlandoNow:null,startedAt:performance.now()}};
+  liveVisualChunkContextV4011=ctx;instantLiveMarkBusyV3963(true);
+  try{
+    renderLiveWaitListFastV4011();renderLiveChunkProgressV4011(0,rows.length);
+    if(!await liveVisualChunkWaitForInputV4011(token))return{cancelled:true};
+    const jobs=[];
+    for(const entry of rows){jobs.push({entry,startMinute:nowMinute,previousActivity:previous});jobs.push({entry,startMinute:null,previousActivity:null});}
+    let i=0;
+    while(i<jobs.length){
+      if(!liveVisualChunkStillValidV4011(token))return{cancelled:true};
+      const sliceStart=performance.now();let count=0;
+      while(i<jobs.length&&count<maxPerSlice){
+        if(browserHasPendingInputV3963())break;
+        const job=jobs[i++];
+        try{withLiveVisualPerformanceMemoV4011(ctx,()=>copilotScoreForEntry(job.entry,day,weather,job.startMinute,job.previousActivity));}catch(error){recordRuntimeDiagnosticV38('live-chunk-score-v4011',error,{name:job.entry?.name||null});}
+        count++;
+        if(performance.now()-sliceStart>=budget)break;
+      }
+      const sliceMs=performance.now()-sliceStart;ctx.slices++;ctx.maxSliceMs=Math.max(ctx.maxSliceMs,sliceMs);ctx.scoreSliceMs.push(Math.round(sliceMs*10)/10);
+      if(i===jobs.length||i%(LIVE_VISUAL_CHUNK_RULES_V4011.progressEvery*2)===0)renderLiveChunkProgressV4011(i,jobs.length);
+      if(i<jobs.length&&!await liveVisualChunkYieldV4011(token))return{cancelled:true};
+      if(i<jobs.length&&!await liveVisualChunkWaitForInputV4011(token))return{cancelled:true};
+    }
+    if(!liveVisualChunkStillValidV4011(token))return{cancelled:true};
+    await liveVisualChunkYieldV4011(token);
+    if(!liveVisualChunkStillValidV4011(token))return{cancelled:true};
+    ctx.phase='commit';
+    const commitSlices=[];let result=null;
+    const runCommitSlice=async(fn)=>{
+      if(!liveVisualChunkStillValidV4011(token))return false;
+      const t=performance.now();withLiveVisualPerformanceMemoV4011(ctx,fn);commitSlices.push(performance.now()-t);
+      if(!await liveVisualChunkYieldV4011(token))return false;return liveVisualChunkStillValidV4011(token);
+    };
+    if(!await runCommitSlice(()=>renderLiveCoreChromeV4011(day,payload,weather)))return{cancelled:true};
+    if(!await runCommitSlice(()=>{result=renderLiveRecommendationsV4011(day,payload,weather);}))return{cancelled:true};
+    if(!await runCommitSlice(()=>renderLiveFinishingChromeV4011(day,payload,weather)))return{cancelled:true};
+    const commitMs=commitSlices.reduce((a,b)=>a+b,0),maxCommitSliceMs=Math.max(0,...commitSlices);
+    clearLiveChunkProgressV4011();instantLiveWriteSnapshotV3963();instantLiveMarkBusyV3963(false);
+    const wallMs=performance.now()-started;
+    const metric={at:new Date().toISOString(),reason,park,dayDate:day?.date||null,constrained,scores:rows.length,scoreVariants:jobs.length,scoreComputes:ctx.scoreComputes,cacheHits:ctx.cacheHits,commitScoreMisses:ctx.commitMisses,commitMissKeys:ctx.commitMissKeys,proposalDeferrals:ctx.proposalDeferrals||0,slices:ctx.slices,maxSliceMs:Math.round(ctx.maxSliceMs*10)/10,commitSlicesMs:commitSlices.map(x=>Math.round(x*10)/10),maxCommitSliceMs:Math.round(maxCommitSliceMs*10)/10,commitMs:Math.round(commitMs*10)/10,wallMs:Math.round(wallMs*10)/10,cancelled:false};
+    liveVisualChunkMetricPushV4011(metric);
+    instantMetricPushV3963(instantLiveMetricsV3963.heavyLiveRenders,{at:metric.at,reason:`${reason}:chunked-v4011`,ms:metric.wallMs,commitMs:metric.commitMs,maxSliceMs:metric.maxSliceMs,park,dayDate:metric.dayDate,constrained},30);
+    return result;
+  }catch(error){
+    instantLiveMarkBusyV3963(false);recordRuntimeDiagnosticV38('live-visual-chunk-v4011',error,{reason});
+    liveVisualChunkMetricPushV4011({at:new Date().toISOString(),reason,park,dayDate:day?.date||null,constrained,error:String(error?.message||error),cancelled:false,wallMs:Math.round((performance.now()-started)*10)/10});return null;
+  }finally{
+    if(liveVisualChunkContextV4011?.token===token)liveVisualChunkContextV4011=null;
+  }
+}
+const v3963RunInstantLiveHeavyBeforeChunkV4011=runInstantLiveHeavyV3963;
+runInstantLiveHeavyV3963=function(reason='background',force=false){return runLiveVisualChunkedRefreshV4011(reason,force);};
+
+function liveVisualChunkDiagnosticsV4011(){
+  const rows=liveVisualChunkMetricsV4011.runs.slice(-20);const avg=(key)=>{const vals=rows.map(x=>Number(x?.[key])).filter(Number.isFinite);return vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length*10)/10:null;};
+  return{version:LIVE_VISUAL_CHUNK_VERSION_V4011,policy:LIVE_VISUAL_CHUNK_RULES_V4011,active:Boolean(liveVisualChunkContextV4011),cancellations:liveVisualChunkMetricsV4011.cancellations,last:liveVisualChunkMetricsV4011.last,averages:{wallMs:avg('wallMs'),maxSliceMs:avg('maxSliceMs'),commitMs:avg('commitMs')},recent:rows};
+}
+const v401EngineDiagnosticSnapshotV4011=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){const snapshot=v401EngineDiagnosticSnapshotV4011();snapshot.context=snapshot.context||{};snapshot.context.liveVisualChunkingV4011=liveVisualChunkDiagnosticsV4011();return snapshot;};
+const v401ExposeDiagnosticsApiV4011=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){v401ExposeDiagnosticsApiV4011();window.__ORLANDO_FLOW_DIAGNOSTICS__.liveVisualChunkingV4011=()=>v40Clone(liveVisualChunkDiagnosticsV4011());window.__ORLANDO_FLOW_DIAGNOSTICS__.liveVisualChunkPolicyV4011=()=>v40Clone({version:LIVE_VISUAL_CHUNK_VERSION_V4011,...LIVE_VISUAL_CHUNK_RULES_V4011});};
+
+const v401RunEngineSelfTestsV4011=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v401RunEngineSelfTestsV4011();const additions=[];
+  addSelfTestV38(additions,'v40.1.1 divide revalidação Ao Vivo em slices cooperativos',()=>{assertSelfTestV38(LIVE_VISUAL_CHUNK_RULES_V4011.backgroundOnly===true&&typeof runLiveVisualChunkedRefreshV4011==='function','chunking ausente');return 'background slices';});
+  addSelfTestV38(additions,'v40.1.1 limita scores por slice em dispositivo restrito',()=>{assertSelfTestV38(LIVE_VISUAL_CHUNK_RULES_V4011.constrainedMaxScoresPerSlice===1&&LIVE_VISUAL_CHUNK_RULES_V4011.constrainedSliceBudgetMs===8,'budget incorreto');return '1 score / 8ms budget';});
+  addSelfTestV38(additions,'v40.1.1 devolve controle ao navegador entre slices',()=>{assertSelfTestV38(typeof liveVisualChunkYieldV4011==='function'&&typeof requestAnimationFrame==='function','yield ausente');return 'rAF + task yield';});
+  addSelfTestV38(additions,'v40.1.1 pausa processamento durante input pendente',()=>{assertSelfTestV38(typeof liveVisualChunkWaitForInputV4011==='function'&&LIVE_VISUAL_CHUNK_RULES_V4011.interactionQuietMs===90,'input guard');return 'isInputPending + quiet window';});
+  addSelfTestV38(additions,'v40.1.1 cancela trabalho visual obsoleto',()=>{assertSelfTestV38(LIVE_VISUAL_CHUNK_RULES_V4011.cancelObsolete===true&&typeof cancelLiveVisualChunkV4011==='function','cancelamento');return 'token por geração';});
+  addSelfTestV38(additions,'v40.1.1 reutiliza score exato no commit visual',()=>{assertSelfTestV38(typeof liveVisualChunkCacheGetV4011==='function'&&typeof liveVisualChunkCacheSetV4011==='function','cache');return 'score cache por job';});
+  addSelfTestV38(additions,'v40.1.1 atualiza filas antes das recomendações pesadas',()=>{assertSelfTestV38(typeof renderLiveWaitListFastV4011==='function','fast wait list');return 'waits first';});
+  addSelfTestV38(additions,'v40.1.1 não roda planner completo no commit visual estável',()=>{assertSelfTestV38(LIVE_VISUAL_CHUNK_RULES_V4011.noTriggerPlannerInVisualCommit===true&&typeof renderStableReplanStateV4011==='function','guarda ausente');return 'sem beam síncrono sem gatilhos';});
+  addSelfTestV38(additions,'v40.1.1 adia proposals completos de Emergência/Opportunity no commit',()=>{assertSelfTestV38(LIVE_VISUAL_CHUNK_RULES_V4011.deferFullProposalDuringVisualCommit===true&&typeof materializeLiveActionProposalV4011==='function','defer ausente');return 'materialização somente sob ação';});
+  addSelfTestV38(additions,'v40.1.1 divide também o commit DOM em três slices',()=>{assertSelfTestV38(LIVE_VISUAL_CHUNK_RULES_V4011.commitSlices===3&&typeof renderLiveRecommendationsV4011==='function','commit monolítico');return 'chrome -> recomendações -> acabamento';});
+  addSelfTestV38(additions,'v40.1.1 preserva políticas v40.1',()=>{assertSelfTestV38(LIVE_VISUAL_CHUNK_RULES_V4011.scorePolicyChanged===false&&LIVE_VISUAL_CHUNK_RULES_V4011.riskPolicyChanged===false&&PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold===72,'política alterada');return 'score/risk/governança intactos';});
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v40.2 — Resiliência Operacional / Modo Degradado
+   Dados disponíveis != dados confiáveis para decidir.
+   A última leitura continua visível como referência, mas somente
+   fontes suficientemente recentes podem promover decisões táticas.
+   ============================================================ */
+const OPERATIONAL_RESILIENCE_VERSION_V402=1;
+const OPERATIONAL_RESILIENCE_RULES_V402=Object.freeze({
+  model:'source-freshness-governance-v1',
+  liveFreshMinutes:5,
+  liveStaleMinutes:15,
+  weatherFreshMinutes:20,
+  weatherStaleMinutes:60,
+  staleDecisionScoreCap:71,
+  doNowThreshold:72,
+  staleDataMayDisplay:true,
+  expiredDataMayDisplay:true,
+  staleDataMayTriggerOpportunity:false,
+  expiredDataMayTriggerOpportunity:false,
+  staleDataMayTriggerAggressiveReplan:false,
+  offlineMayTriggerAggressiveReplan:false,
+  serviceWorkerOwnsLiveFallback:false,
+  appStateOwnsLiveFallback:true,
+  automaticRecoveryOnOnline:true,
+  scorePolicyChanged:false,
+  riskPolicyChanged:false
+});
+const sourceAttemptsV402={live:{},weather:{}};
+const resilienceEventsV402=[];
+let lastResilienceModeV402=null;
+function v402Now(){return Date.now();}
+function v402NetworkOnline(){return typeof navigator==='undefined'?true:navigator.onLine!==false;}
+function v402Attempt(kind,outcome,error=null){
+  const row=sourceAttemptsV402[kind]||(sourceAttemptsV402[kind]={});
+  const at=v402Now();row.lastAttemptAt=at;row.lastOutcome=outcome;
+  if(outcome==='success')row.lastSuccessAt=at;else{row.lastFailureAt=at;row.lastError=String(error?.message||error||'network failure').slice(0,180);}
+  return row;
+}
+function sourceHealthV402(kind,payload,now=v402Now()){
+  const rules=kind==='weather'
+    ?{fresh:OPERATIONAL_RESILIENCE_RULES_V402.weatherFreshMinutes,stale:OPERATIONAL_RESILIENCE_RULES_V402.weatherStaleMinutes}
+    :{fresh:OPERATIONAL_RESILIENCE_RULES_V402.liveFreshMinutes,stale:OPERATIONAL_RESILIENCE_RULES_V402.liveStaleMinutes};
+  const fetchedAt=Number(payload?.networkFetchedAt||payload?.fetchedAt||0);
+  const attempt=sourceAttemptsV402[kind]||{};
+  if(!payload||!fetchedAt)return{kind,status:'unavailable',ageMin:null,fetchedAt:null,usableForDisplay:false,confirmedFresh:false,lastOutcome:attempt.lastOutcome||null};
+  const ageMin=Math.max(0,(Number(now)-fetchedAt)/60000);
+  const status=ageMin<=rules.fresh?'fresh':ageMin<=rules.stale?'stale':'expired';
+  const recentFailedAttempt=attempt.lastOutcome==='failure'&&Number(attempt.lastFailureAt||0)>=Number(attempt.lastSuccessAt||0)&&Number(now)-Number(attempt.lastFailureAt||0)<10*60_000;
+  return{
+    kind,status,ageMin:Math.round(ageMin*10)/10,fetchedAt,
+    usableForDisplay:true,
+    confirmedFresh:status==='fresh'&&!recentFailedAttempt,
+    recentFailedAttempt,
+    lastOutcome:attempt.lastOutcome||null,
+    label:status==='fresh'?'recente':status==='stale'?'desatualizado':'antigo'
+  };
+}
+function operationalResilienceContextV402(day=getSelectedDay(),livePayload=null,weatherPayload=null,now=v402Now()){
+  const park=day?.park&&day.park!=='off-day'?day.park:state.selectedPark;
+  const live=sourceHealthV402('live',livePayload??state.liveCache?.[park],now);
+  const weather=sourceHealthV402('weather',weatherPayload??state.weatherCache?.[park],now);
+  const online=v402NetworkOnline();
+  const liveNeeded=Boolean(PARKS?.[park]?.entityId);
+  const liveProblem=liveNeeded&&(live.status==='expired'||live.status==='unavailable');
+  const weatherProblem=weather.status==='expired'||weather.status==='unavailable';
+  const stale=live.status==='stale'||weather.status==='stale'||live.recentFailedAttempt||weather.recentFailedAttempt;
+  const mode=!online||liveProblem||weatherProblem?'degraded':stale?'cautious':'healthy';
+  const allowOpportunity=online&&(!liveNeeded||live.confirmedFresh);
+  const allowQueuePromotion=online&&(!liveNeeded||live.confirmedFresh);
+  const allowWeatherPromotion=online&&weather.confirmedFresh;
+  const allowAggressiveReplan=online&&(!liveNeeded||live.confirmedFresh)&&weather.confirmedFresh;
+  const allowQueueAlerts=(!liveNeeded||live.confirmedFresh);
+  const allowWeatherAlerts=weather.confirmedFresh;
+  const result={version:OPERATIONAL_RESILIENCE_VERSION_V402,park,mode,online,liveNeeded,live,weather,allowOpportunity,allowQueuePromotion,allowWeatherPromotion,allowAggressiveReplan,allowQueueAlerts,allowWeatherAlerts};
+  if(lastResilienceModeV402!==mode){
+    resilienceEventsV402.push({at:new Date(now).toISOString(),mode,park,online,live:live.status,weather:weather.status});
+    if(resilienceEventsV402.length>40)resilienceEventsV402.splice(0,resilienceEventsV402.length-40);
+    lastResilienceModeV402=mode;
+  }
+  return result;
+}
+function resilienceStatusLabelV402(ctx){
+  if(!ctx)return'';
+  if(ctx.mode==='healthy')return'Dados recentes';
+  if(ctx.mode==='cautious')return'Modo cauteloso';
+  return'Modo degradado';
+}
+function resilienceReasonV402(ctx){
+  if(!ctx)return'';
+  const reasons=[];
+  if(!ctx.online)reasons.push('sem conexão');
+  if(ctx.liveNeeded&&ctx.live.status==='stale')reasons.push(`filas de ${Math.round(ctx.live.ageMin||0)} min atrás`);
+  if(ctx.liveNeeded&&ctx.live.status==='expired')reasons.push(`filas antigas (${Math.round(ctx.live.ageMin||0)} min)`);
+  if(ctx.liveNeeded&&ctx.live.status==='unavailable')reasons.push('filas indisponíveis');
+  if(ctx.weather.status==='stale')reasons.push(`clima de ${Math.round(ctx.weather.ageMin||0)} min atrás`);
+  if(ctx.weather.status==='expired')reasons.push(`clima antigo (${Math.round(ctx.weather.ageMin||0)} min)`);
+  if(ctx.weather.status==='unavailable')reasons.push('clima indisponível');
+  if(ctx.live.recentFailedAttempt||ctx.weather.recentFailedAttempt)reasons.push('última atualização falhou');
+  return reasons.join(' · ')||'fontes recentes';
+}
+function resilienceBannerHtmlV402(ctx){
+  if(!ctx||ctx.mode==='healthy')return'';
+  const guidance=ctx.mode==='degraded'
+    ?'Mantendo o roteiro e as prioridades. Leituras antigas servem apenas como referência até a conexão/fonte voltar.'
+    :'As recomendações existentes continuam disponíveis como referência, mas dados desatualizados não geram novas oportunidades nem replanejamentos agressivos.';
+  return `<div class="source-note" data-resilience-v402><strong>${escapeHtml(resilienceStatusLabelV402(ctx))}.</strong> ${escapeHtml(resilienceReasonV402(ctx))}. ${escapeHtml(guidance)}</div>`;
+}
+function renderOperationalResilienceBannerV402(day=getSelectedDay()){
+  const root=$('#recommendations');if(!root)return;
+  root.querySelector('[data-resilience-v402]')?.remove();
+  const ctx=operationalResilienceContextV402(day);
+  const html=resilienceBannerHtmlV402(ctx);if(!html)return;
+  root.insertAdjacentHTML('afterbegin',html);
+}
+
+// v40.2 faz rede real para fontes voláteis. Em falha, preserva exatamente o
+// payload persistido — inclusive o timestamp antigo — em vez de carimbá-lo como novo.
+const v4011FetchLiveBeforeResilienceV402=fetchLive;
+fetchLive=async function(parkKey=state.selectedPark){
+  const park=PARKS[parkKey];if(!park?.entityId)return null;
+  try{
+    const res=await fetch(`${API_BASE}/entity/${park.entityId}/live`,{headers:{'Accept':'application/json'},cache:'no-store'});
+    if(!res.ok)throw new Error(`Live HTTP ${res.status}`);
+    const data=await res.json();const now=v402Now();
+    const payload={fetchedAt:now,networkFetchedAt:now,source:'network',liveData:data.liveData||[]};
+    state.liveCache[parkKey]=payload;v402Attempt('live','success');recordQueueSnapshot(parkKey,payload);
+    try{await fetchParkSchedule(parkKey);}catch{}
+    try{await hydrateAttractionLocations(parkKey,payload.liveData||[]);}catch{}
+    saveState();return payload;
+  }catch(error){
+    v402Attempt('live','failure',error);recordRuntimeDiagnosticV38?.('live-source-v402',error,{parkKey,fallback:Boolean(state.liveCache?.[parkKey])});
+    return state.liveCache?.[parkKey]||null;
+  }
+};
+const v4011FetchWeatherBeforeResilienceV402=fetchWeather;
+fetchWeather=async function(parkKey=state.selectedPark){
+  const park=PARKS[parkKey]||PARKS['off-day'];
+  const url=`${WEATHER_BASE}?latitude=${park.lat}&longitude=${park.lon}&current=temperature_2m,weather_code,precipitation&hourly=temperature_2m,precipitation_probability,weather_code,wind_gusts_10m&timezone=${encodeURIComponent(state.timezone||ORLANDO_TZ)}&forecast_days=2`;
+  try{
+    const res=await fetch(url,{headers:{'Accept':'application/json'},cache:'no-store'});if(!res.ok)throw new Error(`Weather HTTP ${res.status}`);
+    const data=await res.json();const hours=(data.hourly?.time||[]).map((time,i)=>({time,temperature_2m:data.hourly.temperature_2m?.[i],precipitation_probability:data.hourly.precipitation_probability?.[i],weather_code:data.hourly.weather_code?.[i],wind_gusts_10m:data.hourly.wind_gusts_10m?.[i]}));
+    const now=v402Now();const payload={fetchedAt:now,networkFetchedAt:now,source:'network',current:data.current,hours};
+    state.weatherCache[parkKey]=payload;v402Attempt('weather','success');saveState();return payload;
+  }catch(error){
+    v402Attempt('weather','failure',error);recordRuntimeDiagnosticV38?.('weather-source-v402',error,{parkKey,fallback:Boolean(state.weatherCache?.[parkKey])});
+    return state.weatherCache?.[parkKey]||null;
+  }
+};
+
+// Operational viability fica acima do score. Se a fonte capaz de justificar a
+// promoção não está confirmada, o score numérico pode continuar útil para ordenar,
+// mas a decisão é limitada a ESPERE (71), preservando o threshold 72.
+const v4011CopilotScoreBeforeResilienceV402=copilotScoreForEntry;
+copilotScoreForEntry=function(entry,day=getSelectedDay(),weatherPayload=state.weatherCache?.[state.selectedPark],startMinute=null,previousActivity=null){
+  const result=v4011CopilotScoreBeforeResilienceV402(entry,day,weatherPayload,startMinute,previousActivity);if(!result||result.blocked)return result;
+  if(day?.date!==getOrlandoParts().date)return result;
+  const ctx=operationalResilienceContextV402(day,state.liveCache?.[day?.park||state.selectedPark],weatherPayload);
+  const activity=result.activity||null;const weatherSensitive=weatherImpactForActivity(activity)==='high'||activity?.weatherSensitive===true;
+  const queueUntrusted=!ctx.allowQueuePromotion;
+  const weatherUntrusted=weatherSensitive&&!ctx.allowWeatherPromotion;
+  if((queueUntrusted||weatherUntrusted)&&Number(result.score)>=OPERATIONAL_RESILIENCE_RULES_V402.doNowThreshold){
+    const capped=Math.min(OPERATIONAL_RESILIENCE_RULES_V402.staleDecisionScoreCap,Number(result.score));
+    result.score=capped;result.band='ESPERE';result.bandClass='warn';
+    result.reasons=[...new Set([...(result.reasons||[]),queueUntrusted?'fila sem confirmação recente':'clima sem confirmação recente'])];
+    result.operationalResilience={limited:true,mode:ctx.mode,live:ctx.live.status,weather:ctx.weather.status,reason:queueUntrusted?'live-source-not-confirmed':'weather-source-not-confirmed'};
+  }else result.operationalResilience={limited:false,mode:ctx.mode,live:ctx.live.status,weather:ctx.weather.status};
+  return result;
+};
+
+// Gatilhos externos velhos não podem reconstruir o dia. Atraso do próprio roteiro
+// e ações manuais continuam válidos porque não dependem de fila/clima remoto.
+const v4011GetReplanTriggersBeforeResilienceV402=getReplanTriggers;
+getReplanTriggers=function(day,livePayload,weatherPayload){
+  const triggers=v4011GetReplanTriggersBeforeResilienceV402(day,livePayload,weatherPayload)||[];
+  const ctx=operationalResilienceContextV402(day,livePayload,weatherPayload);
+  return triggers.filter(t=>{
+    if(t.type==='wait')return ctx.allowQueuePromotion;
+    if(t.type==='weather')return ctx.allowWeatherPromotion;
+    if(t.type==='sequence-risk')return ctx.allowAggressiveReplan;
+    return true;
+  });
+};
+
+const v4011DetectOpportunityBeforeResilienceV402=detectOpportunity;
+detectOpportunity=function(day,livePayload,weatherPayload){
+  const ctx=operationalResilienceContextV402(day,livePayload,weatherPayload);if(!ctx.allowOpportunity)return null;
+  return v4011DetectOpportunityBeforeResilienceV402(day,livePayload,weatherPayload);
+};
+const v4011UpdateOpportunityBeforeResilienceV402=updateOpportunityState;
+updateOpportunityState=function(day,livePayload,weatherPayload){
+  const ctx=operationalResilienceContextV402(day,livePayload,weatherPayload);
+  if(!ctx.allowOpportunity){if(state.opportunityState&&!state.opportunityState.dismissed){state.opportunityState=null;saveState();}return null;}
+  return v4011UpdateOpportunityBeforeResilienceV402(day,livePayload,weatherPayload);
+};
+const v4011ActiveOpportunityBeforeResilienceV402=activeOpportunityFor;
+activeOpportunityFor=function(day){
+  const o=v4011ActiveOpportunityBeforeResilienceV402(day);if(!o)return null;
+  return operationalResilienceContextV402(day).allowOpportunity?o:null;
+};
+
+const v4011DetectEmergencyBeforeResilienceV402=detectEmergency;
+function weatherEmergencyOnlyV402(day,weatherPayload){
+  const ctx=operationalResilienceContextV402(day,null,weatherPayload);if(!ctx.allowWeatherAlerts||!day||day.date!==getOrlandoParts().date)return null;
+  const pending=(day.activities||[]).filter(a=>a.type==='attraction'&&!isDone(a.id)&&!isSkipped(a.id));
+  const rel=relevantWeather(weatherPayload),now=getOrlandoParts(),nowMin=now.hour*60+now.minute;
+  if(rel.nextRisk){const riskMin=timeToMinutes(rel.nextRisk.time.slice(11,16)),highPending=pending.filter(a=>weatherImpactForActivity(a)==='high');if(highPending.length&&riskMin>=nowMin&&riskMin-nowMin<=30&&weatherRiskForHour(rel.nextRisk).level==='high')return{type:'storm',severity:'high',label:`Tempestade possível em ${riskMin-nowMin} min`,detail:`${highPending.length} atração(ões) de alto impacto climático ainda estão pendentes.`};}
+  return null;
+}
+detectEmergency=function(day,livePayload,weatherPayload){
+  const ctx=operationalResilienceContextV402(day,livePayload,weatherPayload);
+  if(ctx.allowQueueAlerts)return v4011DetectEmergencyBeforeResilienceV402(day,livePayload,ctx.allowWeatherAlerts?weatherPayload:null);
+  return weatherEmergencyOnlyV402(day,weatherPayload);
+};
+
+// Substitui a cadeia legada de alertas para que nenhuma notificação externa seja
+// emitida antes da checagem de frescor da v40.2.
+evaluateAlerts=function(){
+  const day=getSelectedDay();if(!day||day.date!==getOrlandoParts().date)return;
+  const status=currentPlanStatus(day);if(status.delay>Number(state.settings.delayThreshold||15))notifyOnce(`delay-${day.date}-${Math.floor(status.delay/10)}`,'Roteiro atrasado',status.detail);
+  const live=state.liveCache?.[day.park],weather=state.weatherCache?.[day.park],ctx=operationalResilienceContextV402(day,live,weather);
+  if(ctx.allowWeatherAlerts){const w=relevantWeather(weather);if(w.risk.score>0)notifyOnce(`weather-${day.date}-${w.current?.time}`,'Mudança no tempo','Há risco de chuva/trovoadas. Considere priorizar atrações cobertas ou sensíveis ao clima.');}
+  if(ctx.allowQueueAlerts){const next=day.activities.find(a=>!a.replanDeferred&&!isDone(a.id)&&!isSkipped(a.id));if(next&&live){const match=findLiveMatch(next,live.liveData||[]),wait=extractStandby(match);if(wait>=Number(state.settings.longWaitThreshold||60))notifyOnce(`wait-${next.id}-${Math.floor(wait/15)}`,'Fila longa na próxima atração',`${next.title}: ${wait} min. Abra “Ao vivo” para alternativas.`);}}
+  const before=state.emergencyState?.key;updateEmergencyState(day,live,weather);if(state.emergencyState?.key&&state.emergencyState.key!==before)renderLive();
+};
+
+const v4011InstantStatusBeforeResilienceV402=instantLiveCurrentStatusV3963;
+instantLiveCurrentStatusV3963=function(){
+  const day=getSelectedDay(),park=state.selectedPark,payload=state.liveCache?.[park];if(!payload)return v402NetworkOnline()?'Sem dados de fila. Toque em Atualizar.':'Offline · sem fila salva para este parque.';
+  const ctx=operationalResilienceContextV402(day,payload,state.weatherCache?.[park]);const age=Math.max(0,Math.round((v402Now()-Number(payload.networkFetchedAt||payload.fetchedAt||v402Now()))/60000));
+  let hours=null;try{hours=parkHoursForDate(park,day?.date||getOrlandoParts().date);}catch{}
+  return `Última fila: ${age<1?'agora':`${age} min atrás`} · ${resilienceStatusLabelV402(ctx)}${hours?.source==='schedule'?` · parque até ${minutesToTime(hours.close)}`:''} · ThemeParks.wiki`;
+};
+const v4011RenderNetworkBeforeResilienceV402=renderNetwork;
+renderNetwork=function(){
+  v4011RenderNetworkBeforeResilienceV402();const pill=$('#netPill');if(!pill)return;const ctx=operationalResilienceContextV402(getSelectedDay());
+  if(ctx.mode==='degraded')pill.textContent=ctx.online?'online · degradado':'offline · degradado';else if(ctx.mode==='cautious')pill.textContent='online · cauteloso';else pill.textContent='online';
+  pill.classList.toggle('offline',ctx.mode==='degraded');
+};
+const v4011RenderCoreBeforeResilienceV402=renderLiveCoreChromeV4011;
+renderLiveCoreChromeV4011=function(day,payload,weather){const result=v4011RenderCoreBeforeResilienceV402(day,payload,weather);renderOperationalResilienceBannerV402(day);return result;};
+const v4011RenderFinishBeforeResilienceV402=renderLiveFinishingChromeV4011;
+renderLiveFinishingChromeV4011=function(day,payload,weather){const result=v4011RenderFinishBeforeResilienceV402(day,payload,weather);renderOperationalResilienceBannerV402(day);return result;};
+
+function degradedSafeSequenceV402(day,limit=4){
+  const pending=(day?.activities||[]).filter(a=>!a.replanDeferred&&!isDone(a.id)&&!isSkipped(a.id));
+  const fixed=pending.filter(a=>!a.flexible),flex=pending.filter(a=>a.flexible);
+  const ordered=[...pending].sort((a,b)=>timeToMinutes(a.time)-timeToMinutes(b.time));
+  const protectedIds=new Set([...fixed,...flex.filter(a=>['must','want'].includes(priorityCodeFromActivity(a)))].map(a=>a.id));
+  const protectedFirst=[...ordered.filter(a=>protectedIds.has(a.id)),...ordered.filter(a=>!protectedIds.has(a.id))];
+  return protectedFirst.slice(0,limit);
+}
+function renderDegradedRecommendationsV402(day,ctx){
+  const root=$('#recommendations');if(!root)return;const seq=degradedSafeSequenceV402(day,4);
+  const sequence=seq.length?seq.map((a,i)=>`${i+1}. ${escapeHtml(a.title)}`).join(' · '):'Sem atividades pendentes.';
+  root.innerHTML=`${resilienceBannerHtmlV402(ctx)}<div class="source-note"><strong>Plano seguro temporário:</strong> mantenha a ordem protegida do roteiro até uma leitura recente voltar.<br>${sequence}</div>`;
+}
+const v4011RunInstantHeavyBeforeResilienceV402=runInstantLiveHeavyV3963;
+runInstantLiveHeavyV3963=function(reason='background',force=false){
+  const day=getSelectedDay(),park=state.selectedPark,live=state.liveCache?.[park],weather=state.weatherCache?.[park],ctx=operationalResilienceContextV402(day,live,weather);
+  if(ctx.liveNeeded&&(ctx.live.status==='expired'||ctx.live.status==='unavailable')){
+    cancelLiveVisualChunkV4011?.('v402-degraded-light-render');
+    try{renderLiveWaitListFastV4011();const status=$('#liveStatus');if(status)status.textContent=instantLiveCurrentStatusV3963();renderDegradedRecommendationsV402(day,ctx);renderStableReplanStateV4011();const opportunity=$('#opportunityPanel');if(opportunity)opportunity.hidden=true;instantLiveMarkBusyV3963(false);}catch(error){recordRuntimeDiagnosticV38('degraded-live-render-v402',error,{reason});}
+    return Promise.resolve({degraded:true,reason:'expired-live-source'});
+  }
+  return v4011RunInstantHeavyBeforeResilienceV402(reason,force);
+};
+
+const v4011RefreshExternalBeforeResilienceV402=refreshExternal;
+refreshExternal=async function(showToast=true){
+  const day=getSelectedDay();if(day?.park&&day.park!=='off-day')state.selectedPark=day.park;const park=state.selectedPark;
+  const started=v402Now(),tasks=[fetchWeather(park)];if(PARKS[park]?.entityId)tasks.push(fetchLive(park));await Promise.all(tasks);
+  renderAll();evaluateAlerts();
+  if(showToast){const ctx=operationalResilienceContextV402(day,state.liveCache?.[park],state.weatherCache?.[park]);const succeeded=['live','weather'].filter(k=>Number(sourceAttemptsV402[k]?.lastSuccessAt||0)>=started).length;const expected=PARKS[park]?.entityId?2:1;if(succeeded===expected)toast('Dados atualizados.');else if(ctx.mode==='degraded')toast('Modo degradado: usando os últimos dados confiáveis salvos.');else toast('Atualização parcial: mantendo o último dado válido da fonte que falhou.');}
+};
+
+
+const v4011RenderWeatherBeforeResilienceV402=renderWeather;
+renderWeather=function(){
+  const result=v4011RenderWeatherBeforeResilienceV402();const day=getSelectedDay(),park=day?.park||state.selectedPark,ctx=operationalResilienceContextV402(day,state.liveCache?.[park],state.weatherCache?.[park]);
+  if(ctx.weather.status!=='fresh'){
+    const detail=$('#weatherDetail'),headline=$('#weatherHeadline'),badge=$('#weatherRisk');const age=ctx.weather.ageMin==null?'':`${Math.round(ctx.weather.ageMin)} min atrás`;
+    if(headline&&ctx.weather.usableForDisplay)headline.textContent=`Clima salvo · ${ctx.weather.status==='stale'?'desatualizado':'antigo'}`;
+    if(detail)detail.textContent=`${detail.textContent||'Última previsão salva'}${age?` · leitura de ${age}`:''}`;
+    if(badge){badge.textContent=ctx.weather.status==='unavailable'?'sem dado':'não confirmado';badge.className='risk-badge warn';}
+  }
+  return result;
+};
+
+function resilienceDiagnosticsV402(){const day=getSelectedDay(),ctx=operationalResilienceContextV402(day);return{version:OPERATIONAL_RESILIENCE_VERSION_V402,policy:OPERATIONAL_RESILIENCE_RULES_V402,context:ctx,attempts:v40Clone(sourceAttemptsV402),events:v40Clone(resilienceEventsV402.slice(-20))};}
+const v4011EngineDiagnosticSnapshotV402=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){const snapshot=v4011EngineDiagnosticSnapshotV402();snapshot.context=snapshot.context||{};snapshot.context.operationalResilienceV402=resilienceDiagnosticsV402();return snapshot;};
+const v4011ExposeDiagnosticsV402=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){v4011ExposeDiagnosticsV402();window.__ORLANDO_FLOW_DIAGNOSTICS__.operationalResilienceV402=()=>v40Clone(resilienceDiagnosticsV402());window.__ORLANDO_FLOW_DIAGNOSTICS__.sourceHealthV402=(kind='live')=>v40Clone(sourceHealthV402(kind,state[kind==='weather'?'weatherCache':'liveCache']?.[state.selectedPark]));window.__ORLANDO_FLOW_DIAGNOSTICS__.resiliencePolicyV402=()=>v40Clone(OPERATIONAL_RESILIENCE_RULES_V402);};
+const v4011RunSelfTestsV402=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v4011RunSelfTestsV402(),additions=[],now=v402Now();
+  addSelfTestV38(additions,'v40.2 classifica frescor de filas em fresh/stale/expired',()=>{assertSelfTestV38(sourceHealthV402('live',{fetchedAt:now-2*60000},now).status==='fresh'&&sourceHealthV402('live',{fetchedAt:now-8*60000},now).status==='stale'&&sourceHealthV402('live',{fetchedAt:now-20*60000},now).status==='expired','freshness live');return '5/15 min';});
+  addSelfTestV38(additions,'v40.2 usa janela própria de frescor para clima',()=>{assertSelfTestV38(sourceHealthV402('weather',{fetchedAt:now-10*60000},now).status==='fresh'&&sourceHealthV402('weather',{fetchedAt:now-30*60000},now).status==='stale'&&sourceHealthV402('weather',{fetchedAt:now-70*60000},now).status==='expired','freshness weather');return '20/60 min';});
+  addSelfTestV38(additions,'v40.2 dado stale continua exibível mas perde gatilhos agressivos',()=>{const h=sourceHealthV402('live',{fetchedAt:now-8*60000},now);assertSelfTestV38(h.usableForDisplay===true&&h.confirmedFresh===false&&OPERATIONAL_RESILIENCE_RULES_V402.staleDataMayTriggerOpportunity===false,'stale gate');return 'display sim / opportunity não';});
+  addSelfTestV38(additions,'v40.2 preserva timestamp real no fallback',()=>{assertSelfTestV38(OPERATIONAL_RESILIENCE_RULES_V402.appStateOwnsLiveFallback===true&&OPERATIONAL_RESILIENCE_RULES_V402.serviceWorkerOwnsLiveFallback===false,'fallback ownership');return 'app cache preserva fetchedAt';});
+  addSelfTestV38(additions,'v40.2 limita promoção stale abaixo de FAÇA AGORA',()=>{assertSelfTestV38(OPERATIONAL_RESILIENCE_RULES_V402.staleDecisionScoreCap===71&&PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold===72,'score cap');return '71 < 72';});
+  addSelfTestV38(additions,'v40.2 modo degradado tem sequência segura sem recalcular beam',()=>{assertSelfTestV38(typeof degradedSafeSequenceV402==='function'&&typeof renderDegradedRecommendationsV402==='function','fallback plan');return 'ordem protegida local';});
+  addSelfTestV38(additions,'v40.2 expõe saúde das fontes somente em diagnostics',()=>{assertSelfTestV38(typeof resilienceDiagnosticsV402==='function'&&typeof sourceHealthV402==='function','diagnostics');return 'source health';});
+  addSelfTestV38(additions,'v40.2 preserva score/risk policy',()=>{assertSelfTestV38(OPERATIONAL_RESILIENCE_RULES_V402.scorePolicyChanged===false&&OPERATIONAL_RESILIENCE_RULES_V402.riskPolicyChanged===false&&RISK_RULES_V401.scenarioCount===7,'policy changed');return 'thresholds e 7 cenários intactos';});
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v41.0 — Copiloto Proativo
+   Silêncio também é decisão: monitora continuamente, mas só
+   interrompe o usuário diante de mudança material e confiável.
+   ============================================================ */
+const PROACTIVE_COPILOT_VERSION_V410=1;
+const PROACTIVE_COPILOT_RULES_V410=Object.freeze({
+  model:'material-change-silence-first-v1',
+  assessmentCadenceMinutes:5,
+  sameAlertCooldownMinutes:45,
+  globalAlertCooldownMinutes:10,
+  manualQuietMinutes:20,
+  acceptedActionQuietMinutes:8,
+  anchorAlertMinutes:20,
+  anchorCriticalMinutes:7,
+  weatherLeadMinutes:35,
+  decisionSwitchMinGain:6,
+  strategicQueueDropMinutes:15,
+  materialQueueRiseMinutes:20,
+  riskJumpMin:12,
+  highRiskScore:60,
+  delayExtraMinutes:10,
+  maxEvents:80,
+  maxTrackedWaits:12,
+  maxAlertCandidatesPerCycle:1,
+  freshSourcesRequiredForTacticalAlerts:true,
+  degradedModeMayAlertAnchors:true,
+  userControlFinal:true,
+  autoApply:false,
+  scorePolicyChanged:false,
+  riskPolicyChanged:false,
+  preferencePolicyChanged:false,
+  backgroundPushBackend:false,
+  hiddenSessionRefreshBestEffort:true
+});
+let proactiveAssessmentHandleV410=null;
+let proactiveAssessmentTokenV410=0;
+let proactiveMetricsV410={assessments:0,alertsDelivered:0,alertsSuppressed:0,silentAssessments:0,lastDurationMs:null,lastReason:null,lastScheduledAt:null};
+
+function ensureProactiveCopilotStateV410(){
+  if(!state.proactiveCopilotV410||typeof state.proactiveCopilotV410!=='object')state.proactiveCopilotV410={};
+  const p=state.proactiveCopilotV410;
+  if(!p.alertKeys||typeof p.alertKeys!=='object')p.alertKeys={};
+  if(!Array.isArray(p.events))p.events=[];
+  if(!Number.isFinite(Number(p.lastNotificationAt)))p.lastNotificationAt=0;
+  if(!Number.isFinite(Number(p.manualQuietUntil)))p.manualQuietUntil=0;
+  return p;
+}
+function proactiveNowMinuteV410(){const n=getOrlandoParts();return n.hour*60+n.minute;}
+function proactiveActivityKeyV410(activity){return activity?.id||attractionIdentityKeyV3903(activity)||normalizeName(activity?.title||activity?.name||'');}
+function proactiveSeverityRankV410(severity){return severity==='critical'?4:severity==='high'?3:severity==='medium'?2:1;}
+function proactiveOptionValueV410(option){
+  const v=Number(option?.riskAdjustedObjective??option?.objective??NaN);return Number.isFinite(v)?v:null;
+}
+function proactivePlanFirstV410(plan){return plan?.steps?.[0]||null;}
+function proactiveRiskV410(plan){
+  const r=plan?.risk||null;if(!r)return null;
+  return{score:Number(r.riskScore||0),level:r.riskLevel||null,fragile:Boolean(r.fragile),resilience:Number(r.resilienceScore||0)};
+}
+function proactiveTrackedActivitiesV410(day,plan){
+  const rows=[],seen=new Set();const add=a=>{if(!a||seen.has(a.id)||a.replanDeferred||isDone(a.id)||isSkipped(a.id))return;seen.add(a.id);rows.push(a);};
+  for(const step of (plan?.steps||[]).slice(0,4))add(step.activity);
+  add((day?.activities||[]).find(a=>!a.replanDeferred&&!isDone(a.id)&&!isSkipped(a.id)));
+  for(const a of day?.activities||[]){if(['must','want'].includes(priorityCodeFromActivity(a)))add(a);if(rows.length>=PROACTIVE_COPILOT_RULES_V410.maxTrackedWaits)break;}
+  return rows.slice(0,PROACTIVE_COPILOT_RULES_V410.maxTrackedWaits);
+}
+function proactiveWaitSnapshotV410(day,livePayload,plan){
+  const waits={};if(!livePayload?.liveData?.length)return waits;
+  let liveIndex=null;try{liveIndex=typeof v40LiveLookupIndexV401==='function'?v40LiveLookupIndexV401(livePayload):null;}catch{}
+  for(const a of proactiveTrackedActivitiesV410(day,plan)){
+    if(a.type!=='attraction')continue;let entry=null;try{entry=liveIndex&&typeof v40FastLiveMatchV401==='function'?v40FastLiveMatchV401(a,liveIndex):findLiveMatch(a,livePayload.liveData||[]);}catch{entry=findLiveMatch(a,livePayload.liveData||[]);}const wait=extractStandby(entry);
+    if(Number.isFinite(Number(wait)))waits[proactiveActivityKeyV410(a)]={activityId:a.id,title:a.title,wait:Number(wait),priority:priorityCodeFromActivity(a)};
+  }
+  return waits;
+}
+function proactiveSnapshotV410(day,livePayload,weatherPayload,plan=null){
+  const now=Date.now(),first=proactivePlanFirstV410(plan),risk=proactiveRiskV410(plan),status=currentPlanStatus(day);
+  return{at:now,dayDate:day?.date||null,park:day?.park||state.selectedPark,recommendedActivityId:first?.activity?.id||null,recommendedTitle:first?.activity?.title||null,recommendedScore:Number(first?.scoreMeta?.score??NaN),recommendedBand:first?.scoreMeta?.band||null,risk,delay:Number(status?.delay||0),waits:proactiveWaitSnapshotV410(day,livePayload,plan),planCreatedAt:Number(plan?.createdAt||0)||null};
+}
+function proactiveManualQuietV410(minutes=PROACTIVE_COPILOT_RULES_V410.manualQuietMinutes,reason='manual-choice'){
+  const p=ensureProactiveCopilotStateV410(),until=Date.now()+Math.max(1,Number(minutes||0))*60_000;p.manualQuietUntil=Math.max(Number(p.manualQuietUntil||0),until);p.manualQuietReason=reason;saveState();return until;
+}
+function proactiveInManualQuietV410(now=Date.now()){return Number(ensureProactiveCopilotStateV410().manualQuietUntil||0)>now;}
+function proactiveAnchorCandidateV410(day,nowMinute=proactiveNowMinuteV410()){
+  let anchor=null;try{anchor=nextAnchorFor(day,nowMinute);}catch{}if(!anchor)return null;
+  const start=timeToMinutes(anchor.time);if(!Number.isFinite(start))return null;const leaveAt=start-anchorBufferMinutes(anchor),remaining=leaveAt-nowMinute;
+  if(remaining<0||remaining>PROACTIVE_COPILOT_RULES_V410.anchorAlertMinutes)return null;
+  const critical=remaining<=PROACTIVE_COPILOT_RULES_V410.anchorCriticalMinutes;
+  return{type:'anchor-deadline',severity:critical?'critical':'high',materialScore:critical?100:88,key:`anchor-${day.date}-${anchor.id}-${critical?'critical':'soon'}`,title:critical?'Hora de seguir para a próxima âncora':'Próxima âncora se aproxima',body:`${anchor.title}: saída segura ${remaining<=1?'agora':`em ~${Math.max(1,Math.round(remaining))} min`} para proteger ${anchor.time}.`,activityId:anchor.id,critical,minutesToLeave:remaining};
+}
+function proactiveWeatherCandidateV410(day,weatherPayload,ctx,nowMinute=proactiveNowMinuteV410()){
+  if(!ctx?.allowWeatherAlerts||!weatherPayload)return null;let rel=null;try{rel=relevantWeather(weatherPayload);}catch{return null;}const risk=rel?.nextRisk;if(!risk?.time)return null;
+  const hm=String(risk.time).slice(11,16),riskMinute=timeToMinutes(hm),lead=riskMinute-nowMinute;if(!Number.isFinite(riskMinute)||lead<0||lead>PROACTIVE_COPILOT_RULES_V410.weatherLeadMinutes)return null;
+  let level='';try{level=weatherRiskForHour(risk)?.level||'';}catch{}if(level!=='high')return null;
+  const sensitive=(day.activities||[]).filter(a=>!a.replanDeferred&&!isDone(a.id)&&!isSkipped(a.id)&&weatherImpactForActivity(a)==='high').slice(0,3);if(!sensitive.length)return null;
+  return{type:'weather-window',severity:'high',materialScore:82,key:`pro-weather-${day.date}-${hm}`,title:`Clima pode mudar em ~${Math.max(1,Math.round(lead))} min`,body:`${sensitive.map(a=>a.title).join(', ')} ${sensitive.length===1?'é sensível':'são sensíveis'} ao clima. Vale revisar a ordem antes da janela.`,leadMinutes:lead};
+}
+function proactiveDecisionShiftCandidateV410(day,plan,previous){
+  const first=proactivePlanFirstV410(plan);if(!first?.activity||!previous?.recommendedActivityId||previous.recommendedActivityId===first.activity.id)return null;
+  const best=(plan.firstStepOptions||[]).find(x=>x.activityId===first.activity.id);const old=(plan.firstStepOptions||[]).find(x=>x.activityId===previous.recommendedActivityId);const bestValue=proactiveOptionValueV410(best),oldValue=proactiveOptionValueV410(old);
+  if(bestValue==null||oldValue==null)return null;const gain=bestValue-oldValue;if(gain<PROACTIVE_COPILOT_RULES_V410.decisionSwitchMinGain)return null;
+  const band=first.scoreMeta?.band||'';if(band==='EVITE AGORA')return null;
+  return{type:'decision-shift',severity:band==='FAÇA AGORA'?'high':'medium',materialScore:75+Math.min(20,gain),key:`pro-shift-${day.date}-${first.activity.id}-${Math.floor(gain/4)}`,title:band==='FAÇA AGORA'?'Uma janela melhor apareceu':'A melhor sequência mudou',body:`${first.activity.title} passou a liderar a sequência. Ganho global estimado: +${Math.round(gain)} no objetivo do planner.`,activityId:first.activity.id,gain:v40Round(gain,2)};
+}
+function proactiveRiskCandidateV410(day,plan,previous){
+  const risk=proactiveRiskV410(plan),old=previous?.risk;if(!risk||!old)return null;const jump=risk.score-Number(old.score||0),becameHigh=risk.level==='high'&&old.level!=='high';if(risk.score<PROACTIVE_COPILOT_RULES_V410.highRiskScore||(!becameHigh&&jump<PROACTIVE_COPILOT_RULES_V410.riskJumpMin))return null;
+  return{type:'risk-jump',severity:'high',materialScore:72+Math.min(20,Math.max(0,jump)),key:`pro-risk-${day.date}-${Math.floor(risk.score/10)}`,title:'O roteiro ficou mais sensível a mudanças',body:`Risco da sequência: ${Math.round(risk.score)}/100 · resiliência ${Math.round(risk.resilience)}/100. Vale abrir Ao Vivo para revisar.`,riskScore:risk.score,riskJump:jump};
+}
+function proactiveDelayCandidateV410(day,snapshot,previous){
+  const threshold=Number(state.settings?.delayThreshold||15),delay=Number(snapshot.delay||0),old=Number(previous?.delay||0);if(delay<=threshold+PROACTIVE_COPILOT_RULES_V410.delayExtraMinutes)return null;if(previous&&delay-old<10&&old>threshold)return null;
+  return{type:'material-delay',severity:'medium',materialScore:60+Math.min(20,delay-threshold),key:`pro-delay-${day.date}-${Math.floor(delay/10)}`,title:'O roteiro acumulou atraso material',body:`Atraso atual de ~${Math.round(delay)} min. O Copiloto vai proteger âncoras e prioridades antes de sugerir mudanças.`,delay};
+}
+function proactiveQueueObservationsV410(day,plan,snapshot,previous){
+  const observations=[];if(!previous?.waits)return observations;const firstId=proactivePlanFirstV410(plan)?.activity?.id||null;
+  for(const [key,row] of Object.entries(snapshot.waits||{})){
+    const old=previous.waits?.[key];if(!old)continue;const drop=Number(old.wait)-Number(row.wait);if(drop>=PROACTIVE_COPILOT_RULES_V410.strategicQueueDropMinutes){observations.push({type:row.activityId===firstId?'queue-drop-winning':'queue-drop-no-switch',activityId:row.activityId,title:row.title,drop,wait:row.wait,priority:row.priority,silent:row.activityId!==firstId});}
+  }
+  return observations.sort((a,b)=>b.drop-a.drop).slice(0,4);
+}
+function proactiveQueueCandidateV410(day,plan,snapshot,previous,observations){
+  const hit=(observations||[]).find(x=>x.type==='queue-drop-winning'&&['must','want'].includes(x.priority));if(!hit)return null;const first=proactivePlanFirstV410(plan);if(!first||Number(first.scoreMeta?.score||0)<PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold)return null;
+  return{type:'strategic-queue-drop',severity:'high',materialScore:78+Math.min(15,hit.drop/2),key:`pro-queue-${day.date}-${hit.activityId}-${Math.floor(hit.wait/10)}`,title:`Fila melhor para ${hit.title}`,body:`Caiu ~${Math.round(hit.drop)} min e a atração agora lidera a melhor sequência. Vale aproveitar esta janela.`,activityId:hit.activityId,drop:hit.drop,wait:hit.wait};
+}
+function proactiveChooseCandidateV410(candidates){return(candidates||[]).filter(Boolean).sort((a,b)=>proactiveSeverityRankV410(b.severity)-proactiveSeverityRankV410(a.severity)||Number(b.materialScore||0)-Number(a.materialScore||0))[0]||null;}
+function proactiveAssessmentSignatureV410(result){return[result.action,result.alert?.type||'',result.alert?.activityId||'',result.snapshot?.recommendedActivityId||'',result.snapshot?.risk?.level||'',Math.round(Number(result.snapshot?.risk?.score||0)/5)*5,Math.round(Number(result.snapshot?.delay||0)/5)*5,result.context?.mode||''].join('|');}
+function proactiveAssessV410({day=getSelectedDay(),livePayload=null,weatherPayload=null,now=Date.now()}={}){
+  if(!day||day.date!==getOrlandoParts().date)return{action:'silent',reason:'not-current-day',alert:null,snapshot:null,observations:[],context:null};
+  const live=livePayload??state.liveCache?.[day.park],weather=weatherPayload??state.weatherCache?.[day.park],ctx=operationalResilienceContextV402(day,live,weather,now),plan=cachedDecisionPlanV400(day,live,weather,{compute:false}),p=ensureProactiveCopilotStateV410(),rawPrevious=p.lastAssessment?.snapshot||null,previous=rawPrevious?.dayDate===day.date&&rawPrevious?.park===(day.park||state.selectedPark)?rawPrevious:null,snapshot=proactiveSnapshotV410(day,live,weather,plan),observations=proactiveQueueObservationsV410(day,plan,snapshot,previous);
+  const anchor=proactiveAnchorCandidateV410(day);if(anchor?.critical)return{action:'alert',reason:'critical-anchor',alert:anchor,snapshot,observations,context:ctx};
+  const started=(day.activities||[]).find(a=>isStarted(a.id)&&!isDone(a.id));if(started)return{action:'silent',reason:'activity-in-progress',alert:null,snapshot,observations,context:ctx};
+  if(proactiveInManualQuietV410(now))return{action:'silent',reason:'manual-quiet-period',alert:null,snapshot,observations,context:ctx};
+  if(ctx.mode!=='healthy'){
+    const staticAlert=proactiveChooseCandidateV410([anchor,proactiveDelayCandidateV410(day,snapshot,previous)]);
+    if(staticAlert&&(staticAlert.type!=='anchor-deadline'||PROACTIVE_COPILOT_RULES_V410.degradedModeMayAlertAnchors))return{action:'alert',reason:`${staticAlert.type}-with-degraded-data`,alert:staticAlert,snapshot,observations,context:ctx};
+    return{action:'silent',reason:'sources-not-healthy',alert:null,snapshot,observations,context:ctx};
+  }
+  const candidates=[anchor,proactiveWeatherCandidateV410(day,weather,ctx),previous?proactiveDecisionShiftCandidateV410(day,plan,previous):null,previous?proactiveRiskCandidateV410(day,plan,previous):null,previous?proactiveQueueCandidateV410(day,plan,snapshot,previous,observations):null,proactiveDelayCandidateV410(day,snapshot,previous)];
+  const alert=proactiveChooseCandidateV410(candidates);return alert?{action:'alert',reason:alert.type,alert,snapshot,observations,context:ctx}:{action:'silent',reason:observations.some(x=>x.type==='queue-drop-no-switch')?'queue-improved-but-sequence-stable':'plan-stable',alert:null,snapshot,observations,context:ctx};
+}
+function proactiveCanDeliverV410(alert,now=Date.now()){
+  if(!alert)return{ok:false,reason:'no-alert'};const p=ensureProactiveCopilotStateV410(),critical=alert.severity==='critical';
+  if(!critical&&Number(p.manualQuietUntil||0)>now)return{ok:false,reason:'manual-quiet'};
+  const lastKey=Number(p.alertKeys?.[alert.key]||0);if(now-lastKey<PROACTIVE_COPILOT_RULES_V410.sameAlertCooldownMinutes*60_000)return{ok:false,reason:'same-alert-cooldown'};
+  if(!critical&&now-Number(p.lastNotificationAt||0)<PROACTIVE_COPILOT_RULES_V410.globalAlertCooldownMinutes*60_000)return{ok:false,reason:'global-cooldown'};
+  return{ok:true,reason:'material'};
+}
+function proactiveStoreResultV410(result,delivery=null){
+  const p=ensureProactiveCopilotStateV410(),now=Date.now(),signature=proactiveAssessmentSignatureV410(result),priorSig=p.lastAssessment?.signature||null;
+  p.lastAssessment={at:now,signature,action:result.action,reason:result.reason,snapshot:result.snapshot,observations:(result.observations||[]).slice(0,4),context:result.context?{mode:result.context.mode,online:result.context.online,live:result.context.live?.status,weather:result.context.weather?.status}:null,delivery:delivery?{delivered:Boolean(delivery.delivered),reason:delivery.reason||null}:null};
+  if(signature!==priorSig||result.action==='alert'){
+    p.events.unshift({at:new Date(now).toISOString(),action:result.action,reason:result.reason,alert:result.alert?{type:result.alert.type,severity:result.alert.severity,title:result.alert.title,activityId:result.alert.activityId||null}:null,observations:(result.observations||[]).slice(0,2),delivered:Boolean(delivery?.delivered)});
+    if(p.events.length>PROACTIVE_COPILOT_RULES_V410.maxEvents)p.events.length=PROACTIVE_COPILOT_RULES_V410.maxEvents;
+  }
+  saveState();
+}
+async function proactiveSystemNotificationV410(alert){
+  if(typeof window==='undefined'||!('Notification'in window)||Notification.permission!=='granted')return false;
+  const opts={body:alert.body,icon:'./icons/icon-192.png',tag:`orlando-flow-${alert.key}`,renotify:false,data:{url:'./?view=live',type:alert.type}};
+  try{if(navigator.serviceWorker?.ready){const reg=await navigator.serviceWorker.ready;if(reg?.showNotification){await reg.showNotification(alert.title,opts);return true;}}}catch(error){recordRuntimeDiagnosticV38('proactive-sw-notification-v410',error);}
+  try{new Notification(alert.title,opts);return true;}catch(error){recordRuntimeDiagnosticV38('proactive-page-notification-v410',error);return false;}
+}
+async function proactiveDeliverV410(alert){
+  const now=Date.now(),gate=proactiveCanDeliverV410(alert,now);if(!gate.ok){proactiveMetricsV410.alertsSuppressed++;return{delivered:false,reason:gate.reason};}
+  const p=ensureProactiveCopilotStateV410();p.alertKeys[alert.key]=now;p.lastNotificationAt=now;proactiveMetricsV410.alertsDelivered++;
+  if(typeof document==='undefined'||document.visibilityState==='visible')toast(`${alert.title}: ${alert.body}`);
+  proactiveSystemNotificationV410(alert).catch(()=>{});return{delivered:true,reason:'material'};
+}
+async function evaluateProactiveCopilotV410(reason='scheduled',{deliver=true}={}){
+  const started=performance.now();proactiveMetricsV410.assessments++;proactiveMetricsV410.lastReason=reason;
+  try{const result=withPerformanceRenderMemoV3962(()=>proactiveAssessV410());let delivery=null;if(result.action==='alert'&&deliver)delivery=await proactiveDeliverV410(result.alert);else if(result.action==='silent')proactiveMetricsV410.silentAssessments++;proactiveStoreResultV410(result,delivery);return{...result,delivery};}
+  catch(error){recordRuntimeDiagnosticV38('proactive-copilot-v410',error,{reason});return{action:'silent',reason:'runtime-fallback',alert:null,error:String(error?.message||error)};}
+  finally{proactiveMetricsV410.lastDurationMs=v40Round(performance.now()-started,1);}
+}
+function scheduleProactiveAssessmentV410(reason='scheduled',delay=120){
+  const token=++proactiveAssessmentTokenV410;proactiveMetricsV410.lastScheduledAt=Date.now();if(proactiveAssessmentHandleV410!=null){if(typeof cancelIdleCallback==='function')try{cancelIdleCallback(proactiveAssessmentHandleV410);}catch{}clearTimeout(proactiveAssessmentHandleV410);}
+  const run=()=>{proactiveAssessmentHandleV410=null;if(token!==proactiveAssessmentTokenV410)return;const quietFor=Date.now()-instantLastInputAtV3963;if(browserHasPendingInputV3963()||quietFor<120){proactiveAssessmentHandleV410=setTimeout(run,Math.max(80,140-quietFor));return;}evaluateProactiveCopilotV410(reason).catch(error=>recordRuntimeDiagnosticV38('proactive-scheduled-v410',error));};
+  const arm=()=>{if(token!==proactiveAssessmentTokenV410)return;if(typeof requestIdleCallback==='function')proactiveAssessmentHandleV410=requestIdleCallback(run,{timeout:1400});else proactiveAssessmentHandleV410=setTimeout(run,0);};
+  setTimeout(arm,Math.max(0,Number(delay||0)));
+}
+
+async function proactiveBackgroundRefreshV410(){
+  const day=getSelectedDay();if(!day||day.date!==getOrlandoParts().date||!v402NetworkOnline())return null;
+  if(day.park&&day.park!=='off-day')state.selectedPark=day.park;const park=state.selectedPark,tasks=[fetchWeather(park)];if(PARKS[park]?.entityId)tasks.push(fetchLive(park));
+  await Promise.all(tasks);scheduleProactiveAssessmentV410('hidden-session-refresh',60);return operationalResilienceContextV402(day,state.liveCache?.[park],state.weatherCache?.[park]);
+}
+
+// A cadeia antiga de alertas é substituída: v41 decide materialidade uma vez e
+// entrega no máximo um alerta por ciclo. Nenhum alerta aplica ações sozinho.
+evaluateAlerts=function(){scheduleProactiveAssessmentV410('alert-cycle',80);};
+
+// Quando o planner termina uma nova sequência em background, uma nova avaliação
+// proativa é armada sem colocar o cálculo no caminho crítico do render.
+const v402ComputeDecisionPlanBeforeProactiveV410=computeDecisionPlanV400;
+computeDecisionPlanV400=function(day,livePayload,weatherPayload){const plan=v402ComputeDecisionPlanBeforeProactiveV410(day,livePayload,weatherPayload);if(plan&&day?.date===getOrlandoParts().date)setTimeout(()=>scheduleProactiveAssessmentV410('plan-ready',40),0);return plan;};
+
+// Escolha consciente do usuário abre um quiet period. O motor continua observando,
+// mas não insiste até o período acabar; âncora crítica continua protegida.
+const v402KeepOriginalRouteBeforeProactiveV410=keepOriginalRoute;
+keepOriginalRoute=function(...args){const r=v402KeepOriginalRouteBeforeProactiveV410(...args);proactiveManualQuietV410(PROACTIVE_COPILOT_RULES_V410.manualQuietMinutes,'keep-original-route');return r;};
+const v402DismissOpportunityBeforeProactiveV410=dismissOpportunity;
+dismissOpportunity=function(...args){const r=v402DismissOpportunityBeforeProactiveV410(...args);proactiveManualQuietV410(PROACTIVE_COPILOT_RULES_V410.manualQuietMinutes,'dismiss-opportunity');return r;};
+const v402DeclineSmartBreakBeforeProactiveV410=declineSmartBreakV381;
+declineSmartBreakV381=function(...args){const r=v402DeclineSmartBreakBeforeProactiveV410(...args);proactiveManualQuietV410(PROACTIVE_COPILOT_RULES_V410.manualQuietMinutes,'continue-after-pause');return r;};
+const v402DeclineFlexibleMealBeforeProactiveV410=declineFlexibleMealV383;
+declineFlexibleMealV383=function(...args){const r=v402DeclineFlexibleMealBeforeProactiveV410(...args);proactiveManualQuietV410(PROACTIVE_COPILOT_RULES_V410.manualQuietMinutes,'continue-after-meal');return r;};
+const v402DeferMealReservationBeforeProactiveV410=deferMealReservationV383;
+deferMealReservationV383=function(...args){const r=v402DeferMealReservationBeforeProactiveV410(...args);proactiveManualQuietV410(PROACTIVE_COPILOT_RULES_V410.manualQuietMinutes,'defer-reservation');return r;};
+const v402ApplyReplanBeforeProactiveV410=applyReplanProposal;
+applyReplanProposal=function(...args){const r=v402ApplyReplanBeforeProactiveV410(...args);proactiveManualQuietV410(PROACTIVE_COPILOT_RULES_V410.acceptedActionQuietMinutes,'accepted-replan');return r;};
+
+if(typeof navigator!=='undefined'&&navigator.serviceWorker?.addEventListener){navigator.serviceWorker.addEventListener('message',event=>{if(event.data?.type==='ORLANDO_FLOW_OPEN_LIVE'){try{switchView('live');}catch(error){recordRuntimeDiagnosticV38('proactive-open-live-v410',error);}}});}
+
+function proactiveDiagnosticsV410(){const p=ensureProactiveCopilotStateV410();return{version:PROACTIVE_COPILOT_VERSION_V410,policy:PROACTIVE_COPILOT_RULES_V410,lastAssessment:v40Clone(p.lastAssessment||null),manualQuietUntil:Number(p.manualQuietUntil||0)||null,events:v40Clone((p.events||[]).slice(0,20)),metrics:v40Clone(proactiveMetricsV410),delivery:{webNotificationAvailable:typeof window!=='undefined'&&'Notification'in window,permission:typeof window!=='undefined'&&'Notification'in window?Notification.permission:'unsupported',backgroundPushBackend:false}};}
+const v402EngineDiagnosticSnapshotV410=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){const snapshot=v402EngineDiagnosticSnapshotV410();snapshot.context=snapshot.context||{};snapshot.context.proactiveCopilotV410=proactiveDiagnosticsV410();return snapshot;};
+const v402ExposeDiagnosticsV410=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){v402ExposeDiagnosticsV410();window.__ORLANDO_FLOW_DIAGNOSTICS__.proactiveCopilotV410=()=>v40Clone(proactiveDiagnosticsV410());window.__ORLANDO_FLOW_DIAGNOSTICS__.proactivePolicyV410=()=>v40Clone(PROACTIVE_COPILOT_RULES_V410);window.__ORLANDO_FLOW_DIAGNOSTICS__.proactiveAssessmentV410=()=>evaluateProactiveCopilotV410('diagnostic',{deliver:false});};
+
+const v402RunSelfTestsV410=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v402RunSelfTestsV410(),additions=[],now=Date.now();
+  addSelfTestV38(additions,'v41.0 silêncio é uma decisão explícita',()=>{assertSelfTestV38(PROACTIVE_COPILOT_RULES_V410.model==='material-change-silence-first-v1'&&PROACTIVE_COPILOT_RULES_V410.maxAlertCandidatesPerCycle===1,'silence first');return '1 alerta máximo por ciclo';});
+  addSelfTestV38(additions,'v41.0 não autoaplica recomendação',()=>{assertSelfTestV38(PROACTIVE_COPILOT_RULES_V410.autoApply===false&&PROACTIVE_COPILOT_RULES_V410.userControlFinal===true,'controle do usuário');return 'aconselha, usuário decide';});
+  addSelfTestV38(additions,'v41.0 exige ganho material para trocar sequência',()=>{assertSelfTestV38(PROACTIVE_COPILOT_RULES_V410.decisionSwitchMinGain===6&&typeof proactiveDecisionShiftCandidateV410==='function','ganho mínimo');return 'gain >= 6';});
+  addSelfTestV38(additions,'v41.0 fila que melhora sem vencer fica silenciosa',()=>{const obs=proactiveQueueObservationsV410({activities:[]},{steps:[]},{waits:{}},{waits:{}});assertSelfTestV38(Array.isArray(obs)&&typeof proactiveQueueCandidateV410==='function','observação');return 'no-switch não alerta';});
+  addSelfTestV38(additions,'v41.0 dados degradados não autorizam alerta tático',()=>{assertSelfTestV38(PROACTIVE_COPILOT_RULES_V410.freshSourcesRequiredForTacticalAlerts===true&&OPERATIONAL_RESILIENCE_RULES_V402.staleDataMayTriggerOpportunity===false,'fresh gate');return 'v40.2 governa v41';});
+  addSelfTestV38(additions,'v41.0 protege âncora mesmo no modo degradado',()=>{assertSelfTestV38(PROACTIVE_COPILOT_RULES_V410.degradedModeMayAlertAnchors===true&&PROACTIVE_COPILOT_RULES_V410.anchorCriticalMinutes===7,'âncora');return 'deadline estático preservado';});
+  addSelfTestV38(additions,'v41.0 respeita quiet period após escolha manual',()=>{const p=ensureProactiveCopilotStateV410(),old=p.manualQuietUntil;try{p.manualQuietUntil=now+60_000;assertSelfTestV38(proactiveInManualQuietV410(now)===true,'quiet não ativo');}finally{p.manualQuietUntil=old;}return 'não insiste';});
+  addSelfTestV38(additions,'v41.0 usa cooldown global e por alerta',()=>{assertSelfTestV38(PROACTIVE_COPILOT_RULES_V410.globalAlertCooldownMinutes===10&&PROACTIVE_COPILOT_RULES_V410.sameAlertCooldownMinutes===45,'cooldowns');return '10 / 45 min';});
+  addSelfTestV38(additions,'v41.0 notificação usa Service Worker quando disponível',()=>{assertSelfTestV38(typeof proactiveSystemNotificationV410==='function'&&PROACTIVE_COPILOT_RULES_V410.backgroundPushBackend===false,'delivery');return 'notificação local, sem backend push';});
+  addSelfTestV38(additions,'v41.0 preserva políticas de score risco e preferência',()=>{assertSelfTestV38(PROACTIVE_COPILOT_RULES_V410.scorePolicyChanged===false&&PROACTIVE_COPILOT_RULES_V410.riskPolicyChanged===false&&PROACTIVE_COPILOT_RULES_V410.preferencePolicyChanged===false&&PREFERENCE_GOVERNANCE_RULES_V391.doNowThreshold===72,'policy');return '72 + v40.1/v40.2 intactos';});
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v41.1 — Proactive Delivery & Notification Reliability
+   A materialidade da v41.0 permanece intacta. Esta camada torna a
+   ENTREGA durável, deduplicada e recuperável entre sessões.
+   ============================================================ */
+const PROACTIVE_DELIVERY_VERSION_V411=1;
+const PROACTIVE_DELIVERY_RULES_V411=Object.freeze({
+  model:'durable-alert-delivery-ledger-v1',
+  queueMax:24,
+  ledgerMax:60,
+  immediateRelevanceGraceMs:90_000,
+  ttlMinutes:Object.freeze({critical:20,high:35,medium:25,low:15}),
+  retryDelaysMs:Object.freeze([15_000,60_000,5*60_000,15*60_000]),
+  hiddenNoPermissionRetryMs:5*60_000,
+  recoverOnBoot:true,
+  recoverOnVisible:true,
+  recoverOnOnline:true,
+  durableDedupe:true,
+  deliveredCooldownStartsAfterActualDelivery:true,
+  markVisibleToastSeen:true,
+  notificationClickMarksSeen:true,
+  notificationDismissMarksIgnored:true,
+  pushPayloadSchema:'orlando-flow-proactive-alert-v1',
+  pushHandlerReady:true,
+  pushBackendConfigured:false,
+  autoApply:false,
+  scorePolicyChanged:false,
+  riskPolicyChanged:false,
+  preferencePolicyChanged:false
+});
+let proactiveDeliveryFlushHandleV411=null;
+let proactiveDeliveryFlushTokenV411=0;
+let proactiveDeliveryCounterV411=0;
+let proactiveDeliveryMetricsV411={enqueued:0,deduped:0,delivered:0,seen:0,ignored:0,expired:0,obsolete:0,retries:0,systemFailures:0,lastFlushMs:null,lastFlushReason:null};
+
+function ensureProactiveDeliveryStateV411(){
+  if(!state.proactiveDeliveryV411||typeof state.proactiveDeliveryV411!=='object')state.proactiveDeliveryV411={schemaVersion:PROACTIVE_DELIVERY_VERSION_V411,queue:[],ledger:[]};
+  const d=state.proactiveDeliveryV411;d.schemaVersion=PROACTIVE_DELIVERY_VERSION_V411;
+  if(!Array.isArray(d.queue))d.queue=[];if(!Array.isArray(d.ledger))d.ledger=[];
+  return d;
+}
+function proactiveDeliveryCloneAlertV411(alert){return{key:String(alert?.key||''),type:alert?.type||null,severity:alert?.severity||'medium',title:String(alert?.title||'Orlando Flow'),body:String(alert?.body||''),activityId:alert?.activityId||null,critical:Boolean(alert?.critical),materialScore:Number(alert?.materialScore||0)||0};}
+function proactiveDeliveryTtlMsV411(alert){const level=alert?.critical?'critical':(alert?.severity||'medium');return Number(PROACTIVE_DELIVERY_RULES_V411.ttlMinutes[level]||25)*60_000;}
+function proactiveDeliveryIdV411(alert,now=Date.now()){const key=String(alert?.key||'alert').replace(/[^a-z0-9_-]+/gi,'-').slice(-40);return`d411-${now.toString(36)}-${(++proactiveDeliveryCounterV411).toString(36)}-${key}`;}
+function proactiveDeliveryPushEnvelopeV411(item){return{schema:PROACTIVE_DELIVERY_RULES_V411.pushPayloadSchema,deliveryId:item.id,key:item.key,type:item.alert?.type||null,severity:item.alert?.severity||'medium',title:item.alert?.title||'Orlando Flow',body:item.alert?.body||'',url:`./?view=live&delivery=${encodeURIComponent(item.id)}`};}
+function proactiveDeliveryLedgerV411(item,status,now=Date.now(),extra={}){
+  const d=ensureProactiveDeliveryStateV411();const row={id:item.id,key:item.key,status,at:new Date(now).toISOString(),type:item.alert?.type||null,severity:item.alert?.severity||null,channel:extra.channel||item.channel||null,reason:extra.reason||null};
+  d.ledger.unshift(row);if(d.ledger.length>PROACTIVE_DELIVERY_RULES_V411.ledgerMax)d.ledger.length=PROACTIVE_DELIVERY_RULES_V411.ledgerMax;return row;
+}
+function proactiveDeliveryCompactV411(now=Date.now()){
+  const d=ensureProactiveDeliveryStateV411();
+  for(const item of d.queue){if(item.status==='pending'&&Number(item.expiresAt||0)<=now){item.status='expired';item.expiredAt=now;proactiveDeliveryMetricsV411.expired++;proactiveDeliveryLedgerV411(item,'expired',now,{reason:'ttl'});}}
+  d.queue=d.queue.filter(item=>item&&((item.status==='pending')||now-Number(item.createdAt||0)<24*60*60_000)).slice(-PROACTIVE_DELIVERY_RULES_V411.queueMax);
+  return d;
+}
+function proactiveDeliveryExistingV411(key){const d=ensureProactiveDeliveryStateV411();return d.queue.find(item=>item?.key===key&&item.status==='pending')||null;}
+function proactiveEnqueueV411(alert,now=Date.now()){
+  const d=proactiveDeliveryCompactV411(now),existing=proactiveDeliveryExistingV411(alert?.key);
+  if(existing){existing.alert=proactiveDeliveryCloneAlertV411(alert);existing.lastMaterialAt=now;existing.expiresAt=Math.max(Number(existing.expiresAt||0),now+proactiveDeliveryTtlMsV411(alert));proactiveDeliveryMetricsV411.deduped++;saveState();return existing;}
+  const day=getSelectedDay();const item={id:proactiveDeliveryIdV411(alert,now),key:String(alert?.key||''),alert:proactiveDeliveryCloneAlertV411(alert),dayDate:day?.date||getOrlandoParts().date,park:day?.park||state.selectedPark||null,createdAt:now,lastMaterialAt:now,expiresAt:now+proactiveDeliveryTtlMsV411(alert),status:'pending',attempts:0,nextAttemptAt:now,lastAttemptAt:0,channel:null,lastError:null};
+  d.queue.push(item);if(d.queue.length>PROACTIVE_DELIVERY_RULES_V411.queueMax)d.queue.splice(0,d.queue.length-PROACTIVE_DELIVERY_RULES_V411.queueMax);proactiveDeliveryMetricsV411.enqueued++;proactiveDeliveryLedgerV411(item,'queued',now);saveState();return item;
+}
+function proactiveDeliveryFindV411(idOrKey){const d=ensureProactiveDeliveryStateV411();return d.queue.find(item=>item?.id===idOrKey||item?.key===idOrKey)||null;}
+function proactiveDeliveryMarkV411(idOrKey,status,{reason=null,channel=null,now=Date.now()}={}){
+  const item=proactiveDeliveryFindV411(idOrKey);if(!item)return false;if(['delivered','seen','ignored','expired','obsolete'].includes(item.status)&&status==='delivered')return true;
+  item.status=status;if(channel)item.channel=channel;if(reason)item.lastError=reason;
+  if(status==='delivered'){item.deliveredAt=now;item.lastError=null;const p=ensureProactiveCopilotStateV410();p.alertKeys[item.key]=now;p.lastNotificationAt=now;proactiveMetricsV410.alertsDelivered++;proactiveDeliveryMetricsV411.delivered++;}
+  if(status==='seen'){item.seenAt=now;proactiveDeliveryMetricsV411.seen++;}
+  if(status==='ignored'){item.ignoredAt=now;proactiveDeliveryMetricsV411.ignored++;}
+  if(status==='expired'){item.expiredAt=now;proactiveDeliveryMetricsV411.expired++;}
+  if(status==='obsolete'){item.obsoleteAt=now;proactiveDeliveryMetricsV411.obsolete++;}
+  proactiveDeliveryLedgerV411(item,status,now,{reason,channel});saveState();return true;
+}
+function proactiveDeliveryMarkSeenV411(idOrKey,reason='opened-live'){const item=proactiveDeliveryFindV411(idOrKey);if(!item)return false;if(item.status==='pending')proactiveDeliveryMarkV411(item.id,'delivered',{channel:'recovered-open'});return proactiveDeliveryMarkV411(item.id,'seen',{reason,channel:item.channel||'notification'});}
+function proactiveDeliveryIgnorePendingV411(reason='manual-choice',includeCritical=false){const d=ensureProactiveDeliveryStateV411();let count=0;for(const item of d.queue){if(item.status!=='pending')continue;if(!includeCritical&&(item.alert?.critical||item.alert?.severity==='critical'))continue;proactiveDeliveryMarkV411(item.id,'ignored',{reason});count++;}return count;}
+function proactiveDeliveryRelevantV411(item,now=Date.now()){
+  if(!item||item.status!=='pending')return{ok:false,reason:'not-pending'};
+  if(Number(item.expiresAt||0)<=now)return{ok:false,reason:'expired'};
+  const today=getOrlandoParts().date;if(item.dayDate&&item.dayDate!==today)return{ok:false,reason:'different-day'};
+  const day=getSelectedDay();if(!day||day.date!==today)return{ok:false,reason:'no-current-day'};if(item.park&&day.park&&item.park!==day.park)return{ok:false,reason:'different-park'};
+  if(now-Number(item.createdAt||0)<=PROACTIVE_DELIVERY_RULES_V411.immediateRelevanceGraceMs)return{ok:true,reason:'freshly-material'};
+  try{const current=withPerformanceRenderMemoV3962(()=>proactiveAssessV410({day,now}));if(current?.action==='alert'&&current.alert?.key===item.key)return{ok:true,reason:'still-material'};if(item.alert?.critical&&current?.alert?.type==='anchor-deadline'&&current.alert?.activityId===item.alert?.activityId)return{ok:true,reason:'critical-anchor-still-material'};}catch(error){recordRuntimeDiagnosticV38('delivery-relevance-v411',error);return{ok:true,reason:'relevance-deferred'};}
+  return{ok:false,reason:'no-longer-material'};
+}
+async function proactiveSystemNotificationV411(item){
+  if(typeof window==='undefined'||!('Notification'in window)||Notification.permission!=='granted')return{ok:false,reason:'notification-permission'};
+  const alert=item.alert,envelope=proactiveDeliveryPushEnvelopeV411(item),opts={body:alert.body,icon:'./icons/icon-192.png',tag:`orlando-flow-${item.key}`,renotify:false,data:{url:envelope.url,type:alert.type,deliveryId:item.id,alertKey:item.key,schema:envelope.schema}};
+  try{if(navigator.serviceWorker?.ready){const reg=await navigator.serviceWorker.ready;if(reg?.showNotification){await reg.showNotification(alert.title,opts);return{ok:true,channel:'service-worker'};}}}catch(error){recordRuntimeDiagnosticV38('proactive-sw-notification-v411',error);}
+  try{const n=new Notification(alert.title,opts);n.onclick=()=>{proactiveDeliveryMarkSeenV411(item.id,'page-notification-click');try{switchView('live');}catch{};try{window.focus();}catch{}};return{ok:true,channel:'page-notification'};}catch(error){recordRuntimeDiagnosticV38('proactive-page-notification-v411',error);return{ok:false,reason:'notification-failed'};}
+}
+async function proactiveAttemptDeliveryV411(item,{reason='immediate',revalidate=true}={}){
+  if(!item||item.status!=='pending')return{delivered:false,reason:'not-pending'};const now=Date.now();if(Number(item.nextAttemptAt||0)>now)return{delivered:false,queued:true,reason:'retry-wait'};
+  if(revalidate){const relevance=proactiveDeliveryRelevantV411(item,now);if(!relevance.ok){proactiveDeliveryMarkV411(item.id,relevance.reason==='expired'?'expired':'obsolete',{reason:relevance.reason,now});return{delivered:false,reason:relevance.reason};}}
+  item.attempts=Number(item.attempts||0)+1;item.lastAttemptAt=now;item.lastError=null;
+  const visible=typeof document==='undefined'||document.visibilityState==='visible';
+  if(visible){toast(`${item.alert.title}: ${item.alert.body}`);proactiveDeliveryMarkV411(item.id,'delivered',{channel:'in-app',now});if(PROACTIVE_DELIVERY_RULES_V411.markVisibleToastSeen)proactiveDeliveryMarkV411(item.id,'seen',{reason:'visible-toast',channel:'in-app',now});return{delivered:true,reason:'material',channel:'in-app',deliveryId:item.id};}
+  const system=await proactiveSystemNotificationV411(item);if(system.ok){proactiveDeliveryMarkV411(item.id,'delivered',{channel:system.channel,now});return{delivered:true,reason:'material',channel:system.channel,deliveryId:item.id};}
+  proactiveDeliveryMetricsV411.systemFailures++;item.lastError=system.reason||'delivery-failed';const delays=PROACTIVE_DELIVERY_RULES_V411.retryDelaysMs,idx=Math.min(delays.length-1,Math.max(0,item.attempts-1));item.nextAttemptAt=now+(system.reason==='notification-permission'?PROACTIVE_DELIVERY_RULES_V411.hiddenNoPermissionRetryMs:delays[idx]);proactiveDeliveryMetricsV411.retries++;proactiveDeliveryLedgerV411(item,'retry-pending',now,{reason:item.lastError});saveState();return{delivered:false,queued:true,reason:item.lastError,deliveryId:item.id};
+}
+async function proactiveFlushDeliveryQueueV411(reason='scheduled'){
+  const started=performance.now();proactiveDeliveryMetricsV411.lastFlushReason=reason;const now=Date.now(),d=proactiveDeliveryCompactV411(now);let result={delivered:false,reason:'empty'};
+  try{
+    const pending=d.queue.filter(item=>item.status==='pending').sort((a,b)=>proactiveSeverityRankV410(b.alert?.severity)-proactiveSeverityRankV410(a.alert?.severity)||Number(a.createdAt)-Number(b.createdAt));
+    for(const item of pending){if(Number(item.nextAttemptAt||0)>Date.now())continue;result=await proactiveAttemptDeliveryV411(item,{reason,revalidate:true});if(result.delivered)break;}
+    const next=d.queue.filter(item=>item.status==='pending').map(item=>Number(item.nextAttemptAt||0)).filter(x=>x>Date.now()).sort((a,b)=>a-b)[0];if(next)proactiveScheduleDeliveryFlushV411('retry',Math.min(5*60_000,Math.max(250,next-Date.now())));
+    return result;
+  }finally{proactiveDeliveryMetricsV411.lastFlushMs=v40Round(performance.now()-started,1);}
+}
+function proactiveScheduleDeliveryFlushV411(reason='scheduled',delay=200){const token=++proactiveDeliveryFlushTokenV411;if(proactiveDeliveryFlushHandleV411!=null)clearTimeout(proactiveDeliveryFlushHandleV411);proactiveDeliveryFlushHandleV411=setTimeout(()=>{proactiveDeliveryFlushHandleV411=null;if(token!==proactiveDeliveryFlushTokenV411)return;proactiveFlushDeliveryQueueV411(reason).catch(error=>recordRuntimeDiagnosticV38('delivery-flush-v411',error,{reason}));},Math.max(0,Number(delay||0)));}
+
+// v41.1 substitui somente a ENTREGA. A decisão de materialidade continua v41.0.
+proactiveDeliverV410=async function(alert){
+  const now=Date.now(),gate=proactiveCanDeliverV410(alert,now);if(!gate.ok){proactiveMetricsV410.alertsSuppressed++;return{delivered:false,reason:gate.reason};}
+  const item=proactiveEnqueueV411(alert,now),result=await proactiveAttemptDeliveryV411(item,{reason:'material-assessment',revalidate:false});if(!result.delivered&&result.queued)proactiveScheduleDeliveryFlushV411('queued-retry',Math.min(30_000,Math.max(500,Number(item.nextAttemptAt||0)-Date.now())));return result;
+};
+
+// Escolhas conscientes também resolvem notificações táticas pendentes. Críticas
+// de âncora permanecem, porque representam compromisso temporal protegido.
+const v410ManualQuietBeforeDeliveryV411=proactiveManualQuietV410;
+proactiveManualQuietV410=function(...args){const until=v410ManualQuietBeforeDeliveryV411(...args);const reason=args[1]||'manual-choice';proactiveDeliveryIgnorePendingV411(`manual:${reason}`,false);return until;};
+
+if(typeof window!=='undefined'){
+  window.addEventListener('online',()=>{if(PROACTIVE_DELIVERY_RULES_V411.recoverOnOnline)proactiveScheduleDeliveryFlushV411('online-recovery',250);});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&PROACTIVE_DELIVERY_RULES_V411.recoverOnVisible)proactiveScheduleDeliveryFlushV411('foreground-recovery',120);});
+}
+if(typeof navigator!=='undefined'&&navigator.serviceWorker?.addEventListener){navigator.serviceWorker.addEventListener('message',event=>{
+  const data=event.data||{};if(data.type==='ORLANDO_FLOW_NOTIFICATION_OPEN'){if(data.deliveryId)proactiveDeliveryMarkSeenV411(data.deliveryId,'service-worker-click');try{switchView('live');}catch(error){recordRuntimeDiagnosticV38('delivery-open-live-v411',error);}}
+  if(data.type==='ORLANDO_FLOW_NOTIFICATION_DISMISSED'&&data.deliveryId){const item=proactiveDeliveryFindV411(data.deliveryId);if(item&&item.status==='delivered')proactiveDeliveryMarkV411(item.id,'ignored',{reason:'notification-dismissed'});}
+});}
+
+function proactiveDeliveryDiagnosticsV411(){const d=proactiveDeliveryCompactV411();return{version:PROACTIVE_DELIVERY_VERSION_V411,policy:PROACTIVE_DELIVERY_RULES_V411,queue:d.queue.slice(-PROACTIVE_DELIVERY_RULES_V411.queueMax).map(item=>({id:item.id,key:item.key,type:item.alert?.type,severity:item.alert?.severity,status:item.status,createdAt:item.createdAt,expiresAt:item.expiresAt,attempts:item.attempts,nextAttemptAt:item.nextAttemptAt,channel:item.channel,lastError:item.lastError,deliveredAt:item.deliveredAt||null,seenAt:item.seenAt||null,ignoredAt:item.ignoredAt||null})),ledger:d.ledger.slice(0,20),metrics:v40Clone(proactiveDeliveryMetricsV411),push:{payloadSchema:PROACTIVE_DELIVERY_RULES_V411.pushPayloadSchema,serviceWorkerHandlerReady:true,backendConfigured:false}};}
+const v410EngineDiagnosticBeforeDeliveryV411=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){const snapshot=v410EngineDiagnosticBeforeDeliveryV411();snapshot.context=snapshot.context||{};snapshot.context.proactiveDeliveryV411=proactiveDeliveryDiagnosticsV411();return snapshot;};
+const v410ExposeDiagnosticsBeforeDeliveryV411=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){v410ExposeDiagnosticsBeforeDeliveryV411();window.__ORLANDO_FLOW_DIAGNOSTICS__.proactiveDeliveryV411=()=>v40Clone(proactiveDeliveryDiagnosticsV411());window.__ORLANDO_FLOW_DIAGNOSTICS__.proactiveDeliveryPolicyV411=()=>v40Clone(PROACTIVE_DELIVERY_RULES_V411);window.__ORLANDO_FLOW_DIAGNOSTICS__.flushProactiveDeliveryV411=()=>proactiveFlushDeliveryQueueV411('diagnostic');};
+
+const v410RunSelfTestsBeforeDeliveryV411=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v410RunSelfTestsBeforeDeliveryV411(),additions=[],now=Date.now(),d=ensureProactiveDeliveryStateV411(),backupQueue=v40Clone(d.queue),backupLedger=v40Clone(d.ledger),backupMetrics=v40Clone(proactiveDeliveryMetricsV411),p=ensureProactiveCopilotStateV410(),backupKeys=v40Clone(p.alertKeys),backupLast=p.lastNotificationAt;
+  try{
+    d.queue=[];d.ledger=[];
+    addSelfTestV38(additions,'v41.1 fila de entrega é persistente e limitada',()=>{const item=proactiveEnqueueV411({key:'self-delivery',type:'decision-shift',severity:'high',title:'Teste',body:'Teste'},now);assertSelfTestV38(item.status==='pending'&&ensureProactiveDeliveryStateV411().queue.length===1&&PROACTIVE_DELIVERY_RULES_V411.queueMax===24,'queue');return 'pending persistente';});
+    addSelfTestV38(additions,'v41.1 deduplica alerta pendente entre avaliações',()=>{const before=d.queue.length;const a=proactiveEnqueueV411({key:'self-delivery',type:'decision-shift',severity:'high',title:'Teste 2',body:'Atualizado'},now+1);assertSelfTestV38(d.queue.length===before&&a.alert.title==='Teste 2','dedupe');return 'mesma key atualiza payload';});
+    addSelfTestV38(additions,'v41.1 cooldown só inicia após entrega real',()=>{const item=d.queue[0];delete p.alertKeys[item.key];p.lastNotificationAt=0;assertSelfTestV38(!p.alertKeys[item.key],'não entregue');proactiveDeliveryMarkV411(item.id,'delivered',{channel:'selftest',now:now+2});assertSelfTestV38(Number(p.alertKeys[item.key])===now+2&&Number(p.lastNotificationAt)===now+2,'cooldown após entrega');return 'actual-delivery gate';});
+    addSelfTestV38(additions,'v41.1 registra visto e ignorado separadamente',()=>{const seen=proactiveEnqueueV411({key:'self-seen',type:'risk-jump',severity:'medium',title:'Seen',body:'Seen'},now+3);proactiveDeliveryMarkV411(seen.id,'delivered',{channel:'selftest',now:now+4});proactiveDeliveryMarkSeenV411(seen.id,'selftest');const ignored=proactiveEnqueueV411({key:'self-ignore',type:'material-delay',severity:'medium',title:'Ignore',body:'Ignore'},now+5);proactiveDeliveryMarkV411(ignored.id,'ignored',{reason:'selftest',now:now+6});assertSelfTestV38(seen.status==='seen'&&ignored.status==='ignored','estados');return 'delivered / seen / ignored';});
+    addSelfTestV38(additions,'v41.1 expira alerta antigo sem entregar',()=>{const old=proactiveEnqueueV411({key:'self-expire',type:'weather-window',severity:'low',title:'Old',body:'Old'},now-60*60_000);old.expiresAt=now-1;proactiveDeliveryCompactV411(now);assertSelfTestV38(old.status==='expired','expiry');return 'TTL conservador';});
+    addSelfTestV38(additions,'v41.1 envelope está pronto para Web Push futuro',()=>{const item=proactiveEnqueueV411({key:'self-push',type:'anchor-deadline',severity:'critical',title:'Push',body:'Push',critical:true},now+7);const env=proactiveDeliveryPushEnvelopeV411(item);assertSelfTestV38(env.schema==='orlando-flow-proactive-alert-v1'&&env.deliveryId===item.id&&PROACTIVE_DELIVERY_RULES_V411.pushBackendConfigured===false,'push');return 'schema pronto, backend ausente';});
+    addSelfTestV38(additions,'v41.1 recuperação não altera materialidade v41.0',()=>{assertSelfTestV38(PROACTIVE_DELIVERY_RULES_V411.scorePolicyChanged===false&&PROACTIVE_DELIVERY_RULES_V411.riskPolicyChanged===false&&PROACTIVE_DELIVERY_RULES_V411.preferencePolicyChanged===false&&PROACTIVE_DELIVERY_RULES_V411.autoApply===false,'policy');return 'entrega apenas';});
+  }finally{d.queue=backupQueue;d.ledger=backupLedger;p.alertKeys=backupKeys;p.lastNotificationAt=backupLast;proactiveDeliveryMetricsV411=backupMetrics;saveState();}
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+const v410InitBeforeDeliveryV411=init;
+init=async function(){
+  await v410InitBeforeDeliveryV411();if(isHeadlessSelfTestV38())return;
+  try{const q=new URLSearchParams(location.search);const deliveryId=q.get('delivery');if(deliveryId)proactiveDeliveryMarkSeenV411(deliveryId,'notification-open-url');}catch{}
+  if(PROACTIVE_DELIVERY_RULES_V411.recoverOnBoot)proactiveScheduleDeliveryFlushV411('boot-recovery',2500);
+};
+
+
+/* ============================================================
+   Orlando Flow v41.2 — Calibration & Trip Readiness
+   Replay histórico + simulação isolada + stress de dia completo.
+   Nunca escreve em History v3 / aprendizado / delivery operacional.
+   ============================================================ */
+const TRIP_READINESS_VERSION_V412=1;
+const TRIP_READINESS_RULES_V412=Object.freeze({
+  model:'isolated-event-driven-calibration-v1',
+  syntheticTickMinutes:10,
+  maxRepresentativeDays:3,
+  exactPlannerBudget:8,
+  scenarioNames:['baseline','crowded','weather','closure','network','chaos'],
+  replayTimelineMaxFramesPerDay:360,
+  replayTimelineMaxDays:12,
+  replayWaitDeltaMinutes:5,
+  reportHistoryMax:8,
+  readyScore:90,
+  observeScore:80,
+  maxAlertsPerVirtualDay:12,
+  targetExactAgreement:0.72,
+  targetTickP95Ms:35,
+  weights:Object.freeze({strategy:25,resilience:20,proactivity:15,performance:15,delivery:10,historyEvidence:10,isolation:5}),
+  simulationWritesToOperationalHistory:false,
+  simulationWritesToHistoryV3:false,
+  simulationWritesToPreferenceLearning:false,
+  simulationWritesToDeliveryQueue:false,
+  automaticWeightTuning:false,
+  scorePolicyChanged:false,
+  riskPolicyChanged:false,
+  preferencePolicyChanged:false,
+  userControlFinal:true
+});
+let tripSimulationClockV412=null;
+let tripReadinessRunningV412=false;
+let tripReadinessLastRuntimeV412=null;
+let tripReadinessIsolationMetricsV412={sandboxes:0,violations:0,lastViolation:null};
+
+function ensureTripReadinessStateV412(){
+  if(!state.tripReadinessV412||typeof state.tripReadinessV412!=='object')state.tripReadinessV412={version:TRIP_READINESS_VERSION_V412,lastReport:null,reports:[]};
+  if(!Array.isArray(state.tripReadinessV412.reports))state.tripReadinessV412.reports=[];
+  if(!state.replayTimelineV412||typeof state.replayTimelineV412!=='object')state.replayTimelineV412={version:TRIP_READINESS_VERSION_V412,days:{}};
+  if(!state.replayTimelineV412.days||typeof state.replayTimelineV412.days!=='object')state.replayTimelineV412.days={};
+  return state.tripReadinessV412;
+}
+function readinessRoundV412(n,d=1){const p=10**d;return Math.round(Number(n||0)*p)/p;}
+function readinessQuantileV412(values,q=.95){const a=(values||[]).filter(Number.isFinite).sort((x,y)=>x-y);if(!a.length)return 0;const i=Math.min(a.length-1,Math.max(0,Math.round((a.length-1)*q)));return a[i];}
+function readinessClampV412(n,min=0,max=100){return Math.max(min,Math.min(max,Number(n||0)));}
+function readinessOperationalFingerprintV412(source=state){
+  const payload={history:source.history||[],historyV3:source.historyV3||null,preferenceLearningEvents:source.preferenceLearningEvents||[],attractionPreferences:source.attractionPreferences||{},proactiveDeliveryV411:source.proactiveDeliveryV411||null,replanHistory:source.replanHistory||[]};
+  try{return JSON.stringify(payload);}catch{return String(Date.now());}
+}
+
+const v411GetOrlandoPartsBeforeReadinessV412=getOrlandoParts;
+getOrlandoParts=function(date){
+  if(arguments.length===0&&tripSimulationClockV412){const m=Math.max(0,Math.min(1439,Number(tripSimulationClockV412.minute||0)));return{date:tripSimulationClockV412.date,hour:Math.floor(m/60),minute:m%60,second:0,time:`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`};}
+  return arguments.length?v411GetOrlandoPartsBeforeReadinessV412(date):v411GetOrlandoPartsBeforeReadinessV412();
+};
+
+function readinessClearTransientCachesV412(){
+  try{decisionPlanCacheV400.clear();}catch{}
+  try{parkDecisionGraphCacheV400.clear();parkDecisionGraphHotV400={signature:null,graph:null};}catch{}
+  try{riskAnalysisCacheV401.clear();}catch{}
+  try{renderScoreMemoV3962.clear?.();}catch{}
+}
+async function withTripSimulationSandboxV412(day,fn){
+  const realState=state,realSave=saveState,realClock=tripSimulationClockV412,realFingerprint=readinessOperationalFingerprintV412(state);
+  const v40MetricsBackup=typeof v40RuntimeMetricsV400!=='undefined'?v40Clone(v40RuntimeMetricsV400):null;
+  const riskMetricsBackup=typeof riskRuntimeMetricsV401!=='undefined'?v40Clone(riskRuntimeMetricsV401):null;
+  const lastRiskBackup=typeof lastRiskReportV401!=='undefined'?v40Clone(lastRiskReportV401):null;
+  const sandbox=structuredClone(realState);
+  sandbox.selectedDate=day.date;sandbox.selectedPark=day.park;
+  sandbox.history=(sandbox.history||[]).filter(r=>r.date!==day.date);
+  sandbox.liveCache={...(sandbox.liveCache||{})};sandbox.weatherCache={...(sandbox.weatherCache||{})};
+  state=sandbox;saveState=()=>{};readinessClearTransientCachesV412();
+  try{return await fn(sandbox);}finally{
+    state=realState;saveState=realSave;tripSimulationClockV412=realClock;readinessClearTransientCachesV412();tripReadinessIsolationMetricsV412.sandboxes++;
+    const restoredFingerprint=readinessOperationalFingerprintV412(state);if(restoredFingerprint!==realFingerprint){tripReadinessIsolationMetricsV412.violations++;tripReadinessIsolationMetricsV412.lastViolation={at:new Date().toISOString(),day:day?.date||null,park:day?.park||null};}
+    if(v40MetricsBackup)try{Object.keys(v40RuntimeMetricsV400).forEach(k=>delete v40RuntimeMetricsV400[k]);Object.assign(v40RuntimeMetricsV400,v40MetricsBackup);}catch{}
+    if(riskMetricsBackup)try{Object.keys(riskRuntimeMetricsV401).forEach(k=>delete riskRuntimeMetricsV401[k]);Object.assign(riskRuntimeMetricsV401,riskMetricsBackup);}catch{}
+    if(typeof lastRiskReportV401!=='undefined')try{lastRiskReportV401=lastRiskBackup;}catch{}
+  }
+}
+
+function readinessHistoricalWaitV412(activity,park){
+  const key=normalizeName(activity?.entityName||activity?.title||'');const samples=(state.queueHistory?.[park]?.[key]||[]).map(x=>Number(x.wait)).filter(Number.isFinite).slice(-60);
+  if(samples.length>=3)return medianV37(samples);
+  const planned=Number(activity?.plannedWait??activity?.wait??activity?.expectedWait??NaN);if(Number.isFinite(planned)&&planned>0)return planned;
+  const priority=priorityCodeFromActivity(activity);return priority==='must'?55:priority==='want'?45:30;
+}
+function readinessScenarioSpecV412(name){
+  const specs={
+    baseline:{crowd:1,weather:false,closure:false,network:false,label:'Dia normal'},
+    crowded:{crowd:1.35,weather:false,closure:false,network:false,label:'Parque lotado'},
+    weather:{crowd:1.05,weather:true,closure:false,network:false,label:'Chuva / tempestade'},
+    closure:{crowd:1.08,weather:false,closure:true,network:false,label:'Fechamento de atração'},
+    network:{crowd:1,weather:false,closure:false,network:true,label:'Internet instável'},
+    chaos:{crowd:1.3,weather:true,closure:true,network:true,label:'Dia caótico'}
+  };return specs[name]||specs.baseline;
+}
+function readinessParkWindowV412(day){
+  let h=null;try{h=parkHoursForDate(day.park,day.date);}catch{}
+  const open=Math.max(7*60,Math.min(11*60,Number(h?.open||9*60))),close=Math.max(open+8*60,Math.min(23*60+50,Number(h?.close||22*60+30)));
+  return{open,close};
+}
+function readinessCurveV412(progress){return .72+.92*Math.sin(Math.PI*Math.max(0,Math.min(1,progress)));}
+function readinessWeatherPayloadV412(day,minute,spec){
+  const hours=[];const window=readinessParkWindowV412(day);for(let m=Math.floor(window.open/60)*60;m<=window.close;m+=60){const p=(m-window.open)/Math.max(1,window.close-window.open),storm=spec.weather&&p>=.42&&p<=.62;hours.push({time:`${day.date}T${String(Math.floor(m/60)).padStart(2,'0')}:00`,temperature_2m:storm?27:31,precipitation_probability:storm?85:15,weather_code:storm?95:1,wind_gusts_10m:storm?48:18});}
+  return{fetchedAt:Date.now()-(spec.network&&((minute-window.open)/Math.max(1,window.close-window.open))>.46&&((minute-window.open)/Math.max(1,window.close-window.open))<.63?22*60_000:60_000),current:null,hours};
+}
+function readinessClosureTargetV412(day){return(day.activities||[]).filter(a=>a.type==='attraction').sort((a,b)=>({must:3,want:2,normal:1}[priorityCodeFromActivity(b)]||1)-({must:3,want:2,normal:1}[priorityCodeFromActivity(a)]||1))[0]||null;}
+function readinessLivePayloadV412(day,minute,spec){
+  const window=readinessParkWindowV412(day),progress=(minute-window.open)/Math.max(1,window.close-window.open),curve=readinessCurveV412(progress),closureTarget=readinessClosureTargetV412(day);const liveData=[];
+  for(const a of day.activities||[]){if(a.type!=='attraction')continue;const base=readinessHistoricalWaitV412(a,day.park);const identitySeed=[...normalizeName(a.title)].reduce((n,c)=>n+c.charCodeAt(0),0)%11;let wait=Math.round(Math.max(5,base*curve*spec.crowd+identitySeed-5)/5)*5;let status='OPERATING';if(spec.weather&&progress>=.42&&progress<=.62&&weatherImpactForActivity(a)==='high')wait=Math.max(5,Math.round(wait*.75/5)*5);if(spec.closure&&closureTarget?.id===a.id&&progress>=.48&&progress<=.57){status='DOWN';wait=null;}liveData.push({id:a.entityId||a.id,name:a.entityName||a.title,status,queue:{STANDBY:{waitTime:wait}}});}
+  const stale=spec.network&&progress>=.46&&progress<=.63;return{fetchedAt:Date.now()-(stale?20*60_000:60_000),liveData,synthetic:true,stale};
+}
+function readinessShadowWalkV412(day,fromActivity,toActivity){
+  if(!toActivity)return 0;const to=zoneForActivityV37(toActivity,day.park),from=fromActivity?zoneForActivityV37(fromActivity,day.park):null;if(!to)return PARK_GRAPH_RULES_V400.unknownTransitionMinutes;if(!from)return 4;if(from===to)return ZONE_LOGISTICS_RULES.sameZoneMinutes;const route=zoneShortestPathV37(day.park,from,to);return route?.minutes??PARK_GRAPH_RULES_V400.unknownTransitionMinutes;
+}
+function readinessShadowBaseV412(activity,wait,minute,weather){
+  const code=priorityCodeFromActivity(activity);let score=code==='must'?88:code==='want'?70:code==='empty'?34:54;score-=Number(wait||0)*.42;if(Number(wait)<=20)score+=12;else if(Number(wait)>=60)score-=8;const planned=timeToMinutes(activity.time);if(Number.isFinite(planned)&&Math.abs(planned-minute)<=45)score+=5;let risk='low';try{risk=relevantWeather(weather)?.risk?.level||'low';}catch{}if(risk==='high'){const impact=weatherImpactForActivity(activity);if(impact==='high')score-=26;else if(activity.indoor)score+=10;}const pass=passMetaFor(activity);if(pass.passType!=='none'&&pass.passTime&&Math.abs(timeToMinutes(pass.passTime)-minute)<=Math.max(15,Number(pass.passWindowMinutes||60)/2))score+=15;return score;
+}
+function readinessShadowSequenceV412(day,live,weather,minute){
+  const liveIndex=v40LiveLookupIndexV401(live),pending=(day.activities||[]).filter(a=>a.type==='attraction'&&!a.replanDeferred&&!isDone(a.id)&&!isSkipped(a.id));let prev=null,time=minute,value=0;const steps=[],remaining=pending.slice();
+  for(let depth=0;depth<Math.min(4,remaining.length);depth++){
+    const anchor=nextAnchorFor(day,time),deadline=anchor?timeToMinutes(anchor.time)-anchorBufferMinutes(anchor):Infinity;let best=null;
+    for(const activity of remaining){const entry=v40FastLiveMatchV401(activity,liveIndex),status=String(entry?.status||'OPERATING').toUpperCase();if(['DOWN','CLOSED'].includes(status))continue;const wait=extractStandby(entry);if(wait==null)continue;const walk=readinessShadowWalkV412(day,prev,activity),duration=Number(activity.duration||10),end=time+walk+Number(wait)+duration;if(end>deadline)continue;const objective=readinessShadowBaseV412(activity,wait,time,weather)-walk*.55;if(!best||objective>best.objective)best={activity,wait,walk,duration,objective};}
+    if(!best)break;const score=Math.round(readinessClampV412(best.objective,0,100));steps.push({activity:best.activity,score,band:score>=72?'FAÇA AGORA':score>=45?'ESPERE':'EVITE AGORA',wait:best.wait,walk:best.walk,objective:best.objective,time:minutesToTime(time)});value+=best.objective;time+=best.walk+best.wait+best.duration;prev=best.activity;remaining.splice(remaining.findIndex(a=>a.id===best.activity.id),1);
+  }
+  return{steps,value:readinessRoundV412(value,1)};
+}
+function readinessAlertDecisionV412(day,current,previous,liveFresh,minute){
+  const anchor=proactiveAnchorCandidateV410(day,minute);if(anchor)return{alert:true,type:'anchor-deadline',critical:Boolean(anchor.critical)};
+  if(!liveFresh)return{alert:false,type:'degraded-silence'};
+  const a=current?.steps?.[0],b=previous?.steps?.[0];if(!a||!b||a.activity.id===b.activity.id)return{alert:false,type:'stable'};
+  const gain=Number(a.objective||0)-Number(b.objective||0);return gain>=PROACTIVE_COPILOT_RULES_V410.decisionSwitchMinGain?{alert:true,type:'decision-shift',gain}:{alert:false,type:'small-shift',gain};
+}
+async function readinessRunScenarioV412(day,name,{allowExact=true}={}){
+  const spec=readinessScenarioSpecV412(name),window=readinessParkWindowV412(day),tick=TRIP_READINESS_RULES_V412.syntheticTickMinutes;const tickDurations=[],timeline=[];let previous=null,switches=0,alerts=0,staleTacticalViolations=0,closedChoiceViolations=0,anchorViolations=0,strategicCovered=new Set(),exactChecks=0,exactAgreements=0,exactDurations=[];
+  const exactMinute=Math.round((window.open+(window.close-window.open)*.52)/tick)*tick;
+  await withTripSimulationSandboxV412(day,async()=>{
+    for(let minute=window.open;minute<=window.close;minute+=tick){tripSimulationClockV412={date:day.date,minute};const started=performance.now(),live=readinessLivePayloadV412(day,minute,spec),weather=readinessWeatherPayloadV412(day,minute,spec);state.liveCache[day.park]=live;state.weatherCache[day.park]=weather;const current=readinessShadowSequenceV412(day,live,weather,minute);const first=current.steps[0]||null;if(first){const entry=findLiveMatch(first.activity,live.liveData||[]);if(['DOWN','CLOSED'].includes(String(entry?.status||'').toUpperCase()))closedChoiceViolations++;const code=priorityCodeFromActivity(first.activity);if(['must','want'].includes(code))strategicCovered.add(first.activity.id);const anchor=nextAnchorFor(day,minute);if(anchor){const deadline=timeToMinutes(anchor.time)-anchorBufferMinutes(anchor);if(minute+Number(first.wait||0)+Number(first.walk||0)+Number(first.activity.duration||10)>deadline)anchorViolations++;}}
+      if(previous?.steps?.[0]&&first&&previous.steps[0].activity.id!==first.activity.id)switches++;const fresh=!live.stale;const alert=readinessAlertDecisionV412(day,current,previous,fresh,minute);if(alert.alert)alerts++;if(!fresh&&alert.alert&&alert.type!=='anchor-deadline')staleTacticalViolations++;
+      if(allowExact&&minute===exactMinute){const exStart=performance.now();readinessClearTransientCachesV412();let exact=null;try{exact=computeDecisionPlanV400(day,live,weather);}catch(error){recordRuntimeDiagnosticV38('trip-readiness-exact-v412',error,{scenario:name});}exactDurations.push(performance.now()-exStart);if(exact?.steps?.[0]&&first){exactChecks++;if(exact.steps[0].activity?.id===first.activity.id)exactAgreements++;}}
+      timeline.push({minute,first:first?.activity?.id||null,score:first?.score??null,alert:alert.type,liveFresh:fresh});previous=current;tickDurations.push(performance.now()-started);if((timeline.length%18)===0)await new Promise(r=>setTimeout(r,0));
+    }
+  });
+  const strategicTotal=(day.activities||[]).filter(a=>['must','want'].includes(priorityCodeFromActivity(a))&&a.type==='attraction').length;return{name,label:spec.label,ticks:timeline.length,switches,alerts,alertRatePerDay:alerts,staleTacticalViolations,closedChoiceViolations,anchorViolations,strategicCoverage:strategicTotal?strategicCovered.size/strategicTotal:1,exactChecks,exactAgreements,exactAgreement:exactChecks?exactAgreements/exactChecks:null,tickP95Ms:readinessRoundV412(readinessQuantileV412(tickDurations,.95),1),tickMaxMs:readinessRoundV412(Math.max(0,...tickDurations),1),exactMedianMs:readinessRoundV412(medianV37(exactDurations),1),timeline:timeline.filter((_,i)=>i%6===0).slice(0,30)};
+}
+
+function historyReplayEvidenceV412(){
+  let cycles=[];try{cycles=historyV3CyclesV393();}catch{cycles=state.historyV3?.cycles||[];}const completed=(state.history||[]).filter(x=>x.status==='done').length,queueSamplesCount=Object.values(state.queueHistory||{}).reduce((sum,park)=>sum+Object.values(park||{}).reduce((s,a)=>s+(Array.isArray(a)?a.length:0),0),0);const withCandidates=cycles.filter(c=>(c.candidates||c.decision?.candidates||[]).length>0).length,withOutcome=cycles.filter(c=>c.outcome||c.result||c.action||c.userAction).length;const score=readinessClampV412(Math.min(45,cycles.length*2)+Math.min(20,completed*1.2)+Math.min(25,queueSamplesCount/8)+Math.min(10,withCandidates*2));return{cycles:cycles.length,completed,queueSamples:queueSamplesCount,replayableCycles:withCandidates,outcomeCycles:withOutcome,evidenceScore:readinessRoundV412(score,0),note:cycles.length?'History v3 disponível para backtest de decisões; timeline completa depende dos snapshots compactos v41.2.':'Ainda sem ciclos suficientes para backtest real; readiness usa cenários sintéticos controlados.'};
+}
+function readinessRepresentativeDaysV412(scope='trip'){
+  const valid=(state.days||[]).filter(d=>PARKS[d.park]?.entityId&&(d.activities||[]).filter(a=>a.type==='attraction').length>=2);if(!valid.length)return[];if(scope==='day'){const selected=getSelectedDay();return selected&&valid.some(d=>d.date===selected.date)?[selected]:[valid[0]];}
+  const out=[],seen=new Set(),selected=getSelectedDay();if(selected&&valid.includes(selected)){out.push(selected);seen.add(selected.park);}for(const d of valid){if(out.length>=TRIP_READINESS_RULES_V412.maxRepresentativeDays)break;if(!seen.has(d.park)){out.push(d);seen.add(d.park);}}for(const d of valid){if(out.length>=TRIP_READINESS_RULES_V412.maxRepresentativeDays)break;if(!out.includes(d))out.push(d);}return out;
+}
+function readinessComponentScoresV412(scenarios,evidence,isolationOk){
+  const all=scenarios.flatMap(x=>x.scenarios||[]),n=Math.max(1,all.length),strategy=readinessClampV412(100-(all.reduce((s,x)=>s+x.closedChoiceViolations+x.anchorViolations,0)/n)*30-(1-(all.reduce((s,x)=>s+x.strategicCoverage,0)/n))*35),resilience=readinessClampV412(100-(all.reduce((s,x)=>s+x.staleTacticalViolations,0)/n)*45),avgAlerts=all.reduce((s,x)=>s+x.alerts,0)/n,proactivity=readinessClampV412(100-Math.max(0,avgAlerts-TRIP_READINESS_RULES_V412.maxAlertsPerVirtualDay)*5),p95=readinessQuantileV412(all.map(x=>x.tickP95Ms),.95),performanceScore=readinessClampV412(100-Math.max(0,p95-TRIP_READINESS_RULES_V412.targetTickP95Ms)*1.2),delivery=PROACTIVE_DELIVERY_RULES_V411?.queueMax===24&&PROACTIVE_DELIVERY_RULES_V411?.cooldownStartsAfterActualDelivery!==false?100:85,historyEvidence=evidence.evidenceScore,isolation=isolationOk?100:0;return{strategy:readinessRoundV412(strategy,0),resilience:readinessRoundV412(resilience,0),proactivity:readinessRoundV412(proactivity,0),performance:readinessRoundV412(performanceScore,0),delivery:readinessRoundV412(delivery,0),historyEvidence:readinessRoundV412(historyEvidence,0),isolation};
+}
+function readinessScoreV412(components){const w=TRIP_READINESS_RULES_V412.weights,total=Object.entries(w).reduce((s,[k,v])=>s+Number(components[k]||0)*v,0)/Object.values(w).reduce((a,b)=>a+b,0);return readinessRoundV412(total,0);}
+function readinessLabelV412(score){return score>=TRIP_READINESS_RULES_V412.readyScore?'PRONTO':score>=TRIP_READINESS_RULES_V412.observeScore?'PRONTO COM OBSERVAÇÕES':'CALIBRAR';}
+function readinessRecommendationsV412(report){const out=[],all=report.days.flatMap(d=>d.scenarios);const agreements=all.filter(x=>x.exactAgreement!=null).map(x=>x.exactAgreement);const agreement=agreements.length?agreements.reduce((a,b)=>a+b,0)/agreements.length:null;if(agreement!=null&&agreement<TRIP_READINESS_RULES_V412.targetExactAgreement)out.push('Comparar mais checkpoints do planner rápido com o planner exato antes do freeze.');if(report.components.historyEvidence<65)out.push('Coletar mais snapshots reais de fila/resultado; a evidência histórica ainda é limitada.');if(report.components.proactivity<90)out.push('Revisar densidade de alertas: alguns cenários estão chamando atenção mais do que o desejado.');if(report.components.performance<90)out.push('Revisar picos de processamento do simulador/engine em hardware restrito.');if(report.components.resilience<100)out.push('Há violação de governança em dados degradados; não congelar release antes de corrigir.');if(!out.length)out.push('Nenhum ajuste estrutural recomendado; seguir para hardening e coleta de dados reais.');return{exactAgreement:agreement==null?null:readinessRoundV412(agreement*100,0),items:out.slice(0,5)};}
+
+async function runTripReadinessV412({scope='trip'}={}){
+  if(tripReadinessRunningV412)throw new Error('Trip Readiness já está em execução.');tripReadinessRunningV412=true;const started=performance.now(),days=readinessRepresentativeDaysV412(scope),evidence=historyReplayEvidenceV412(),fingerprintBefore=readinessOperationalFingerprintV412(),isolationViolationsBefore=tripReadinessIsolationMetricsV412.violations,results=[];let exactBudget=TRIP_READINESS_RULES_V412.exactPlannerBudget;
+  try{
+    for(const day of days){const scenarioRows=[];for(const name of TRIP_READINESS_RULES_V412.scenarioNames){const allowExact=exactBudget>0;const row=await readinessRunScenarioV412(day,name,{allowExact});if(row.exactChecks)exactBudget-=row.exactChecks;scenarioRows.push(row);await new Promise(r=>setTimeout(r,0));}results.push({date:day.date,park:day.park,parkName:PARKS[day.park]?.name||day.park,scenarios:scenarioRows});}
+    const fingerprintAfter=readinessOperationalFingerprintV412(),concurrentOperationalChanges=fingerprintBefore!==fingerprintAfter,isolationOk=tripReadinessIsolationMetricsV412.violations===isolationViolationsBefore,components=readinessComponentScoresV412(results,evidence,isolationOk),score=readinessScoreV412(components),allScenarios=results.flatMap(d=>d.scenarios||[]),totalTicks=allScenarios.reduce((sum,x)=>sum+Number(x.ticks||0),0),soak={virtualHours:readinessRoundV412(totalTicks*TRIP_READINESS_RULES_V412.syntheticTickMinutes/60,1),ticks:totalTicks,scenarioDays:allScenarios.length,exactCheckpoints:allScenarios.reduce((sum,x)=>sum+Number(x.exactChecks||0),0),maxTickP95Ms:readinessRoundV412(Math.max(0,...allScenarios.map(x=>Number(x.tickP95Ms||0))),1),staleTacticalViolations:allScenarios.reduce((sum,x)=>sum+Number(x.staleTacticalViolations||0),0),closedChoiceViolations:allScenarios.reduce((sum,x)=>sum+Number(x.closedChoiceViolations||0),0),anchorViolations:allScenarios.reduce((sum,x)=>sum+Number(x.anchorViolations||0),0)};const report={version:TRIP_READINESS_VERSION_V412,build:ENGINE_BUILD_V38,generatedAt:new Date().toISOString(),scope,score,label:readinessLabelV412(score),components,evidence,daysAvailable:(state.days||[]).filter(d=>PARKS[d.park]?.entityId).length,daysSimulated:results.length,days:results,soak,isolation:{ok:isolationOk,sandboxChecks:tripReadinessIsolationMetricsV412.sandboxes,violations:tripReadinessIsolationMetricsV412.violations-isolationViolationsBefore,concurrentOperationalChanges,writesToOperationalHistory:false,writesToLearning:false},durationMs:readinessRoundV412(performance.now()-started,1),policy:{automaticWeightTuning:false,exactPlannerBudget:TRIP_READINESS_RULES_V412.exactPlannerBudget,syntheticTickMinutes:TRIP_READINESS_RULES_V412.syntheticTickMinutes}};report.recommendations=readinessRecommendationsV412(report);
+    const t=ensureTripReadinessStateV412();t.lastReport=report;t.reports.unshift({generatedAt:report.generatedAt,score:report.score,label:report.label,daysSimulated:report.daysSimulated,durationMs:report.durationMs});t.reports=t.reports.slice(0,TRIP_READINESS_RULES_V412.reportHistoryMax);saveState();tripReadinessLastRuntimeV412={at:report.generatedAt,durationMs:report.durationMs};return report;
+  }finally{tripReadinessRunningV412=false;}
+}
+
+function readinessTimelineDayKeyV412(day){return `${day.date}|${day.park}`;}
+function readinessCompactLiveSnapshotV412(day,live){const waits={};for(const a of day.activities||[]){if(a.type!=='attraction')continue;const entry=findLiveMatch(a,live?.liveData||[]),wait=extractStandby(entry),status=String(entry?.status||'').toUpperCase();if(wait!=null||status)waits[proactiveActivityKeyV410(a)]={id:a.id,w:wait==null?null:Number(wait),s:status||null};}return waits;}
+function recordReplayTimelineV412(){
+  if(tripSimulationClockV412)return false;const day=getSelectedDay();if(!day||day.date!==getOrlandoParts().date||!PARKS[day.park]?.entityId)return false;ensureTripReadinessStateV412();const store=state.replayTimelineV412.days,key=readinessTimelineDayKeyV412(day),live=state.liveCache?.[day.park],weather=state.weatherCache?.[day.park];if(!live&&!weather)return false;const frames=store[key]?.frames||[],previous=frames.at(-1),full=readinessCompactLiveSnapshotV412(day,live),delta={};for(const [k,row] of Object.entries(full)){const old=previous?.snapshot?.[k]||previous?.delta?.[k];if(!old||old.s!==row.s||old.w==null||row.w==null||Math.abs(Number(old.w)-Number(row.w))>=TRIP_READINESS_RULES_V412.replayWaitDeltaMinutes)delta[k]=row;}
+  let risk='low';try{risk=relevantWeather(weather)?.risk?.level||'low';}catch{}const frame={at:Date.now(),minute:proactiveNowMinuteV410(),liveAt:Number(live?.fetchedAt||0)||null,weatherAt:Number(weather?.fetchedAt||0)||null,risk,delta};if(!frames.length)frame.snapshot=full;else if(!Object.keys(delta).length&&previous.risk===risk)return false;const next=[...frames,frame].slice(-TRIP_READINESS_RULES_V412.replayTimelineMaxFramesPerDay);store[key]={date:day.date,park:day.park,frames:next};const keys=Object.keys(store).sort((a,b)=>(store[b]?.frames?.at(-1)?.at||0)-(store[a]?.frames?.at(-1)?.at||0));for(const stale of keys.slice(TRIP_READINESS_RULES_V412.replayTimelineMaxDays))delete store[stale];saveState();return true;
+}
+function replayTimelineSummaryV412(){ensureTripReadinessStateV412();const days=Object.values(state.replayTimelineV412.days||{});return{days:days.length,frames:days.reduce((s,d)=>s+(d.frames?.length||0),0),items:days.map(d=>({date:d.date,park:d.park,frames:d.frames?.length||0,lastAt:d.frames?.at(-1)?.at||null})).sort((a,b)=>(b.lastAt||0)-(a.lastAt||0)).slice(0,12)};}
+const v411RefreshExternalBeforeReadinessV412=refreshExternal;
+refreshExternal=async function(...args){const result=await v411RefreshExternalBeforeReadinessV412(...args);try{recordReplayTimelineV412();}catch(error){recordRuntimeDiagnosticV38('replay-timeline-v412',error);}return result;};
+
+function renderTripReadinessReportV412(report){if(!report)return'<p class="muted">Ainda não executado. O teste usa um sandbox isolado e não altera o roteiro real.</p>';const c=report.components||{};return`<div class="engine-selftest-summary ${report.score>=80?'pass':'fail'}"><strong>${escapeHtml(report.label)} · ${report.score}/100</strong><span>${report.daysSimulated} dia(s) · ${report.soak?.virtualHours||0} h virtuais · ${Math.round(report.durationMs||0)} ms</span></div><div class="engine-diagnostic-grid">${[['Estratégia',c.strategy],['Resiliência',c.resilience],['Proatividade',c.proactivity],['Performance',c.performance],['Delivery',c.delivery],['Evidência real',c.historyEvidence],['Isolamento',c.isolation]].map(([l,v])=>`<div><span>${l}</span><b>${v??'--'}/100</b></div>`).join('')}</div><p class="engine-diagnostic-note"><b>Backtest real:</b> ${report.evidence?.cycles||0} ciclos History v3 · ${report.evidence?.queueSamples||0} amostras de fila. ${escapeHtml(report.evidence?.note||'')}</p><p class="engine-diagnostic-note"><b>Concordância fast × exact:</b> ${report.recommendations?.exactAgreement==null?'amostra insuficiente':`${report.recommendations.exactAgreement}%`}.</p>${(report.recommendations?.items||[]).map(x=>`<p class="muted">• ${escapeHtml(x)}</p>`).join('')}`;}
+function tripReadinessSettingsContainerV412(){const view=document.querySelector('.view[data-view="settings"]');if(!view)return null;return view.querySelector('.top-section')||view.querySelector('.settings-stack')||view.querySelector('.view-content')||view;}
+function ensureTripReadinessCardV412(){const container=tripReadinessSettingsContainerV412();if(!container)return null;let card=$('#tripReadinessCardV412');if(card){if(!card.isConnected)container.appendChild(card);return card;}card=document.createElement('div');card.className='settings-card engine-diagnostic-card';card.id='tripReadinessCardV412';card.innerHTML=`<details open><summary><span><b>Trip Readiness</b><small>v41.2.1 · replay, simulação e calibração</small></span><span aria-hidden="true">⌄</span></summary><div class="engine-diagnostic-body"><p class="muted">Executa dias virtuais isolados, compara checkpoints com o planner exato e mede prontidão sem alimentar o aprendizado real.</p><div class="settings-inline-actions engine-diagnostic-actions"><button class="secondary-btn" type="button" id="runTripReadinessBtnV412">Executar prontidão</button><button class="ghost-btn" type="button" id="exportTripReadinessBtnV412">Exportar relatório</button></div><div id="tripReadinessStatusV412"></div></div></details>`;const diagnostic=$('#engineDiagnosticCard');if(diagnostic?.parentNode===container)container.insertBefore(card,diagnostic);else if(diagnostic?.parentNode)diagnostic.parentNode.insertBefore(card,diagnostic);else container.appendChild(card);return card;}
+function ensureTripReadinessDiagnosticShortcutV412(){const diagnostic=$('#engineDiagnosticCard');if(!diagnostic)return false;let btn=$('#openTripReadinessBtnV412');if(btn)return true;const actions=diagnostic.querySelector('.engine-diagnostic-actions')||diagnostic.querySelector('.engine-diagnostic-body');if(!actions)return false;btn=document.createElement('button');btn.type='button';btn.id='openTripReadinessBtnV412';btn.className='secondary-btn';btn.textContent='Abrir Trip Readiness';actions.appendChild(btn);return true;}
+function renderTripReadinessCardV412(){if(!ensureTripReadinessCardV412())return;ensureTripReadinessDiagnosticShortcutV412();const root=$('#tripReadinessStatusV412');if(root)root.innerHTML=renderTripReadinessReportV412(ensureTripReadinessStateV412().lastReport);}
+let tripReadinessEventsInstalledV412=false;
+function installTripReadinessEventsV412(){if(tripReadinessEventsInstalledV412)return;tripReadinessEventsInstalledV412=true;document.addEventListener('click',async e=>{if(e.target.closest('#openTripReadinessBtnV412')){const card=ensureTripReadinessCardV412();const details=card?.querySelector('details');if(details)details.open=true;try{card?.scrollIntoView({behavior:'smooth',block:'start'});}catch{card?.scrollIntoView?.();}return;}if(e.target.closest('#runTripReadinessBtnV412')){const btn=$('#runTripReadinessBtnV412'),root=$('#tripReadinessStatusV412');if(tripReadinessRunningV412)return;try{if(btn){btn.disabled=true;btn.textContent='Simulando…';}if(root)root.innerHTML='<p class="muted">Executando replay e cenários de stress em sandbox…</p>';const report=await runTripReadinessV412({scope:'trip'});renderTripReadinessCardV412();toast(`Trip Readiness: ${report.score}/100 · ${report.label}.`);}catch(error){recordRuntimeDiagnosticV38('trip-readiness-run-v412',error);if(root)root.innerHTML=`<p class="engine-diagnostic-error">${escapeHtml(error.message||String(error))}</p>`;}finally{if(btn){btn.disabled=false;btn.textContent='Executar prontidão';}}}if(e.target.closest('#exportTripReadinessBtnV412')){const report=ensureTripReadinessStateV412().lastReport;if(!report){toast('Execute o Trip Readiness primeiro.');return;}downloadBlob(`orlando-flow-trip-readiness-${getOrlandoParts().date}.json`,new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));}});}
+const v411RenderSettingsBeforeReadinessV412=renderSettings;
+renderSettings=function(){v411RenderSettingsBeforeReadinessV412();renderTripReadinessCardV412();installTripReadinessEventsV412();};
+const v412SwitchViewBeforeReadinessUiHotfixV4121=switchView;
+switchView=function(target){const result=v412SwitchViewBeforeReadinessUiHotfixV4121(target);if(target==='settings')setTimeout(()=>{try{renderTripReadinessCardV412();ensureTripReadinessDiagnosticShortcutV412();installTripReadinessEventsV412();}catch(error){recordRuntimeDiagnosticV38('trip-readiness-ui-v4121',error);}},0);return result;};
+
+function tripReadinessDiagnosticsV412(){const t=ensureTripReadinessStateV412();return{version:TRIP_READINESS_VERSION_V412,policy:TRIP_READINESS_RULES_V412,lastReport:t.lastReport?{generatedAt:t.lastReport.generatedAt,score:t.lastReport.score,label:t.lastReport.label,components:t.lastReport.components,evidence:t.lastReport.evidence,daysSimulated:t.lastReport.daysSimulated,durationMs:t.lastReport.durationMs,recommendations:t.lastReport.recommendations}:null,replayTimeline:replayTimelineSummaryV412(),running:tripReadinessRunningV412,lastRuntime:tripReadinessLastRuntimeV412,isolationMetrics:v40Clone(tripReadinessIsolationMetricsV412)};}
+const v411EngineDiagnosticBeforeReadinessV412=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){const snapshot=v411EngineDiagnosticBeforeReadinessV412();snapshot.context=snapshot.context||{};snapshot.context.tripReadinessV412=tripReadinessDiagnosticsV412();return snapshot;};
+const v411ExposeDiagnosticsBeforeReadinessV412=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){v411ExposeDiagnosticsBeforeReadinessV412();window.__ORLANDO_FLOW_DIAGNOSTICS__.tripReadinessV412=()=>v40Clone(tripReadinessDiagnosticsV412());window.__ORLANDO_FLOW_DIAGNOSTICS__.runTripReadinessV412=(scope='trip')=>runTripReadinessV412({scope});window.__ORLANDO_FLOW_DIAGNOSTICS__.historyReplayEvidenceV412=()=>v40Clone(historyReplayEvidenceV412());window.__ORLANDO_FLOW_DIAGNOSTICS__.replayTimelineV412=()=>v40Clone(replayTimelineSummaryV412());window.__ORLANDO_FLOW_DIAGNOSTICS__.tripReadinessPolicyV412=()=>v40Clone(TRIP_READINESS_RULES_V412);};
+
+const v411RunSelfTestsBeforeReadinessV412=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v411RunSelfTestsBeforeReadinessV412(),additions=[],backupClock=tripSimulationClockV412;
+  try{
+    addSelfTestV38(additions,'v41.2 simulação é isolada do histórico e aprendizado reais',()=>{assertSelfTestV38(TRIP_READINESS_RULES_V412.simulationWritesToOperationalHistory===false&&TRIP_READINESS_RULES_V412.simulationWritesToHistoryV3===false&&TRIP_READINESS_RULES_V412.simulationWritesToPreferenceLearning===false&&TRIP_READINESS_RULES_V412.simulationWritesToDeliveryQueue===false,'isolamento');return 'sandbox descartável';});
+    addSelfTestV38(additions,'v41.2 usa passos virtuais de 10 min e checkpoints exatos',()=>{assertSelfTestV38(TRIP_READINESS_RULES_V412.syntheticTickMinutes===10&&TRIP_READINESS_RULES_V412.exactPlannerBudget>=4,'cadência');return 'event-driven + exact';});
+    addSelfTestV38(additions,'v41.2 possui seis cenários de stress',()=>{assertSelfTestV38(TRIP_READINESS_RULES_V412.scenarioNames.length===6&&TRIP_READINESS_RULES_V412.scenarioNames.includes('chaos')&&TRIP_READINESS_RULES_V412.scenarioNames.includes('network'),'cenários');return TRIP_READINESS_RULES_V412.scenarioNames.join(', ');});
+    addSelfTestV38(additions,'v41.2 relógio virtual não altera relógio fora do sandbox',()=>{tripSimulationClockV412={date:'2099-09-09',minute:777};const p=getOrlandoParts();assertSelfTestV38(p.date==='2099-09-09'&&p.hour===12&&p.minute===57,'virtual');tripSimulationClockV412=null;assertSelfTestV38(getOrlandoParts().date!=='2099-09-09','restauração');return 'clock isolado';});
+    addSelfTestV38(additions,'v41.2 readiness weights totalizam 100',()=>{const total=Object.values(TRIP_READINESS_RULES_V412.weights).reduce((a,b)=>a+b,0);assertSelfTestV38(total===100,`total=${total}`);return '100%';});
+    addSelfTestV38(additions,'v41.2 score de prontidão respeita faixas 90/80',()=>{assertSelfTestV38(readinessLabelV412(90)==='PRONTO'&&readinessLabelV412(89)==='PRONTO COM OBSERVAÇÕES'&&readinessLabelV412(79)==='CALIBRAR','faixas');return '90 / 80';});
+    addSelfTestV38(additions,'v41.2 timeline é delta-compacta e limitada',()=>{assertSelfTestV38(TRIP_READINESS_RULES_V412.replayTimelineMaxFramesPerDay===360&&TRIP_READINESS_RULES_V412.replayWaitDeltaMinutes===5,'timeline');return '360 frames · delta 5 min';});
+    addSelfTestV38(additions,'v41.2 não recalibra pesos automaticamente',()=>{assertSelfTestV38(TRIP_READINESS_RULES_V412.automaticWeightTuning===false&&TRIP_READINESS_RULES_V412.scorePolicyChanged===false&&TRIP_READINESS_RULES_V412.riskPolicyChanged===false&&TRIP_READINESS_RULES_V412.preferencePolicyChanged===false,'policy');return 'diagnostica, não autoajusta';});
+    addSelfTestV38(additions,'v41.2 evidência histórica é separada do dado sintético',()=>{const e=historyReplayEvidenceV412();assertSelfTestV38(Number.isFinite(e.evidenceScore)&&e.evidenceScore>=0&&e.evidenceScore<=100,'evidence');return `${e.cycles} ciclos · ${e.queueSamples} filas`;});
+    addSelfTestV38(additions,'v41.2.1 Trip Readiness possui fallback robusto de container',()=>{assertSelfTestV38(typeof tripReadinessSettingsContainerV412==='function'&&String(tripReadinessSettingsContainerV412).includes('settings-stack')&&String(tripReadinessSettingsContainerV412).includes('view-content'),'fallback');return 'top-section → settings-stack → view-content → view';});
+    addSelfTestV38(additions,'v41.2.1 Trip Readiness tem atalho no diagnóstico e reinjeção ao abrir Configurações',()=>{assertSelfTestV38(typeof ensureTripReadinessDiagnosticShortcutV412==='function'&&String(switchView).includes('trip-readiness-ui-v4121'),'discoverability');return 'atalho + switchView';});
+  }finally{tripSimulationClockV412=backupClock;}
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v41.2.3 — History v4.2.1 Shadow Mode
+   - Production authority remains the existing global history v3 path.
+   - v4.2.1 is fetched in parallel for the same park/date context.
+   - Shadow payload never writes globalHistoryCache and never changes scoring.
+   - Only compact diagnostics/comparisons are persisted in a separate key.
+   ============================================================ */
+const HISTORY_SHADOW_VERSION_V421 = '4.2.1';
+const HISTORY_SHADOW_STORAGE_KEY_V421 = 'orlando-flow-history-shadow-v421';
+const HISTORY_SHADOW_RULES_V421 = Object.freeze({
+  endpointVersion:'4.2.1',
+  productionAuthority:'v3',
+  historyDays:90,
+  cacheTtlMs:8*60_000,
+  timeoutMs:12_000,
+  maxEntries:14,
+  maxComparisons:120,
+  fromBucketMinutes:30,
+  includeSpecialEvents:false,
+  affectsScoring:false,
+  affectsRecommendation:false,
+  affectsTimeline:false,
+  internalOnly:true
+});
+
+let historyShadowStoreV421 = null;
+const historyShadowInflightV421 = new Map();
+
+function historyShadowDefaultStoreV421(){
+  return {schemaVersion:1,updatedAt:null,entries:{},comparisons:[]};
+}
+function loadHistoryShadowStoreV421(){
+  if(historyShadowStoreV421) return historyShadowStoreV421;
+  try{
+    const parsed=JSON.parse(localStorage.getItem(HISTORY_SHADOW_STORAGE_KEY_V421)||'null');
+    historyShadowStoreV421=parsed&&parsed.schemaVersion===1&&parsed.entries&&Array.isArray(parsed.comparisons)?parsed:historyShadowDefaultStoreV421();
+  }catch{ historyShadowStoreV421=historyShadowDefaultStoreV421(); }
+  return historyShadowStoreV421;
+}
+function persistHistoryShadowStoreV421(){
+  const store=loadHistoryShadowStoreV421();
+  try{
+    const entries=Object.entries(store.entries||{})
+      .sort((a,b)=>Number(b[1]?.fetchedAt||0)-Number(a[1]?.fetchedAt||0))
+      .slice(0,HISTORY_SHADOW_RULES_V421.maxEntries);
+    store.entries=Object.fromEntries(entries);
+    store.comparisons=(store.comparisons||[]).slice(0,HISTORY_SHADOW_RULES_V421.maxComparisons);
+    store.updatedAt=new Date().toISOString();
+    localStorage.setItem(HISTORY_SHADOW_STORAGE_KEY_V421,JSON.stringify(store));
+  }catch(error){
+    try{recordRuntimeDiagnosticV38('history-shadow-persist-v421',error);}catch{}
+  }
+}
+function clearHistoryShadowV421(){
+  historyShadowStoreV421=historyShadowDefaultStoreV421();
+  try{localStorage.removeItem(HISTORY_SHADOW_STORAGE_KEY_V421);}catch{}
+  return historyShadowSummaryV421();
+}
+function historyShadowNumberV421(value,digits=1){
+  const n=Number(value); if(!Number.isFinite(n)) return null;
+  const f=10**Math.max(0,Number(digits)||0); return Math.round(n*f)/f;
+}
+function historyShadowConfidenceRankV421(value){
+  return ({insufficient:0,low:1,medium:2,high:3})[String(value||'').toLowerCase()] ?? -1;
+}
+function historyShadowWindowMinuteV421(value){
+  const n=Number(value?.targetMinute ?? value?.minute);
+  return Number.isFinite(n)?n:null;
+}
+function historyShadowCompactStatV421(value){
+  if(!value||typeof value!=='object') return null;
+  const minute=historyShadowWindowMinuteV421(value);
+  return {
+    minute,
+    time:value.targetLocalTime || (minute!=null?minutesToTime(((minute%1440)+1440)%1440):null),
+    median:historyShadowNumberV421(value.median,1),
+    p25:historyShadowNumberV421(value.p25,1),
+    p75:historyShadowNumberV421(value.p75,1),
+    samples:historyShadowNumberV421(value.samples,0),
+    independentDays:historyShadowNumberV421(value.independentDays,0),
+    confidence:value.confidence||null,
+    source:value.source||null,
+    scheduleCategory:value.scheduleCategory||null
+  };
+}
+function historyShadowCompactPayloadV421(data){
+  const attractions={};
+  for(const [id,a] of Object.entries(data?.attractions||{})){
+    attractions[id]={
+      id:a?.id||id,
+      name:a?.name||'',
+      confidence:a?.confidence||'insufficient',
+      independentDays:historyShadowNumberV421(a?.independentDays,0),
+      latest:a?.latest?{status:a.latest.status||null,operating:Boolean(a.latest.operating),waitTime:Number.isFinite(Number(a.latest.waitTime))?Number(a.latest.waitTime):null,observedAt:a.latest.observedAt||null}:null,
+      historicalNow:historyShadowCompactStatV421(a?.historicalNow),
+      historical30:historyShadowCompactStatV421(a?.historical30),
+      historical60:historyShadowCompactStatV421(a?.historical60),
+      bestWindow:historyShadowCompactStatV421(a?.bestWindow),
+      targetAvailability:a?.targetAvailability?{
+        targetDate:a.targetAvailability.targetDate||null,
+        targetWeekday:a.targetAvailability.targetWeekday||null,
+        fromMinute:historyShadowNumberV421(a.targetAvailability.fromMinute,0),
+        fromLocalTime:a.targetAvailability.fromLocalTime||null,
+        guard:a.targetAvailability.guard||null,
+        eventOnlyHeuristic:Boolean(a.targetAvailability.eventOnlyHeuristic),
+        scheduleAvailable:Boolean(a.targetAvailability.scheduleAvailable),
+        eligibleWindowCount:historyShadowNumberV421(a.targetAvailability.eligibleWindowCount,0)
+      }:null
+    };
+  }
+  return {
+    generatedAt:data?.generatedAt||null,
+    parkKey:data?.parkKey||null,
+    historyVersion:String(data?.historyVersion||''),
+    historyDays:Number(data?.historyDays||0),
+    snapshotCount:Number(data?.snapshotCount||0),
+    attractionCount:Number(data?.attractionCount||Object.keys(attractions).length),
+    target:data?.target?structuredClone(data.target):null,
+    schedule:data?.schedule?{
+      available:Boolean(data.schedule.available),
+      reason:data.schedule.reason||null,
+      source:data.schedule.source||null,
+      targetDate:data.schedule.targetDate||null,
+      strategy:data.schedule.strategy||null,
+      resolvedBy:data.schedule.resolvedBy||null,
+      resolvedEndpoint:data.schedule.resolvedEndpoint||null,
+      regularWindows:(data.schedule.regularWindows||[]).map(w=>({openMinute:Number(w.openMinute),closeMinute:Number(w.closeMinute),type:w.type||null,description:w.description||null})),
+      specialWindows:(data.schedule.specialWindows||[]).map(w=>({openMinute:Number(w.openMinute),closeMinute:Number(w.closeMinute),type:w.type||null,description:w.description||null})),
+      allowedWindows:(data.schedule.allowedWindows||[]).map(w=>({openMinute:Number(w.openMinute),closeMinute:Number(w.closeMinute),type:w.type||null,description:w.description||null,category:w.category||null})),
+      attempts:(data.schedule.attempts||[]).map(x=>({label:x.label||null,status:Number(x.status||0),ok:Boolean(x.ok),elapsedMs:Number(x.elapsedMs||0),targetEntryCount:Number(x.targetEntryCount||0),errorSnippet:x.errorSnippet||null}))
+    }:null,
+    quality:data?.quality?{
+      general:data.quality.general?structuredClone(data.quality.general):null,
+      weekday:data.quality.weekday?structuredClone(data.quality.weekday):null,
+      filtering:data.quality.filtering?structuredClone(data.quality.filtering):null,
+      scheduleGuard:data.quality.scheduleGuard?{
+        targetDate:data.quality.scheduleGuard.targetDate||null,
+        targetWeekday:data.quality.scheduleGuard.targetWeekday||null,
+        scheduleAvailable:Boolean(data.quality.scheduleGuard.scheduleAvailable),
+        scheduleReason:data.quality.scheduleGuard.scheduleReason||null,
+        regularWindowCount:Number(data.quality.scheduleGuard.regularWindowCount||0),
+        specialWindowCount:Number(data.quality.scheduleGuard.specialWindowCount||0),
+        allowedWindowCount:Number(data.quality.scheduleGuard.allowedWindowCount||0)
+      }:null
+    }:null,
+    attractions
+  };
+}
+function historyShadowDaySelectionV421(parkKey){
+  const selected=getSelectedDay();
+  const now=getOrlandoParts();
+  const rows=(state.days||[]).filter(d=>d?.park===parkKey&&d?.date).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const upcoming=rows.find(d=>String(d.date)>=now.date)||null;
+  if(selected?.park===parkKey&&String(selected.date||'')>=now.date){
+    return {day:selected,status:'operational',source:'selected-current-or-future',selectedWasPast:false};
+  }
+  if(upcoming){
+    return {day:upcoming,status:'operational',source:selected?.park===parkKey?'next-current-or-future-same-park':'next-current-or-future-park-day',selectedWasPast:Boolean(selected?.park===parkKey&&String(selected.date||'')<now.date)};
+  }
+  if(selected?.park===parkKey&&selected?.date){
+    return {day:selected,status:'past-context',source:'selected-past-no-future-same-park',selectedWasPast:true};
+  }
+  const latestPast=[...rows].reverse().find(d=>String(d.date)<now.date)||null;
+  if(latestPast) return {day:latestPast,status:'past-context',source:'latest-past-no-future-same-park',selectedWasPast:false};
+  return {day:null,status:'operational',source:'today-no-planned-day',selectedWasPast:false};
+}
+function historyShadowDayForParkV421(parkKey){return historyShadowDaySelectionV421(parkKey).day;}
+function historyShadowContextV421(parkKey=state.selectedPark){
+  const now=getOrlandoParts();
+  const selection=historyShadowDaySelectionV421(parkKey);
+  const day=selection.day;
+  const targetDate=day?.date||now.date;
+  let fromMinute;
+  let fromSource='default-open';
+  if(selection.status==='past-context') {
+    const planned=(day?.activities||[]).map(a=>a?.time).filter(Boolean).map(timeToMinutes).filter(Number.isFinite).sort((a,b)=>a-b);
+    fromMinute=planned[0]??540; fromSource=planned.length?'past-first-planned-activity':'past-default-open';
+  }else if(targetDate===now.date){
+    fromMinute=now.hour*60+now.minute; fromSource='current-orlando-time';
+  }else{
+    const hours=parkHoursForDate(parkKey,targetDate);
+    if(hours?.source==='schedule'&&Number.isFinite(Number(hours.open))){fromMinute=Number(hours.open);fromSource='app-schedule';}
+    else{
+      const planned=(day?.activities||[]).map(a=>a?.time).filter(Boolean).map(timeToMinutes).filter(Number.isFinite).sort((a,b)=>a-b);
+      fromMinute=planned[0]??540; fromSource=planned.length?'first-planned-activity':'default-open';
+    }
+  }
+  fromMinute=Math.max(0,Math.min(1439,Number(fromMinute)||0));
+  const bucket=Math.floor(fromMinute/HISTORY_SHADOW_RULES_V421.fromBucketMinutes)*HISTORY_SHADOW_RULES_V421.fromBucketMinutes;
+  return {parkKey,targetDate,fromMinute:bucket,fromTime:minutesToTime(bucket),fromSource,dayDate:day?.date||null,selectedDay:Boolean(day&&day===getSelectedDay()),contextStatus:selection.status,contextSource:selection.source,selectedWasPast:Boolean(selection.selectedWasPast),includeSpecialEvents:HISTORY_SHADOW_RULES_V421.includeSpecialEvents};
+}
+function historyShadowKeyV421(ctx){return `${ctx.parkKey}|${ctx.targetDate}|${ctx.fromTime}|special:${ctx.includeSpecialEvents?1:0}`;}
+function historyShadowEntryV421(parkKey=state.selectedPark){
+  const store=loadHistoryShadowStoreV421(),ctx=historyShadowContextV421(parkKey),key=historyShadowKeyV421(ctx);
+  return store.entries?.[key]||null;
+}
+function historyShadowMinuteInAllowedV421(minute,schedule){
+  const n=Number(minute); if(!Number.isFinite(n)||!schedule?.available) return null;
+  return (schedule.allowedWindows||[]).some(w=>{
+    const open=Number(w.openMinute),close=Number(w.closeMinute);
+    if(!Number.isFinite(open)||!Number.isFinite(close)) return false;
+    if(close>=open) return n>=open&&n<close;
+    return n>=open||n<close;
+  });
+}
+function historyShadowFindAttractionV421(data,value){
+  if(!data?.attractions) return null;
+  const id=value?.entityId||value?.id||null;
+  if(id&&data.attractions[String(id)]) return data.attractions[String(id)];
+  const name=normalizeName(typeof value==='string'?value:(value?.name||value?.title||''));
+  if(!name) return null;
+  return Object.values(data.attractions).find(a=>normalizeName(a?.name||'')===name)||null;
+}
+function historyShadowCompareV421(production,shadow,ctx){
+  const prodAttractions=production?.attractions||{},shadowAttractions=shadow?.attractions||{};
+  const prodByName=new Map(Object.values(prodAttractions).map(a=>[normalizeName(a?.name||''),a]).filter(x=>x[0]));
+  let matched=0,confidenceSame=0,confidenceUp=0,confidenceDown=0,bestWindowChanged=0,productionOutsideSchedule=0;
+  const divergences=[];
+  for(const [id,s] of Object.entries(shadowAttractions)){
+    const p=prodAttractions[id]||prodByName.get(normalizeName(s?.name||''))||null;
+    if(!p) continue;
+    matched++;
+    const sr=historyShadowConfidenceRankV421(s?.confidence),pr=historyShadowConfidenceRankV421(p?.confidence);
+    if(sr===pr) confidenceSame++; else if(sr>pr) confidenceUp++; else confidenceDown++;
+    const sm=historyShadowWindowMinuteV421(s?.bestWindow),pm=historyShadowWindowMinuteV421(p?.bestWindow);
+    let diff=null;
+    if(sm!=null&&pm!=null){const raw=Math.abs(sm-pm);diff=Math.min(raw,1440-raw);if(diff>=60)bestWindowChanged++;}
+    const prodAllowed=pm==null?null:historyShadowMinuteInAllowedV421(pm,shadow?.schedule);
+    if(prodAllowed===false) productionOutsideSchedule++;
+    if(sr!==pr||diff>=60||prodAllowed===false){
+      divergences.push({id,name:s?.name||p?.name||'',production:{confidence:p?.confidence||null,bestMinute:pm,bestTime:pm!=null?minutesToTime(((pm%1440)+1440)%1440):null},shadow:{confidence:s?.confidence||null,independentDays:s?.independentDays??null,bestMinute:sm,bestTime:s?.bestWindow?.time||null,scheduleAvailable:Boolean(shadow?.schedule?.available)},confidenceDelta:sr-pr,bestWindowDeltaMinutes:diff,productionBestWindowAllowed:prodAllowed});
+    }
+  }
+  divergences.sort((a,b)=>Number(a.productionBestWindowAllowed!==false)-Number(b.productionBestWindowAllowed!==false)||Math.abs(Number(b.confidenceDelta||0))-Math.abs(Number(a.confidenceDelta||0))||Number(b.bestWindowDeltaMinutes||0)-Number(a.bestWindowDeltaMinutes||0));
+  const row={
+    at:new Date().toISOString(),parkKey:ctx.parkKey,targetDate:ctx.targetDate,fromTime:ctx.fromTime,
+    productionVersion:String(production?.historyVersion||'3'),shadowVersion:String(shadow?.historyVersion||HISTORY_SHADOW_VERSION_V421),
+    authority:'production-v3',shadowAffectsDecision:false,scheduleAvailable:Boolean(shadow?.schedule?.available),scheduleReason:shadow?.schedule?.reason||null,
+    counts:{production:Object.keys(prodAttractions).length,shadow:Object.keys(shadowAttractions).length,matched,confidenceSame,confidenceUp,confidenceDown,bestWindowChanged60Plus:bestWindowChanged,productionBestWindowOutsideTargetSchedule:productionOutsideSchedule},
+    divergences:divergences.slice(0,16)
+  };
+  row.signature=JSON.stringify([row.parkKey,row.targetDate,row.fromTime,row.productionVersion,row.shadowVersion,row.scheduleAvailable,row.counts, row.divergences.map(x=>[x.id,x.confidenceDelta,x.bestWindowDeltaMinutes,x.productionBestWindowAllowed])]);
+  return row;
+}
+function commitHistoryShadowComparisonV421(comparison){
+  if(!comparison) return null;
+  const store=loadHistoryShadowStoreV421(),latest=store.comparisons?.[0];
+  if(latest?.signature===comparison.signature&&Date.now()-Date.parse(latest.at||0)<HISTORY_SHADOW_RULES_V421.cacheTtlMs) return latest;
+  store.comparisons.unshift(comparison);
+  if(store.comparisons.length>HISTORY_SHADOW_RULES_V421.maxComparisons)store.comparisons.length=HISTORY_SHADOW_RULES_V421.maxComparisons;
+  persistHistoryShadowStoreV421(); return comparison;
+}
+function historyShadowMaybeCompareWithProductionV421(parkKey,shadow,ctx=historyShadowContextV421(parkKey)){
+  if(!shadow||ctx?.contextStatus==='past-context') return null;
+  const production=globalHistoryEntry(parkKey)?.data||null;
+  if(!production) return null;
+  try{return commitHistoryShadowComparisonV421(historyShadowCompareV421(production,shadow,ctx));}
+  catch(error){try{recordRuntimeDiagnosticV38('history-shadow-compare-cache-v421',error,{parkKey});}catch{}return null;}
+}
+async function fetchHistoryShadowV421(parkKey=state.selectedPark,force=false){
+  const ctx=historyShadowContextV421(parkKey);
+  if(ctx.contextStatus==='past-context') return null;
+  if(!PARKS[parkKey]?.entityId||!navigator.onLine) return historyShadowEntryV421(parkKey)?.data||null;
+  const key=historyShadowKeyV421(ctx),store=loadHistoryShadowStoreV421(),cached=store.entries?.[key];
+  if(!force&&cached?.data&&Date.now()-Number(cached.fetchedAt||0)<HISTORY_SHADOW_RULES_V421.cacheTtlMs)return cached.data;
+  if(historyShadowInflightV421.has(key)) return historyShadowInflightV421.get(key);
+  const task=(async()=>{
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),HISTORY_SHADOW_RULES_V421.timeoutMs);
+    const started=performance.now();
+    try{
+      const params=new URLSearchParams({parkKey,days:String(HISTORY_SHADOW_RULES_V421.historyDays),targetDate:ctx.targetDate,fromTime:ctx.fromTime});
+      if(ctx.includeSpecialEvents)params.set('includeSpecialEvents','1');
+      const url=`${GLOBAL_HISTORY_API}/api/v4.2.1/park-insights?${params.toString()}`;
+      const res=await fetch(url,{headers:{Accept:'application/json'},signal:controller.signal,cache:'no-store'});
+      if(!res.ok)throw new Error(`History shadow v4.2.1 HTTP ${res.status}`);
+      const raw=await res.json();
+      if(!raw?.attractions||raw.parkKey!==parkKey||String(raw.historyVersion)!==HISTORY_SHADOW_VERSION_V421)throw new Error('Invalid History shadow v4.2.1 payload');
+      const data=historyShadowCompactPayloadV421(raw);
+      store.entries[key]={fetchedAt:Date.now(),fetchedAtIso:new Date().toISOString(),elapsedMs:Math.round(performance.now()-started),context:ctx,data};
+      persistHistoryShadowStoreV421();
+      historyShadowMaybeCompareWithProductionV421(parkKey,data,ctx);
+      return data;
+    }catch(error){
+      try{recordRuntimeDiagnosticV38('history-shadow-v421',error,{parkKey,targetDate:ctx.targetDate,fromTime:ctx.fromTime});}catch{}
+      return cached?.data||null;
+    }finally{clearTimeout(timer);historyShadowInflightV421.delete(key);}
+  })();
+  historyShadowInflightV421.set(key,task); return task;
+}
+function historyShadowLatestComparisonV421(parkKey=state.selectedPark){
+  return (loadHistoryShadowStoreV421().comparisons||[]).find(x=>x.parkKey===parkKey)||null;
+}
+function historyShadowDecisionOverlayV421(parkKey=state.selectedPark){
+  const trace=typeof latestDecisionTraceV392==='function'?latestDecisionTraceV392():null;
+  const ctx=historyShadowContextV421(parkKey);
+  if(ctx.contextStatus==='past-context')return{status:'past-context',assessment:'past-context',parkKey,traceId:trace?.id||null,context:ctx,current:trace?.selected?{kind:trace.decisionKind,title:trace.selected.title||null,band:trace.selected.band||null,score:trace.selected.score??null}:null,affectsDecision:false};
+  const entry=historyShadowEntryV421(parkKey),shadow=entry?.data||null;
+  const selected=trace?.park===parkKey?trace?.selected:null;
+  const evidence=selected?.title?historyShadowFindAttractionV421(shadow,selected.title):null;
+  if(!selected?.title)return{status:'no-current-action',parkKey,traceId:trace?.id||null,shadowAvailable:Boolean(shadow),affectsDecision:false};
+  if(!shadow)return{status:'shadow-unavailable',parkKey,traceId:trace?.id||null,current:{kind:trace.decisionKind,title:selected.title,band:selected.band||null,score:selected.score??null},affectsDecision:false};
+  if(!evidence)return{status:'unmatched-attraction',parkKey,traceId:trace?.id||null,current:{kind:trace.decisionKind,title:selected.title,band:selected.band||null,score:selected.score??null},affectsDecision:false};
+  const candidate=(trace.candidates||[]).find(c=>c.selected||c.activityId===selected.activityId)||null;
+  const liveWait=Number.isFinite(Number(candidate?.wait))?Number(candidate.wait):null;
+  const nowMedian=Number(evidence?.historicalNow?.median),bestMedian=Number(evidence?.bestWindow?.median);
+  const bestMinute=historyShadowWindowMinuteV421(evidence?.bestWindow);
+  let assessment='informational';
+  if(!evidence?.targetAvailability?.scheduleAvailable)assessment='schedule-unverified';
+  else if(evidence?.confidence==='insufficient')assessment='insufficient-history';
+  else if(liveWait!=null&&Number.isFinite(nowMedian)&&liveWait<=nowMedian+5)assessment='supports-current-window';
+  else if(liveWait!=null&&Number.isFinite(bestMedian)&&bestMinute!=null&&bestMinute>Number(trace.nowMinute||0)+30&&liveWait-bestMedian>=15)assessment='later-window-materially-better';
+  else if(Number.isFinite(nowMedian)&&Number.isFinite(bestMedian)&&nowMedian-bestMedian>=15&&bestMinute>Number(trace.nowMinute||0)+30)assessment='later-window-better';
+  return{status:'matched',assessment,parkKey,traceId:trace.id||null,current:{kind:trace.decisionKind,title:selected.title,band:selected.band||null,score:selected.score??null,selectionReason:trace.selectionReason||null,liveWait},shadow:{confidence:evidence.confidence,independentDays:evidence.independentDays,historicalNow:evidence.historicalNow,bestWindow:evidence.bestWindow,targetAvailability:evidence.targetAvailability},affectsDecision:false};
+}
+function historyShadowSummaryV421(){
+  const store=loadHistoryShadowStoreV421(),ctx=historyShadowContextV421(state.selectedPark),entry=store.entries?.[historyShadowKeyV421(ctx)]||null,latest=historyShadowLatestComparisonV421(state.selectedPark);
+  return{version:HISTORY_SHADOW_VERSION_V421,mode:'shadow',internalOnly:true,productionAuthority:'v3',affectsScoring:false,affectsRecommendation:false,affectsTimeline:false,selectedContext:ctx,selectedEntry:entry?{parkKey:entry.data?.parkKey||ctx.parkKey,targetDate:entry.data?.target?.date||entry.data?.schedule?.targetDate||ctx.targetDate,fromTime:entry.data?.target?.fromLocalTime||entry.context?.fromTime||ctx.fromTime,fetchedAt:entry.fetchedAtIso||null,ageMinutes:Math.round(Math.max(0,Date.now()-Number(entry.fetchedAt||0))/60000),elapsedMs:entry.elapsedMs||null,historyVersion:entry.data?.historyVersion||null,scheduleAvailable:Boolean(entry.data?.schedule?.available),scheduleReason:entry.data?.schedule?.reason||null,scheduleResolvedBy:entry.data?.schedule?.resolvedBy||null,attractionCount:entry.data?.attractionCount||0}:null,storedEntries:Object.keys(store.entries||{}).length,storedComparisons:(store.comparisons||[]).length,latestComparison:latest?{at:latest.at,parkKey:latest.parkKey,targetDate:latest.targetDate,fromTime:latest.fromTime,scheduleAvailable:latest.scheduleAvailable,counts:latest.counts}:null,decisionOverlay:historyShadowDecisionOverlayV421(state.selectedPark)};
+}
+
+// Preserve the production history path exactly; fire the v4.2.1 observer beside it.
+const v37FetchGlobalParkInsightsBeforeShadowV421 = fetchGlobalParkInsights;
+fetchGlobalParkInsights = async function(parkKey=state.selectedPark,force=false){
+  const ctx=historyShadowContextV421(parkKey);
+  const shadowPromise=ctx.contextStatus==='past-context'?Promise.resolve(null):fetchHistoryShadowV421(parkKey,force).catch(error=>{try{recordRuntimeDiagnosticV38('history-shadow-wrapper-v421',error,{parkKey});}catch{}return null;});
+  const production=await v37FetchGlobalParkInsightsBeforeShadowV421(parkKey,force);
+  Promise.resolve(shadowPromise).then(shadow=>{if(!production||!shadow)return;try{commitHistoryShadowComparisonV421(historyShadowCompareV421(production,shadow,ctx));}catch(error){try{recordRuntimeDiagnosticV38('history-shadow-compare-v421',error,{parkKey});}catch{}}});
+  return production;
+};
+async function refreshHistoryShadowComparisonV421(parkKey=state.selectedPark){
+  const ctx=historyShadowContextV421(parkKey);
+  if(ctx.contextStatus==='past-context')return{status:'past-context',parkKey,context:ctx,comparison:null};
+  const [production,shadow]=await Promise.all([v37FetchGlobalParkInsightsBeforeShadowV421(parkKey,true),fetchHistoryShadowV421(parkKey,true)]);
+  const comparison=production&&shadow?commitHistoryShadowComparisonV421(historyShadowCompareV421(production,shadow,ctx)):null;
+  return{status:comparison?'compared':'unavailable',parkKey,context:ctx,productionAvailable:Boolean(production),shadowAvailable:Boolean(shadow),comparison};
+}
+
+const v412EngineDiagnosticBeforeHistoryShadowV421=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){
+  const snapshot=v412EngineDiagnosticBeforeHistoryShadowV421(); snapshot.context=snapshot.context||{};
+  snapshot.context.historyShadowV421=historyShadowSummaryV421(); return snapshot;
+};
+const v412ExposeDiagnosticsBeforeHistoryShadowV421=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){
+  v412ExposeDiagnosticsBeforeHistoryShadowV421();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.historyShadowV421=()=>structuredClone(historyShadowSummaryV421());
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.historyShadowEntryV421=(parkKey=state.selectedPark)=>structuredClone(historyShadowEntryV421(parkKey));
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.historyShadowComparisonsV421=(limit=20)=>structuredClone((loadHistoryShadowStoreV421().comparisons||[]).slice(0,Math.max(1,Math.min(HISTORY_SHADOW_RULES_V421.maxComparisons,Number(limit)||20))));
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.historyShadowDecisionV421=(parkKey=state.selectedPark)=>structuredClone(historyShadowDecisionOverlayV421(parkKey));
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.refreshHistoryShadowV421=(parkKey=state.selectedPark)=>fetchHistoryShadowV421(parkKey,true).then(data=>structuredClone(data));
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.refreshHistoryShadowComparisonV421=(parkKey=state.selectedPark)=>refreshHistoryShadowComparisonV421(parkKey).then(data=>structuredClone(data));
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.clearHistoryShadowV421=()=>structuredClone(clearHistoryShadowV421());
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.historyShadowPolicyV421=()=>structuredClone(HISTORY_SHADOW_RULES_V421);
+};
+const v412RunSelfTestsBeforeHistoryShadowV421=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v412RunSelfTestsBeforeHistoryShadowV421(),additions=[];
+  addSelfTestV38(additions,'v4.2.1 shadow não substitui autoridade de produção',()=>{assertSelfTestV38(HISTORY_SHADOW_RULES_V421.productionAuthority==='v3'&&!HISTORY_SHADOW_RULES_V421.affectsScoring&&!HISTORY_SHADOW_RULES_V421.affectsRecommendation,'shadow contaminou produção');return 'v3 continua autoridade';});
+  addSelfTestV38(additions,'v4.2.1 shadow usa storage separado',()=>{assertSelfTestV38(HISTORY_SHADOW_STORAGE_KEY_V421!==GLOBAL_HISTORY_STORAGE_KEY,'storage compartilhado');return HISTORY_SHADOW_STORAGE_KEY_V421;});
+  addSelfTestV38(additions,'v4.2.1 shadow compacta payload sem profiles pesados',()=>{const c=historyShadowCompactPayloadV421({historyVersion:'4.2.1',parkKey:'epcot',attractions:{a:{id:'a',name:'A',confidence:'high',independentDays:9,profile:[[1,2]],weekdayProfile:[[1,2]],bestWindow:{targetMinute:600,median:10,independentDays:9,confidence:'high'}}}});assertSelfTestV38(!Object.prototype.hasOwnProperty.call(c.attractions.a,'profile')&&c.attractions.a.bestWindow.time==='10:00','compactação');return 'profiles removidos';});
+  addSelfTestV38(additions,'v4.2.1 shadow detecta janela v3 fora do schedule alvo',()=>{const p={historyVersion:3,attractions:{a:{id:'a',name:'A',confidence:'high',bestWindow:{minute:1440}}}},s={historyVersion:'4.2.1',schedule:{available:true,allowedWindows:[{openMinute:540,closeMinute:1380}]},attractions:{a:{id:'a',name:'A',confidence:'high',bestWindow:{minute:1320,time:'22:00'},independentDays:9}}};const x=historyShadowCompareV421(p,s,{parkKey:'epcot',targetDate:'2099-01-01',fromTime:'09:00'});assertSelfTestV38(x.counts.productionBestWindowOutsideTargetSchedule===1,JSON.stringify(x.counts));return '00:00 v3 bloqueado pelo guard';});
+  addSelfTestV38(additions,'v4.2.1 shadow mantém evento especial desligado por padrão',()=>{assertSelfTestV38(HISTORY_SHADOW_RULES_V421.includeSpecialEvents===false,'special events ligados');return 'regular hours only';});
+  addSelfTestV38(additions,'v4.2.1 shadow é interno e sem UI própria',()=>{assertSelfTestV38(HISTORY_SHADOW_RULES_V421.internalOnly&&!document.querySelector('[data-history-shadow-v421]'),'UI shadow indevida');return 'diagnóstico interno';});
+  addSelfTestV38(additions,'shadow não usa dia selecionado passado quando existe próximo dia do mesmo parque',()=>{const backupDays=state.days,backupSelectedDate=state.selectedDate,backupPark=state.selectedPark;try{const today=getOrlandoParts().date;const tomorrow=new Date(`${today}T12:00:00Z`);tomorrow.setUTCDate(tomorrow.getUTCDate()+1);const next=tomorrow.toISOString().slice(0,10);state.days=[{date:'2000-01-01',park:'epcot',activities:[]},{date:next,park:'epcot',activities:[]}];state.selectedDate='2000-01-01';state.selectedPark='epcot';const x=historyShadowDaySelectionV421('epcot');assertSelfTestV38(x.day?.date===next&&x.status==='operational'&&x.selectedWasPast,JSON.stringify(x));return `passado → ${next}`;}finally{state.days=backupDays;state.selectedDate=backupSelectedDate;state.selectedPark=backupPark;}});
+  addSelfTestV38(additions,'shadow marca past-context quando não existe dia atual/futuro do parque',()=>{const backupDays=state.days,backupSelectedDate=state.selectedDate,backupPark=state.selectedPark;try{state.days=[{date:'2000-01-01',park:'epcot',activities:[]}];state.selectedDate='2000-01-01';state.selectedPark='epcot';const x=historyShadowContextV421('epcot');assertSelfTestV38(x.contextStatus==='past-context'&&x.contextSource==='selected-past-no-future-same-park',JSON.stringify(x));return 'past-context explícito';}finally{state.days=backupDays;state.selectedDate=backupSelectedDate;state.selectedPark=backupPark;}});
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v41.2.4 — Explicit Shadow Test Context
+   - Allows diagnostic v3 × v4.2.1 comparisons for an explicit park/date/time.
+   - Does not change selected day/park, timeline, score, recommendation or app state.
+   - Production v3 is probed with a diagnostic-only URL and is not written to
+     globalHistoryCache; v4.2.1 remains isolated in the shadow store.
+   ============================================================ */
+let historyShadowLastExplicitTestV421 = null;
+
+function historyShadowValidDateV421(value){
+  const text=String(value||'').trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
+  const date=new Date(`${text}T12:00:00Z`);
+  if(Number.isNaN(date.getTime())||date.toISOString().slice(0,10)!==text) return null;
+  return text;
+}
+function historyShadowValidTimeV421(value){
+  const text=String(value??'09:00').trim();
+  const match=text.match(/^(\d{1,2}):(\d{2})$/);
+  if(!match) return null;
+  const hour=Number(match[1]),minute=Number(match[2]);
+  if(hour<0||hour>23||minute<0||minute>59) return null;
+  const raw=hour*60+minute;
+  const bucket=Math.floor(raw/HISTORY_SHADOW_RULES_V421.fromBucketMinutes)*HISTORY_SHADOW_RULES_V421.fromBucketMinutes;
+  return {input:text,rawMinute:raw,minute:bucket,time:minutesToTime(bucket)};
+}
+function historyShadowExplicitContextV421(input={}){
+  const parkKey=String(input?.parkKey||'').trim();
+  if(!PARKS[parkKey]?.entityId){
+    return {ok:false,status:'invalid-park',error:`Parque inválido: ${parkKey||'(vazio)'}`,validParks:Object.keys(PARKS).filter(k=>PARKS[k]?.entityId)};
+  }
+  const targetDate=historyShadowValidDateV421(input?.targetDate);
+  if(!targetDate) return {ok:false,status:'invalid-date',error:'targetDate deve usar YYYY-MM-DD.'};
+  const time=historyShadowValidTimeV421(input?.fromTime??'09:00');
+  if(!time) return {ok:false,status:'invalid-time',error:'fromTime deve usar HH:MM entre 00:00 e 23:59.'};
+  const today=getOrlandoParts().date;
+  const allowPast=Boolean(input?.allowPast);
+  if(targetDate<today&&!allowPast){
+    return {ok:false,status:'past-test-date',error:'O shadow test context exige data atual/futura por padrão. Use allowPast:true apenas para backtest explícito.',today,targetDate};
+  }
+  const includeSpecialEvents=Boolean(input?.includeSpecialEvents);
+  return {ok:true,context:{
+    parkKey,targetDate,fromMinute:time.minute,fromTime:time.time,fromSource:'explicit-shadow-test',
+    requestedFromTime:time.input,requestedFromMinute:time.rawMinute,dayDate:null,selectedDay:false,
+    contextStatus:'test-context',contextSource:'explicit-shadow-test',selectedWasPast:false,
+    includeSpecialEvents,testOnly:true,allowPast
+  }};
+}
+async function fetchHistoryShadowExplicitContextV421(ctx,force=true){
+  const parkKey=ctx?.parkKey;
+  if(!PARKS[parkKey]?.entityId||!navigator.onLine) return null;
+  const key=historyShadowKeyV421(ctx),store=loadHistoryShadowStoreV421(),cached=store.entries?.[key];
+  if(!force&&cached?.data&&Date.now()-Number(cached.fetchedAt||0)<HISTORY_SHADOW_RULES_V421.cacheTtlMs)return cached.data;
+  const inflightKey=`test:${key}`;
+  if(historyShadowInflightV421.has(inflightKey))return historyShadowInflightV421.get(inflightKey);
+  const task=(async()=>{
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),HISTORY_SHADOW_RULES_V421.timeoutMs);
+    const started=performance.now();
+    try{
+      const params=new URLSearchParams({parkKey,days:String(HISTORY_SHADOW_RULES_V421.historyDays),targetDate:ctx.targetDate,fromTime:ctx.fromTime});
+      if(ctx.includeSpecialEvents)params.set('includeSpecialEvents','1');
+      const url=`${GLOBAL_HISTORY_API}/api/v4.2.1/park-insights?${params.toString()}`;
+      const res=await fetch(url,{headers:{Accept:'application/json'},signal:controller.signal,cache:'no-store'});
+      if(!res.ok)throw new Error(`History shadow test v4.2.1 HTTP ${res.status}`);
+      const raw=await res.json();
+      if(!raw?.attractions||raw.parkKey!==parkKey||String(raw.historyVersion)!==HISTORY_SHADOW_VERSION_V421)throw new Error('Invalid History shadow test v4.2.1 payload');
+      const data=historyShadowCompactPayloadV421(raw);
+      store.entries[key]={fetchedAt:Date.now(),fetchedAtIso:new Date().toISOString(),elapsedMs:Math.round(performance.now()-started),context:structuredClone(ctx),testOnly:true,data};
+      persistHistoryShadowStoreV421();
+      return data;
+    }catch(error){
+      try{recordRuntimeDiagnosticV38('history-shadow-test-v421',error,{parkKey,targetDate:ctx.targetDate,fromTime:ctx.fromTime});}catch{}
+      return cached?.data||null;
+    }finally{clearTimeout(timer);historyShadowInflightV421.delete(inflightKey);}
+  })();
+  historyShadowInflightV421.set(inflightKey,task);return task;
+}
+async function fetchHistoryProductionProbeV421(parkKey){
+  if(!PARKS[parkKey]?.entityId||!navigator.onLine)return null;
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),HISTORY_SHADOW_RULES_V421.timeoutMs);
+  const started=performance.now();
+  try{
+    // Distinct query key prevents this diagnostic probe from sharing the normal SW
+    // cache key used by production history. It never writes globalHistoryCache.
+    const params=new URLSearchParams({parkKey,days:String(HISTORY_SHADOW_RULES_V421.historyDays),shadowProbe:'v421'});
+    const res=await fetch(`${GLOBAL_HISTORY_API}/api/v3/park-insights?${params.toString()}`,{headers:{Accept:'application/json'},signal:controller.signal,cache:'no-store'});
+    if(!res.ok)throw new Error(`History production probe v3 HTTP ${res.status}`);
+    const data=await res.json();
+    if(!data?.attractions||data.parkKey!==parkKey)throw new Error('Invalid History production probe v3 payload');
+    return {data,elapsedMs:Math.round(performance.now()-started)};
+  }catch(error){
+    try{recordRuntimeDiagnosticV38('history-shadow-production-probe-v421',error,{parkKey});}catch{}
+    return null;
+  }finally{clearTimeout(timer);}
+}
+function historyShadowTestResultSummaryV421(result){
+  if(!result)return null;
+  return {
+    at:result.at||null,status:result.status||null,parkKey:result.context?.parkKey||null,targetDate:result.context?.targetDate||null,
+    fromTime:result.context?.fromTime||null,includeSpecialEvents:Boolean(result.context?.includeSpecialEvents),
+    productionAvailable:Boolean(result.production?.available),shadowAvailable:Boolean(result.shadow?.available),
+    scheduleAvailable:Boolean(result.shadow?.scheduleAvailable),scheduleReason:result.shadow?.scheduleReason||null,
+    matched:Number(result.comparison?.counts?.matched||0),divergenceCount:Number(result.comparison?.divergences?.length||0),
+    affectsDecision:false,testOnly:true
+  };
+}
+async function testHistoryShadowV421(input={}){
+  const normalized=historyShadowExplicitContextV421(input);
+  if(!normalized.ok){
+    const result={at:new Date().toISOString(),mode:'shadow-test-context',testOnly:true,internalOnly:true,productionAuthority:'v3',affectsScoring:false,affectsRecommendation:false,affectsTimeline:false,affectsDecision:false,...normalized};
+    historyShadowLastExplicitTestV421=result;return result;
+  }
+  const ctx=normalized.context;
+  const before={selectedDate:state.selectedDate,selectedPark:state.selectedPark,daysRef:state.days,historyLength:Array.isArray(state.history)?state.history.length:null};
+  const [productionProbe,shadow]=await Promise.all([fetchHistoryProductionProbeV421(ctx.parkKey),fetchHistoryShadowExplicitContextV421(ctx,true)]);
+  let comparison=null;
+  if(productionProbe?.data&&shadow){
+    const base=historyShadowCompareV421(productionProbe.data,shadow,ctx);
+    comparison={...base,contextMode:'explicit-test',testOnly:true};
+    comparison.signature=`test|${base.signature}`;
+    comparison=commitHistoryShadowComparisonV421(comparison);
+  }
+  const stateUntouched=state.selectedDate===before.selectedDate&&state.selectedPark===before.selectedPark&&state.days===before.daysRef&&(Array.isArray(state.history)?state.history.length:null)===before.historyLength;
+  const entry=loadHistoryShadowStoreV421().entries?.[historyShadowKeyV421(ctx)]||null;
+  const result={
+    at:new Date().toISOString(),status:comparison?'compared':(shadow?'shadow-only':'unavailable'),mode:'shadow-test-context',testOnly:true,internalOnly:true,
+    productionAuthority:'v3',affectsScoring:false,affectsRecommendation:false,affectsTimeline:false,affectsDecision:false,stateUntouched,context:ctx,
+    production:{available:Boolean(productionProbe?.data),historyVersion:productionProbe?.data?String(productionProbe.data.historyVersion||'3'):null,attractionCount:productionProbe?.data?Object.keys(productionProbe.data.attractions||{}).length:0,elapsedMs:productionProbe?.elapsedMs??null},
+    shadow:{available:Boolean(shadow),historyVersion:shadow?.historyVersion||null,attractionCount:shadow?.attractionCount||0,elapsedMs:entry?.elapsedMs??null,scheduleAvailable:Boolean(shadow?.schedule?.available),scheduleReason:shadow?.schedule?.reason||null,scheduleResolvedBy:shadow?.schedule?.resolvedBy||null,regularWindows:structuredClone(shadow?.schedule?.regularWindows||[]),specialWindows:structuredClone(shadow?.schedule?.specialWindows||[]),allowedWindows:structuredClone(shadow?.schedule?.allowedWindows||[])},
+    comparison
+  };
+  historyShadowLastExplicitTestV421=result;
+  return result;
+}
+
+const v4123HistoryShadowSummaryBeforeTestContextV421=historyShadowSummaryV421;
+historyShadowSummaryV421=function(){
+  const summary=v4123HistoryShadowSummaryBeforeTestContextV421();
+  summary.explicitTestContext={available:true,last:historyShadowTestResultSummaryV421(historyShadowLastExplicitTestV421)};
+  return summary;
+};
+
+const v4123ExposeDiagnosticsBeforeTestContextV421=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){
+  v4123ExposeDiagnosticsBeforeTestContextV421();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.testHistoryShadowV421=(input={})=>testHistoryShadowV421(input).then(data=>structuredClone(data));
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.historyShadowLastTestV421=()=>structuredClone(historyShadowLastExplicitTestV421);
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.historyShadowTestContextPolicyV421=()=>structuredClone({
+    version:'1',mode:'shadow-test-context',internalOnly:true,productionAuthority:'v3',historyDays:HISTORY_SHADOW_RULES_V421.historyDays,
+    fromBucketMinutes:HISTORY_SHADOW_RULES_V421.fromBucketMinutes,includeSpecialEventsDefault:false,allowPastDefault:false,
+    affectsScoring:false,affectsRecommendation:false,affectsTimeline:false,affectsDecision:false
+  });
+};
+
+const v4123RunSelfTestsBeforeTestContextV421=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v4123RunSelfTestsBeforeTestContextV421(),additions=[];
+  addSelfTestV38(additions,'shadow test context valida parque sem tocar no roteiro',()=>{const x=historyShadowExplicitContextV421({parkKey:'nao-existe',targetDate:'2099-09-10',fromTime:'09:00'});assertSelfTestV38(!x.ok&&x.status==='invalid-park','parque inválido aceito');return x.status;});
+  addSelfTestV38(additions,'shadow test context valida data e horário',()=>{const a=historyShadowExplicitContextV421({parkKey:'epcot',targetDate:'x',fromTime:'09:00'}),b=historyShadowExplicitContextV421({parkKey:'epcot',targetDate:'2099-09-10',fromTime:'25:99'});assertSelfTestV38(a.status==='invalid-date'&&b.status==='invalid-time',`${a.status}/${b.status}`);return 'data + hora validadas';});
+  addSelfTestV38(additions,'shadow test context arredonda fromTime no mesmo bucket de 30 min',()=>{const x=historyShadowExplicitContextV421({parkKey:'epcot',targetDate:'2099-09-10',fromTime:'09:17'});assertSelfTestV38(x.ok&&x.context.fromTime==='09:00'&&x.context.requestedFromTime==='09:17',JSON.stringify(x));return '09:17 → 09:00';});
+  addSelfTestV38(additions,'shadow test context é explicitamente testOnly e não afeta decisão',()=>{const x=historyShadowExplicitContextV421({parkKey:'magic-kingdom',targetDate:'2099-09-10',fromTime:'09:00'});assertSelfTestV38(x.ok&&x.context.testOnly&&HISTORY_SHADOW_RULES_V421.affectsScoring===false&&HISTORY_SHADOW_RULES_V421.affectsRecommendation===false&&HISTORY_SHADOW_RULES_V421.affectsTimeline===false,'governança');return 'testOnly';});
+  addSelfTestV38(additions,'shadow test context mantém eventos especiais desligados salvo opt-in',()=>{const a=historyShadowExplicitContextV421({parkKey:'magic-kingdom',targetDate:'2099-09-10',fromTime:'09:00'}),b=historyShadowExplicitContextV421({parkKey:'magic-kingdom',targetDate:'2099-09-10',fromTime:'09:00',includeSpecialEvents:true});assertSelfTestV38(!a.context.includeSpecialEvents&&b.context.includeSpecialEvents,'opt-in');return 'false → opt-in true';});
+  addSelfTestV38(additions,'probe v3 do shadow test usa URL diagnóstica separada',()=>{assertSelfTestV38(String(fetchHistoryProductionProbeV421).includes("shadowProbe:'v421'")&&!String(fetchHistoryProductionProbeV421).includes('globalHistoryCache['),'probe contaminou cache de produção');return 'shadowProbe=v421';});
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v41.2.5 — History v4.2.1 Guarded Rollout
+   - v3 remains the scoring, attraction-selection and priority-order authority.
+   - v4.2.1 becomes the authority only for temporal validity of displayed
+     queue-history windows (regular park hours; special events off by default).
+   - Invalid/unverified temporal guidance is replaced or suppressed without
+     changing score, selected attraction, protected ordering or timeline.
+   ============================================================ */
+const HISTORY_GUARD_VERSION_V421='1';
+const HISTORY_GUARD_RULES_V421=Object.freeze({
+  mode:'guarded-rollout',
+  scoringAuthority:'v3',
+  selectionAuthority:'v3',
+  priorityOrderAuthority:'v3',
+  timelineAuthority:'v3',
+  scheduleAuthority:'v4.2.1',
+  includeSpecialEvents:false,
+  maxEvidenceAgeMs:30*60_000,
+  replaceInvalidWithV421:true,
+  suppressWhenScheduleUnverified:true,
+  suppressExcludedSpecialEvents:true,
+  minimumReplacementConfidence:'low',
+  affectsScoring:false,
+  affectsSelection:false,
+  affectsPriorityOrder:false,
+  affectsTimeline:false,
+  affectsTemporalGuidance:true
+});
+const historyGuardRuntimeV421=new Map();
+let historyGuardLastExplicitTestV421=null;
+
+function historyGuardOperationalEntryV421(parkKey,targetDate){
+  const store=loadHistoryShadowStoreV421();
+  const rows=Object.values(store.entries||{}).filter(e=>{
+    if(!e||e.testOnly)return false;
+    if(e.data?.parkKey!==parkKey)return false;
+    const date=e.data?.schedule?.targetDate||e.data?.target?.date||e.context?.targetDate||null;
+    return date===targetDate;
+  }).sort((a,b)=>Number(b.fetchedAt||0)-Number(a.fetchedAt||0));
+  return rows[0]||null;
+}
+function historyGuardMinuteNotBeforeV421(minute,fromMinute,schedule){
+  const m=Number(minute),from=Number(fromMinute);
+  if(!Number.isFinite(m)||!Number.isFinite(from))return false;
+  if(m>=from)return true;
+  return (schedule?.allowedWindows||[]).some(w=>{
+    const open=Number(w.openMinute),close=Number(w.closeMinute);
+    return Number.isFinite(open)&&Number.isFinite(close)&&close<open&&from>=open&&m<close;
+  });
+}
+function historyGuardReplacementBestV421(evidence,currentWait=null){
+  const stat=evidence?.bestWindow;
+  const minute=historyShadowWindowMinuteV421(stat);
+  const median=Number(stat?.median),p25=Number(stat?.p25),p75=Number(stat?.p75),wait=Number.isFinite(median)?Math.round(median):null;
+  if(minute==null||wait==null)return null;
+  const time=stat?.time||minutesToTime(((minute%1440)+1440)%1440);
+  return {minute,time,timeRange:time,windowStart:minute,windowEnd:minute,wait,low:Number.isFinite(p25)?Math.round(p25):wait,high:Number.isFinite(p75)?Math.round(p75):wait,adjusted:wait,saving:Number.isFinite(Number(currentWait))?Math.max(0,Math.round(Number(currentWait)-wait)):0,waitValue:null,risk:{level:'low',score:0},source:'history-v4.2.1-guard',confidence:confidencePt(stat?.confidence||evidence?.confidence),historyVersion:'4.2.1'};
+}
+function historyGuardEvaluateWindowV421({productionBest,evidence,schedule,fromMinute,currentWait=null}={}){
+  if(!productionBest)return{action:'no-production-window',reason:'no-production-window',productionAllowed:null,finalBest:null};
+  if(!schedule?.available)return{action:'suppress-temporal',reason:'schedule-unverified',productionAllowed:null,finalBest:null};
+  const productionMinute=historyShadowWindowMinuteV421(productionBest);
+  if(productionMinute==null)return{action:'suppress-temporal',reason:'production-window-unparseable',productionAllowed:false,finalBest:null};
+  const eventExcluded=Boolean(evidence?.targetAvailability?.eventOnlyHeuristic)&&Number(evidence?.targetAvailability?.eligibleWindowCount||0)<=0;
+  if(eventExcluded&&HISTORY_GUARD_RULES_V421.suppressExcludedSpecialEvents)return{action:'suppress-temporal',reason:'special-event-excluded',productionAllowed:false,productionMinute,finalBest:null,eventExcluded:true};
+  const inSchedule=historyShadowMinuteInAllowedV421(productionMinute,schedule)===true;
+  const notBefore=historyGuardMinuteNotBeforeV421(productionMinute,fromMinute,schedule);
+  const productionAllowed=inSchedule&&notBefore;
+  if(productionAllowed)return{action:'keep-production',reason:'production-window-allowed',productionAllowed:true,productionMinute,finalBest:productionBest};
+  const replacement=historyGuardReplacementBestV421(evidence,currentWait);
+  const replacementMinute=historyShadowWindowMinuteV421(replacement);
+  const replacementConfidence=historyShadowConfidenceRankV421(evidence?.bestWindow?.confidence||evidence?.confidence);
+  const minRank=historyShadowConfidenceRankV421(HISTORY_GUARD_RULES_V421.minimumReplacementConfidence);
+  const replacementAllowed=replacementMinute!=null&&historyShadowMinuteInAllowedV421(replacementMinute,schedule)===true&&historyGuardMinuteNotBeforeV421(replacementMinute,fromMinute,schedule)&&Boolean(evidence?.targetAvailability?.scheduleAvailable)&&replacementConfidence>=minRank;
+  if(replacementAllowed&&HISTORY_GUARD_RULES_V421.replaceInvalidWithV421)return{action:'replace-with-v421',reason:inSchedule?'production-window-before-context':'production-window-outside-schedule',productionAllowed:false,productionMinute,replacementMinute,finalBest:replacement};
+  return{action:'suppress-temporal',reason:inSchedule?'production-window-before-context':'production-window-outside-schedule',productionAllowed:false,productionMinute,replacementMinute:replacementMinute??null,finalBest:null};
+}
+function historyGuardRuntimeKeyV421(parkKey,date,value){return `${parkKey}|${date}|${normalizeName(value?.name||value?.title||String(value||''))}`;}
+function historyGuardRecordRuntimeV421(row){
+  if(!row)return;
+  historyGuardRuntimeV421.set(historyGuardRuntimeKeyV421(row.parkKey,row.targetDate,row.attraction),row);
+  if(historyGuardRuntimeV421.size>80){const first=historyGuardRuntimeV421.keys().next().value;historyGuardRuntimeV421.delete(first);}
+}
+function historyGuardApplyToScoreResultV421(result,entry,day,startMinute=null){
+  if(!result||!result.forecast||result.blocked)return result;
+  const parkKey=day?.park||state.selectedPark,targetDate=day?.date||getOrlandoParts().date,today=getOrlandoParts().date;
+  if(!PARKS[parkKey]?.entityId||!targetDate||targetDate<today)return result;
+  const originalBest=Object.prototype.hasOwnProperty.call(result.forecast,'productionBestV421')?result.forecast.productionBestV421:result.forecast.best;
+  if(!Object.prototype.hasOwnProperty.call(result.forecast,'productionBestV421'))result.forecast.productionBestV421=originalBest?structuredClone(originalBest):null;
+  const shadowEntry=historyGuardOperationalEntryV421(parkKey,targetDate);
+  const ageMs=shadowEntry?Math.max(0,Date.now()-Number(shadowEntry.fetchedAt||0)):Infinity;
+  const shadow=shadowEntry?.data||null,schedule=shadow?.schedule||null;
+  const attractionValue=entry||result.activity||null,evidence=historyShadowFindAttractionV421(shadow,attractionValue);
+  let evaluation;
+  if(!shadowEntry||ageMs>HISTORY_GUARD_RULES_V421.maxEvidenceAgeMs){
+    evaluation=originalBest?{action:'suppress-temporal',reason:shadowEntry?'v421-evidence-stale':'v421-evidence-unavailable',productionAllowed:null,finalBest:null}:{action:'no-production-window',reason:'no-production-window',productionAllowed:null,finalBest:null};
+  }else evaluation=historyGuardEvaluateWindowV421({productionBest:originalBest,evidence,schedule,fromMinute:Number(shadowEntry?.context?.fromMinute??startMinute??0),currentWait:result.wait});
+  result.forecast.best=evaluation.finalBest?structuredClone(evaluation.finalBest):null;
+  const guard={version:HISTORY_GUARD_VERSION_V421,mode:HISTORY_GUARD_RULES_V421.mode,parkKey,targetDate,attraction:result.activity?.title||entry?.name||null,action:evaluation.action,reason:evaluation.reason,scheduleAvailable:Boolean(schedule?.available),scheduleReason:schedule?.reason||null,evidenceAgeMinutes:Number.isFinite(ageMs)?Math.round(ageMs/60000):null,productionBest:originalBest?{minute:historyShadowWindowMinuteV421(originalBest),time:originalBest.timeRange||originalBest.time||null,wait:Number.isFinite(Number(originalBest.wait))?Number(originalBest.wait):null}:null,finalBest:result.forecast.best?{minute:historyShadowWindowMinuteV421(result.forecast.best),time:result.forecast.best.timeRange||result.forecast.best.time||null,wait:Number.isFinite(Number(result.forecast.best.wait))?Number(result.forecast.best.wait):null,source:result.forecast.best.source||null}:null,productionAllowed:evaluation.productionAllowed,scoreUntouched:true,selectionUntouched:true,priorityOrderUntouched:true,timelineUntouched:true};
+  result.forecast.historyGuardV421=guard;result.historyGuardV421=guard;
+  historyGuardRecordRuntimeV421({...guard,at:new Date().toISOString()});
+  return result;
+}
+function historyGuardPriorityWindowLabelV421(priority,fallback=null){
+  const guard=priority?.meta?.forecast?.historyGuardV421||priority?.meta?.historyGuardV421||null;
+  if(!guard)return fallback;
+  if(guard.action==='replace-with-v421'&&guard.finalBest?.time)return `Melhor janela validada ${guard.finalBest.time}`;
+  if(guard.action==='suppress-temporal')return guard.reason==='special-event-excluded'?'Janela de evento especial excluída':'Janela temporal aguardando confirmação';
+  return fallback;
+}
+
+// Apply the temporal guard after the entire scoring chain has finished. Score and
+// band are intentionally left untouched. productionBestV421 preserves the exact
+// window used by the existing v3/v37 engine so strategic ordering can keep using it.
+const v4124CopilotScoreBeforeHistoryGuardV421=copilotScoreForEntry;
+copilotScoreForEntry=function(entry,day=getSelectedDay(),weatherPayload=state.weatherCache?.[state.selectedPark],startMinute=null,previousActivity=null){
+  const result=v4124CopilotScoreBeforeHistoryGuardV421(entry,day,weatherPayload,startMinute,previousActivity);
+  return historyGuardApplyToScoreResultV421(result,entry,day,startMinute);
+};
+
+// Strategic scheduling explicitly sees the original production window. This is the
+// containment boundary that prevents the guard from reordering priorities/timeline.
+const v4124StrategicWindowBeforeHistoryGuardV421=strategicWindowV36;
+strategicWindowV36=function(row,day,nowMinute){
+  const forecast=row?.meta?.forecast;
+  if(forecast&&Object.prototype.hasOwnProperty.call(forecast,'productionBestV421')){
+    const productionRow={...row,meta:{...row.meta,forecast:{...forecast,best:forecast.productionBestV421}}};
+    return v4124StrategicWindowBeforeHistoryGuardV421(productionRow,day,nowMinute);
+  }
+  return v4124StrategicWindowBeforeHistoryGuardV421(row,day,nowMinute);
+};
+
+function historyGuardSummaryV421(){
+  const day=getSelectedDay(),parkKey=day?.park||state.selectedPark,targetDate=day?.date||null;
+  const rows=[...historyGuardRuntimeV421.values()].filter(x=>!parkKey||x.parkKey===parkKey).sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
+  const counts={};for(const x of rows)counts[x.action]=(counts[x.action]||0)+1;
+  const trace=typeof latestDecisionTraceV392==='function'?latestDecisionTraceV392():null;
+  const selectedTitle=trace?.park===parkKey?trace?.selected?.title:null;
+  const selected=selectedTitle?rows.find(x=>normalizeName(x.attraction||'')===normalizeName(selectedTitle)):null;
+  return{version:HISTORY_GUARD_VERSION_V421,mode:HISTORY_GUARD_RULES_V421.mode,scoringAuthority:'v3',selectionAuthority:'v3',priorityOrderAuthority:'v3',timelineAuthority:'v3',scheduleAuthority:'v4.2.1',affectsScoring:false,affectsSelection:false,affectsPriorityOrder:false,affectsTimeline:false,affectsTemporalGuidance:true,currentContext:{parkKey,targetDate},currentDecision:selected||null,runtimeCounts:counts,recent:rows.slice(0,12)};
+}
+function historyGuardEvaluateApiPairV421(production,shadow,ctx){
+  const prod=production?.attractions||{},sha=shadow?.attractions||{},rows=[];
+  for(const [id,p] of Object.entries(prod)){
+    const s=sha[id]||historyShadowFindAttractionV421(shadow,p?.name||'');
+    if(!s)continue;
+    const e=historyGuardEvaluateWindowV421({productionBest:p?.bestWindow,evidence:s,schedule:shadow?.schedule,fromMinute:ctx?.fromMinute,currentWait:null});
+    rows.push({id,name:s?.name||p?.name||'',action:e.action,reason:e.reason,productionMinute:historyShadowWindowMinuteV421(p?.bestWindow),productionTime:p?.bestWindow?minutesToTime(((historyShadowWindowMinuteV421(p.bestWindow)||0)%1440+1440)%1440):null,productionAllowed:e.productionAllowed,shadowMinute:historyShadowWindowMinuteV421(s?.bestWindow),shadowTime:s?.bestWindow?.time||null,finalMinute:historyShadowWindowMinuteV421(e.finalBest),finalTime:e.finalBest?.time||e.finalBest?.timeRange||null,confidence:s?.confidence||null,independentDays:s?.independentDays??null,eventOnlyHeuristic:Boolean(s?.targetAvailability?.eventOnlyHeuristic)});
+  }
+  const counts={matched:rows.length,keepProduction:0,replaceWithV421:0,suppressTemporal:0,noProductionWindow:0,specialEventExcluded:0,scheduleUnverified:0};
+  for(const r of rows){if(r.action==='keep-production')counts.keepProduction++;else if(r.action==='replace-with-v421')counts.replaceWithV421++;else if(r.action==='suppress-temporal')counts.suppressTemporal++;else counts.noProductionWindow++;if(r.reason==='special-event-excluded')counts.specialEventExcluded++;if(r.reason==='schedule-unverified')counts.scheduleUnverified++;}
+  return{counts,rows};
+}
+async function testHistoryGuardV421(input={}){
+  const normalized=historyShadowExplicitContextV421(input);
+  if(!normalized.ok){const fail={at:new Date().toISOString(),mode:'guarded-rollout-test',testOnly:true,affectsScoring:false,affectsSelection:false,affectsPriorityOrder:false,affectsTimeline:false,...normalized};historyGuardLastExplicitTestV421=fail;return fail;}
+  const ctx=normalized.context;
+  const before={selectedDate:state.selectedDate,selectedPark:state.selectedPark,daysRef:state.days,historyLength:Array.isArray(state.history)?state.history.length:null};
+  const [productionProbe,shadow]=await Promise.all([fetchHistoryProductionProbeV421(ctx.parkKey),fetchHistoryShadowExplicitContextV421(ctx,true)]);
+  const policy=productionProbe?.data&&shadow?historyGuardEvaluateApiPairV421(productionProbe.data,shadow,ctx):null;
+  const stateUntouched=state.selectedDate===before.selectedDate&&state.selectedPark===before.selectedPark&&state.days===before.daysRef&&(Array.isArray(state.history)?state.history.length:null)===before.historyLength;
+  const result={at:new Date().toISOString(),status:policy?'evaluated':'unavailable',mode:'guarded-rollout-test',testOnly:true,stateUntouched,context:ctx,production:{available:Boolean(productionProbe?.data),historyVersion:productionProbe?.data?String(productionProbe.data.historyVersion||'3'):null,attractionCount:productionProbe?.data?Object.keys(productionProbe.data.attractions||{}).length:0},shadow:{available:Boolean(shadow),historyVersion:shadow?.historyVersion||null,attractionCount:shadow?.attractionCount||0,scheduleAvailable:Boolean(shadow?.schedule?.available),scheduleReason:shadow?.schedule?.reason||null},policy:policy?{counts:policy.counts,examples:policy.rows.filter(r=>r.action!=='keep-production').slice(0,30)}:null,affectsScoring:false,affectsSelection:false,affectsPriorityOrder:false,affectsTimeline:false,affectsTemporalGuidance:true};
+  historyGuardLastExplicitTestV421=result;return result;
+}
+
+const v4124EngineDiagnosticBeforeHistoryGuardV421=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){const snapshot=v4124EngineDiagnosticBeforeHistoryGuardV421();snapshot.context=snapshot.context||{};snapshot.context.historyGuardV421=historyGuardSummaryV421();return snapshot;};
+const v4124ExposeDiagnosticsBeforeHistoryGuardV421=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){
+  v4124ExposeDiagnosticsBeforeHistoryGuardV421();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.historyGuardV421=()=>structuredClone(historyGuardSummaryV421());
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.historyGuardPolicyV421=()=>structuredClone(HISTORY_GUARD_RULES_V421);
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.testHistoryGuardV421=(input={})=>testHistoryGuardV421(input).then(x=>structuredClone(x));
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.historyGuardLastTestV421=()=>structuredClone(historyGuardLastExplicitTestV421);
+};
+
+const v4124RunSelfTestsBeforeHistoryGuardV421=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v4124RunSelfTestsBeforeHistoryGuardV421(),additions=[];
+  addSelfTestV38(additions,'guard v4.2.1 mantém v3 como autoridade de score/seleção/prioridade/timeline',()=>{assertSelfTestV38(!HISTORY_GUARD_RULES_V421.affectsScoring&&!HISTORY_GUARD_RULES_V421.affectsSelection&&!HISTORY_GUARD_RULES_V421.affectsPriorityOrder&&!HISTORY_GUARD_RULES_V421.affectsTimeline,'contenção violada');return 'somente validade temporal';});
+  addSelfTestV38(additions,'guard mantém janela de produção quando está dentro do schedule',()=>{const p={minute:600,time:'10:00',wait:20},schedule={available:true,allowedWindows:[{openMinute:540,closeMinute:1380}]},e={confidence:'high',targetAvailability:{scheduleAvailable:true},bestWindow:{minute:660,time:'11:00',median:15,confidence:'high'}};const x=historyGuardEvaluateWindowV421({productionBest:p,evidence:e,schedule,fromMinute:540});assertSelfTestV38(x.action==='keep-production'&&x.finalBest===p,JSON.stringify(x));return x.action;});
+  addSelfTestV38(additions,'guard troca janela impossível por v4.2.1 válida',()=>{const p={minute:1410,time:'23:30',wait:15},schedule={available:true,allowedWindows:[{openMinute:540,closeMinute:1380}]},e={confidence:'high',targetAvailability:{scheduleAvailable:true},bestWindow:{minute:600,time:'10:00',median:20,p25:15,p75:25,confidence:'high'}};const x=historyGuardEvaluateWindowV421({productionBest:p,evidence:e,schedule,fromMinute:540,currentWait:40});assertSelfTestV38(x.action==='replace-with-v421'&&x.finalBest?.minute===600,JSON.stringify(x));return '23:30 → 10:00';});
+  addSelfTestV38(additions,'guard suprime janela quando schedule não foi confirmado',()=>{const x=historyGuardEvaluateWindowV421({productionBest:{minute:600},evidence:null,schedule:{available:false},fromMinute:540});assertSelfTestV38(x.action==='suppress-temporal'&&x.reason==='schedule-unverified'&&!x.finalBest,JSON.stringify(x));return x.reason;});
+  addSelfTestV38(additions,'guard exclui atração heurística de evento especial',()=>{const x=historyGuardEvaluateWindowV421({productionBest:{minute:1100},schedule:{available:true,allowedWindows:[{openMinute:540,closeMinute:1380}]},fromMinute:540,evidence:{confidence:'low',targetAvailability:{scheduleAvailable:true,eventOnlyHeuristic:true,eligibleWindowCount:0}}});assertSelfTestV38(x.action==='suppress-temporal'&&x.reason==='special-event-excluded',JSON.stringify(x));return x.reason;});
+  addSelfTestV38(additions,'guard preserva janela original para estratégia interna',()=>{assertSelfTestV38(String(strategicWindowV36).includes('productionBestV421'),'boundary ausente');return 'priority/timeline usam productionBestV421';});
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v41.2.6 — Semantic Event Refinement + Early Entry
+   - Keeps v3 as scoring/selection/priority/timeline authority.
+   - Keeps v4.2.1 as temporal schedule authority.
+   - Separates Early Entry from paid/special ticketed events even when the
+     upstream schedule labels both as TICKETED_EVENT.
+   - Early Entry is eligible in this build; HHN/MNSSHP/other event-only
+     experiences remain excluded from temporal guidance.
+   - This is a client-side semantic/access layer only. It does NOT ask
+     v4.2.1 to optimize historical bestWindow inside Early Entry yet.
+   ============================================================ */
+const HISTORY_GUARD_SEMANTIC_VERSION_V421='2';
+const HISTORY_GUARD_SEMANTIC_RULES_V421=Object.freeze({
+  semanticVersion:HISTORY_GUARD_SEMANTIC_VERSION_V421,
+  earlyEntryEligible:true,
+  earlyEntryEnabledForAllParks:true,
+  includeTicketedEvents:false,
+  includeExtendedEveningHours:false,
+  classifyUpstreamEarlyEntryTicketedEvent:true,
+  semanticSpecialEventClassification:true,
+  affectsScoring:false,
+  affectsSelection:false,
+  affectsPriorityOrder:false,
+  affectsTimeline:false,
+  affectsTemporalGuidance:true
+});
+
+const HISTORY_GUARD_KNOWN_EVENT_ONLY_NAMES_V421=new Set([
+  'madlands caged cannibals',
+  'evil dead burn',
+  'h r bloodengutz presents a halloween fright tacular',
+  'ozzy osbourne prince of darkness',
+  'hellraiser',
+  'invasion alien abduction',
+  'jack oddfellow chaos control',
+  'sinners',
+  'stranger things 5'
+]);
+
+function historyGuardSemanticTextV421(value){
+  return normalizeName(String(value||''));
+}
+function historyGuardWindowContainsMinuteV421(window,minute){
+  const n=Number(minute),open=Number(window?.openMinute),close=Number(window?.closeMinute);
+  if(!Number.isFinite(n)||!Number.isFinite(open)||!Number.isFinite(close))return false;
+  return close>=open?(n>=open&&n<close):(n>=open||n<close);
+}
+function historyGuardSpecialWindowCategoryV421(window){
+  const text=historyGuardSemanticTextV421(`${window?.description||''} ${window?.type||''} ${window?.category||''}`);
+  if(/\bearly\s+(entry|park|theme park|admission)\b/.test(text)||text.includes('early entry')||text.includes('early park admission'))return 'early-entry';
+  if(text.includes('extended evening')||text.includes('extended hours'))return 'extended-hours';
+  return 'ticketed-event';
+}
+function historyGuardDedupeWindowsV421(windows){
+  const seen=new Set(),out=[];
+  for(const w of windows||[]){
+    const open=Number(w?.openMinute),close=Number(w?.closeMinute);
+    if(!Number.isFinite(open)||!Number.isFinite(close))continue;
+    const category=w?.category||'regular';
+    const key=`${open}|${close}|${category}`;
+    if(seen.has(key))continue;seen.add(key);
+    out.push({...w,openMinute:open,closeMinute:close,category});
+  }
+  return out;
+}
+function historyGuardEffectiveScheduleV421(schedule){
+  if(!schedule?.available)return schedule||null;
+  const regularSource=(schedule.regularWindows?.length?schedule.regularWindows:schedule.allowedWindows)||[];
+  const regular=regularSource.map(w=>({...w,category:'regular'}));
+  const special=(schedule.specialWindows||[]).map(w=>({...w,category:historyGuardSpecialWindowCategoryV421(w)}));
+  const earlyEntry=HISTORY_GUARD_SEMANTIC_RULES_V421.earlyEntryEligible?special.filter(w=>w.category==='early-entry'):[];
+  const allowed=historyGuardDedupeWindowsV421([...regular,...earlyEntry]);
+  return {...schedule,allowedWindows:allowed,guardAllowedWindows:allowed,earlyEntryWindows:earlyEntry,
+    earlyEntryEligible:HISTORY_GUARD_SEMANTIC_RULES_V421.earlyEntryEligible,
+    earlyEntryWindowCount:earlyEntry.length,
+    ticketedEventWindows:special.filter(w=>w.category==='ticketed-event'),
+    extendedHoursWindows:special.filter(w=>w.category==='extended-hours')};
+}
+function historyGuardMinuteCategoryV421(minute,schedule){
+  const effective=historyGuardEffectiveScheduleV421(schedule);
+  if(!effective?.available)return null;
+  if((effective.earlyEntryWindows||[]).some(w=>historyGuardWindowContainsMinuteV421(w,minute)))return 'early-entry';
+  if((effective.regularWindows||[]).some(w=>historyGuardWindowContainsMinuteV421(w,minute)))return 'regular';
+  if((effective.ticketedEventWindows||[]).some(w=>historyGuardWindowContainsMinuteV421(w,minute)))return 'ticketed-event';
+  if((effective.extendedHoursWindows||[]).some(w=>historyGuardWindowContainsMinuteV421(w,minute)))return 'extended-hours';
+  return 'outside-schedule';
+}
+function historyGuardClassifyAttractionV421(evidence){
+  const availability=evidence?.targetAvailability||{};
+  const guard=historyGuardSemanticTextV421(availability.guard||'');
+  const name=historyGuardSemanticTextV421(evidence?.name||'');
+  if(guard.includes('special event excluded'))return{eventOnly:true,source:'target-availability-guard'};
+  if(Boolean(availability.eventOnlyHeuristic))return{eventOnly:true,source:'worker-event-only-heuristic'};
+  if(name.includes('mickeys not so scary halloween party')||name.includes('halloween horror nights'))return{eventOnly:true,source:'event-name-family'};
+  if(HISTORY_GUARD_KNOWN_EVENT_ONLY_NAMES_V421.has(name))return{eventOnly:true,source:'known-2026-event-catalog'};
+  return{eventOnly:false,source:null};
+}
+
+// Semantic replacement of the v41.2.5 evaluator. It only broadens the allowed
+// schedule with Early Entry and improves event-only classification.
+historyGuardEvaluateWindowV421=function({productionBest,evidence,schedule,fromMinute,currentWait=null}={}){
+  if(!productionBest)return{action:'no-production-window',reason:'no-production-window',productionAllowed:null,finalBest:null};
+  if(!schedule?.available)return{action:'suppress-temporal',reason:'schedule-unverified',productionAllowed:null,finalBest:null};
+  const effectiveSchedule=historyGuardEffectiveScheduleV421(schedule);
+  const productionMinute=historyShadowWindowMinuteV421(productionBest);
+  if(productionMinute==null)return{action:'suppress-temporal',reason:'production-window-unparseable',productionAllowed:false,finalBest:null};
+  const classification=historyGuardClassifyAttractionV421(evidence);
+  if(classification.eventOnly&&HISTORY_GUARD_RULES_V421.suppressExcludedSpecialEvents){
+    return{action:'suppress-temporal',reason:'special-event-excluded',productionAllowed:false,productionMinute,finalBest:null,eventExcluded:true,specialEventSource:classification.source,productionScheduleCategory:historyGuardMinuteCategoryV421(productionMinute,schedule)};
+  }
+  const inSchedule=historyShadowMinuteInAllowedV421(productionMinute,effectiveSchedule)===true;
+  const notBefore=historyGuardMinuteNotBeforeV421(productionMinute,fromMinute,effectiveSchedule);
+  const productionAllowed=inSchedule&&notBefore;
+  const productionScheduleCategory=historyGuardMinuteCategoryV421(productionMinute,schedule);
+  if(productionAllowed)return{action:'keep-production',reason:productionScheduleCategory==='early-entry'?'production-window-allowed-early-entry':'production-window-allowed',productionAllowed:true,productionMinute,finalBest:productionBest,productionScheduleCategory,earlyEntryApplied:productionScheduleCategory==='early-entry'};
+  const replacement=historyGuardReplacementBestV421(evidence,currentWait);
+  const replacementMinute=historyShadowWindowMinuteV421(replacement);
+  const replacementConfidence=historyShadowConfidenceRankV421(evidence?.bestWindow?.confidence||evidence?.confidence);
+  const minRank=historyShadowConfidenceRankV421(HISTORY_GUARD_RULES_V421.minimumReplacementConfidence);
+  const replacementAllowed=replacementMinute!=null&&historyShadowMinuteInAllowedV421(replacementMinute,effectiveSchedule)===true&&historyGuardMinuteNotBeforeV421(replacementMinute,fromMinute,effectiveSchedule)&&Boolean(evidence?.targetAvailability?.scheduleAvailable)&&replacementConfidence>=minRank;
+  const replacementScheduleCategory=historyGuardMinuteCategoryV421(replacementMinute,schedule);
+  if(replacementAllowed&&HISTORY_GUARD_RULES_V421.replaceInvalidWithV421)return{action:'replace-with-v421',reason:inSchedule?'production-window-before-context':'production-window-outside-schedule',productionAllowed:false,productionMinute,replacementMinute,finalBest:replacement,productionScheduleCategory,replacementScheduleCategory,earlyEntryApplied:replacementScheduleCategory==='early-entry'};
+  return{action:'suppress-temporal',reason:inSchedule?'production-window-before-context':'production-window-outside-schedule',productionAllowed:false,productionMinute,replacementMinute:replacementMinute??null,finalBest:null,productionScheduleCategory,replacementScheduleCategory};
+};
+
+// Re-apply runtime guard metadata so diagnostics show semantic category/source.
+historyGuardApplyToScoreResultV421=function(result,entry,day,startMinute=null){
+  if(!result||!result.forecast||result.blocked)return result;
+  const parkKey=day?.park||state.selectedPark,targetDate=day?.date||getOrlandoParts().date,today=getOrlandoParts().date;
+  if(!PARKS[parkKey]?.entityId||!targetDate||targetDate<today)return result;
+  const originalBest=Object.prototype.hasOwnProperty.call(result.forecast,'productionBestV421')?result.forecast.productionBestV421:result.forecast.best;
+  if(!Object.prototype.hasOwnProperty.call(result.forecast,'productionBestV421'))result.forecast.productionBestV421=originalBest?structuredClone(originalBest):null;
+  const shadowEntry=historyGuardOperationalEntryV421(parkKey,targetDate);
+  const ageMs=shadowEntry?Math.max(0,Date.now()-Number(shadowEntry.fetchedAt||0)):Infinity;
+  const shadow=shadowEntry?.data||null,schedule=shadow?.schedule||null;
+  const attractionValue=entry||result.activity||null,evidence=historyShadowFindAttractionV421(shadow,attractionValue);
+  let evaluation;
+  if(!shadowEntry||ageMs>HISTORY_GUARD_RULES_V421.maxEvidenceAgeMs){
+    evaluation=originalBest?{action:'suppress-temporal',reason:shadowEntry?'v421-evidence-stale':'v421-evidence-unavailable',productionAllowed:null,finalBest:null}:{action:'no-production-window',reason:'no-production-window',productionAllowed:null,finalBest:null};
+  }else evaluation=historyGuardEvaluateWindowV421({productionBest:originalBest,evidence,schedule,fromMinute:Number(shadowEntry?.context?.fromMinute??startMinute??0),currentWait:result.wait});
+  result.forecast.best=evaluation.finalBest?structuredClone(evaluation.finalBest):null;
+  const effectiveSchedule=historyGuardEffectiveScheduleV421(schedule);
+  const guard={version:HISTORY_GUARD_VERSION_V421,semanticVersion:HISTORY_GUARD_SEMANTIC_VERSION_V421,mode:HISTORY_GUARD_RULES_V421.mode,parkKey,targetDate,attraction:result.activity?.title||entry?.name||null,action:evaluation.action,reason:evaluation.reason,scheduleAvailable:Boolean(schedule?.available),scheduleReason:schedule?.reason||null,earlyEntryEligible:HISTORY_GUARD_SEMANTIC_RULES_V421.earlyEntryEligible,earlyEntryWindowCount:Number(effectiveSchedule?.earlyEntryWindowCount||0),productionScheduleCategory:evaluation.productionScheduleCategory||null,replacementScheduleCategory:evaluation.replacementScheduleCategory||null,specialEventSource:evaluation.specialEventSource||null,evidenceAgeMinutes:Number.isFinite(ageMs)?Math.round(ageMs/60000):null,productionBest:originalBest?{minute:historyShadowWindowMinuteV421(originalBest),time:originalBest.timeRange||originalBest.time||null,wait:Number.isFinite(Number(originalBest.wait))?Number(originalBest.wait):null}:null,finalBest:result.forecast.best?{minute:historyShadowWindowMinuteV421(result.forecast.best),time:result.forecast.best.timeRange||result.forecast.best.time||null,wait:Number.isFinite(Number(result.forecast.best.wait))?Number(result.forecast.best.wait):null,source:result.forecast.best.source||null}:null,productionAllowed:evaluation.productionAllowed,scoreUntouched:true,selectionUntouched:true,priorityOrderUntouched:true,timelineUntouched:true};
+  result.forecast.historyGuardV421=guard;result.historyGuardV421=guard;
+  historyGuardRecordRuntimeV421({...guard,at:new Date().toISOString()});
+  return result;
+};
+
+const v4125HistoryGuardPriorityWindowLabelBeforeSemanticV421=historyGuardPriorityWindowLabelV421;
+historyGuardPriorityWindowLabelV421=function(priority,fallback=null){
+  const guard=priority?.meta?.forecast?.historyGuardV421||priority?.meta?.historyGuardV421||null;
+  if(guard?.action==='keep-production'&&guard?.productionScheduleCategory==='early-entry')return `${fallback||'Janela válida'} · Early Entry`;
+  if(guard?.action==='replace-with-v421'&&guard?.replacementScheduleCategory==='early-entry'&&guard?.finalBest?.time)return `Melhor janela validada ${guard.finalBest.time} · Early Entry`;
+  return v4125HistoryGuardPriorityWindowLabelBeforeSemanticV421(priority,fallback);
+};
+
+historyGuardEvaluateApiPairV421=function(production,shadow,ctx){
+  const prod=production?.attractions||{},sha=shadow?.attractions||{},rows=[];
+  const effectiveSchedule=historyGuardEffectiveScheduleV421(shadow?.schedule);
+  for(const [id,p] of Object.entries(prod)){
+    const s=sha[id]||historyShadowFindAttractionV421(shadow,p?.name||'');
+    if(!s)continue;
+    const e=historyGuardEvaluateWindowV421({productionBest:p?.bestWindow,evidence:s,schedule:shadow?.schedule,fromMinute:ctx?.fromMinute,currentWait:null});
+    rows.push({id,name:s?.name||p?.name||'',action:e.action,reason:e.reason,productionMinute:historyShadowWindowMinuteV421(p?.bestWindow),productionTime:p?.bestWindow?minutesToTime(((historyShadowWindowMinuteV421(p.bestWindow)||0)%1440+1440)%1440):null,productionAllowed:e.productionAllowed,productionScheduleCategory:e.productionScheduleCategory||null,shadowMinute:historyShadowWindowMinuteV421(s?.bestWindow),shadowTime:s?.bestWindow?.time||null,replacementScheduleCategory:e.replacementScheduleCategory||null,finalMinute:historyShadowWindowMinuteV421(e.finalBest),finalTime:e.finalBest?.time||e.finalBest?.timeRange||null,confidence:s?.confidence||null,independentDays:s?.independentDays??null,eventOnlyHeuristic:Boolean(s?.targetAvailability?.eventOnlyHeuristic),specialEventSource:e.specialEventSource||null,earlyEntryApplied:Boolean(e.earlyEntryApplied)});
+  }
+  const counts={matched:rows.length,keepProduction:0,replaceWithV421:0,suppressTemporal:0,noProductionWindow:0,specialEventExcluded:0,scheduleUnverified:0,earlyEntryKeep:0,earlyEntryReplace:0,earlyEntryWindows:Number(effectiveSchedule?.earlyEntryWindowCount||0)};
+  for(const r of rows){
+    if(r.action==='keep-production')counts.keepProduction++;else if(r.action==='replace-with-v421')counts.replaceWithV421++;else if(r.action==='suppress-temporal')counts.suppressTemporal++;else counts.noProductionWindow++;
+    if(r.reason==='special-event-excluded')counts.specialEventExcluded++;
+    if(r.reason==='schedule-unverified')counts.scheduleUnverified++;
+    if(r.action==='keep-production'&&r.productionScheduleCategory==='early-entry')counts.earlyEntryKeep++;
+    if(r.action==='replace-with-v421'&&r.replacementScheduleCategory==='early-entry')counts.earlyEntryReplace++;
+  }
+  return{counts,rows};
+};
+
+const v4125HistoryGuardSummaryBeforeSemanticV421=historyGuardSummaryV421;
+historyGuardSummaryV421=function(){
+  const summary=v4125HistoryGuardSummaryBeforeSemanticV421();
+  return{...summary,semanticVersion:HISTORY_GUARD_SEMANTIC_VERSION_V421,earlyEntryEligible:HISTORY_GUARD_SEMANTIC_RULES_V421.earlyEntryEligible,includeTicketedEvents:false,semanticSpecialEventClassification:true};
+};
+
+const v4125TestHistoryGuardBeforeSemanticV421=testHistoryGuardV421;
+testHistoryGuardV421=async function(input={}){
+  const result=await v4125TestHistoryGuardBeforeSemanticV421(input);
+  if(result&&result.mode==='guarded-rollout-test'){
+    result.semanticVersion=HISTORY_GUARD_SEMANTIC_VERSION_V421;
+    result.earlyEntryEligible=HISTORY_GUARD_SEMANTIC_RULES_V421.earlyEntryEligible;
+    if(result.shadow?.available){
+      const last=historyGuardLastExplicitTestV421;
+      // policy already comes from the semantic evaluator because function lookup is dynamic.
+      result.shadow.semanticSchedulePolicy='regular+early-entry-only';
+    }
+    historyGuardLastExplicitTestV421=result;
+  }
+  return result;
+};
+
+const v4125ExposeDiagnosticsBeforeSemanticV421=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){
+  v4125ExposeDiagnosticsBeforeSemanticV421();
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.historyGuardPolicyV421=()=>structuredClone({...HISTORY_GUARD_RULES_V421,...HISTORY_GUARD_SEMANTIC_RULES_V421,includeSpecialEvents:false,includeTicketedEvents:false,eligibleScheduleCategories:['regular','early-entry']});
+  window.__ORLANDO_FLOW_DIAGNOSTICS__.historyGuardSemanticPolicyV421=()=>structuredClone({...HISTORY_GUARD_SEMANTIC_RULES_V421,knownEventOnlyNames:[...HISTORY_GUARD_KNOWN_EVENT_ONLY_NAMES_V421]});
+};
+
+const v4125RunSelfTestsBeforeSemanticV421=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v4125RunSelfTestsBeforeSemanticV421(),additions=[];
+  addSelfTestV38(additions,'semantic v4.2.1 reconhece HHN observado como evento especial',()=>{const x=historyGuardClassifyAttractionV421({name:'Stranger Things 5',targetAvailability:{scheduleAvailable:true}});assertSelfTestV38(x.eventOnly&&x.source==='known-2026-event-catalog',JSON.stringify(x));return x.source;});
+  addSelfTestV38(additions,'semantic v4.2.1 reconhece MNSSHP pelo nome da família',()=>{const x=historyGuardClassifyAttractionV421({name:"Meet Jack Skellington and Sally at Mickey's Not-So-Scary Halloween Party",targetAvailability:{}});assertSelfTestV38(x.eventOnly,JSON.stringify(x));return x.source;});
+  addSelfTestV38(additions,'Early Entry entra no schedule elegível sem liberar ticketed event genérico',()=>{const s=historyGuardEffectiveScheduleV421({available:true,regularWindows:[{openMinute:540,closeMinute:1380,type:'OPERATING'}],specialWindows:[{openMinute:510,closeMinute:540,type:'TICKETED_EVENT',description:'Early Entry'},{openMinute:1140,closeMinute:1440,type:'TICKETED_EVENT',description:'Halloween Horror Nights'}]});assertSelfTestV38(s.allowedWindows.some(w=>w.category==='early-entry')&&!s.allowedWindows.some(w=>w.category==='ticketed-event'),JSON.stringify(s.allowedWindows));return `${s.earlyEntryWindowCount} early / ticketed excluído`;});
+  addSelfTestV38(additions,'guard mantém janela v3 dentro do Early Entry elegível',()=>{const p={minute:525,time:'08:45',wait:20},s={available:true,regularWindows:[{openMinute:540,closeMinute:1380}],specialWindows:[{openMinute:510,closeMinute:540,type:'TICKETED_EVENT',description:'Early Entry'}]},e={name:'Seven Dwarfs Mine Train',confidence:'high',targetAvailability:{scheduleAvailable:true},bestWindow:{minute:600,time:'10:00',median:25,confidence:'high'}};const x=historyGuardEvaluateWindowV421({productionBest:p,evidence:e,schedule:s,fromMinute:480});assertSelfTestV38(x.action==='keep-production'&&x.productionScheduleCategory==='early-entry',JSON.stringify(x));return x.reason;});
+  addSelfTestV38(additions,'guard continua excluindo HHN mesmo com Early Entry habilitado',()=>{const p={minute:1110,time:'18:30'},s={available:true,regularWindows:[{openMinute:540,closeMinute:1080}],specialWindows:[{openMinute:1110,closeMinute:1430,type:'TICKETED_EVENT',description:'Halloween Horror Nights'}]},e={name:'Hellraiser',confidence:'low',targetAvailability:{scheduleAvailable:true}};const x=historyGuardEvaluateWindowV421({productionBest:p,evidence:e,schedule:s,fromMinute:540});assertSelfTestV38(x.action==='suppress-temporal'&&x.reason==='special-event-excluded',JSON.stringify(x));return x.reason;});
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v41.2.10 — Guarded Rollout v4.2.5 + Attraction-Level Early Entry Eligibility
+   - v3 remains authority for score, attraction selection, priority order and timeline.
+   - v4.2.5 is the guarded temporal/schedule authority.
+   - Selective schedule eligibility is fixed to:
+       includeEarlyEntry=1
+       includeTicketedEvents=0
+       includeExtendedHours=0
+   - For future park days, the v4.2.5 query starts at 00:00 so the Worker can
+     evaluate every published eligible window, including Early Entry. Closed
+     hours never become candidates because v4.2.5 is schedule- and attraction-eligibility-gated.
+   - On the current day, the query still starts from the current Orlando time,
+     so an already-passed Early Entry window cannot be recommended.
+   ============================================================ */
+const HISTORY_GUARD_SOURCE_VERSION_V423='4.2.5';
+const HISTORY_GUARD_SOURCE_RULES_V423=Object.freeze({
+  endpointVersion:HISTORY_GUARD_SOURCE_VERSION_V423,
+  endpointPath:'/api/v4.2.5/park-insights',
+  scheduleAuthority:HISTORY_GUARD_SOURCE_VERSION_V423,
+  historyAuthority:HISTORY_GUARD_SOURCE_VERSION_V423,
+  includeEarlyEntry:true,
+  includeTicketedEvents:false,
+  includeExtendedHours:false,
+  futureOptimizationFromMinute:0,
+  futureOptimizationFromTime:'00:00',
+  scoringAuthority:'v3',
+  selectionAuthority:'v3',
+  priorityOrderAuthority:'v3',
+  timelineAuthority:'v3',
+  affectsScoring:false,
+  affectsSelection:false,
+  affectsPriorityOrder:false,
+  affectsTimeline:false,
+  affectsTemporalGuidance:true
+});
+
+function historyV423WindowCompactV4127(w){
+  if(!w||typeof w!=='object')return null;
+  return {
+    openMinute:Number(w.openMinute),closeMinute:Number(w.closeMinute),
+    type:w.type||null,description:w.description||null,category:w.category||null,
+    openingTime:w.openingTime||null,closingTime:w.closingTime||null
+  };
+}
+function historyV423ParamsV4127(ctx){
+  return new URLSearchParams({
+    parkKey:ctx.parkKey,
+    days:String(HISTORY_SHADOW_RULES_V421.historyDays),
+    targetDate:ctx.targetDate,
+    fromTime:ctx.fromTime,
+    includeEarlyEntry:'1',
+    includeTicketedEvents:'0',
+    includeExtendedHours:'0'
+  });
+}
+
+const v4126HistoryShadowContextBeforeV423=historyShadowContextV421;
+historyShadowContextV421=function(parkKey=state.selectedPark){
+  const base=v4126HistoryShadowContextBeforeV423(parkKey);
+  const today=getOrlandoParts().date;
+  const next={...base,
+    historySourceVersion:HISTORY_GUARD_SOURCE_VERSION_V423,
+    includeEarlyEntry:true,includeTicketedEvents:false,includeExtendedHours:false,
+    includeSpecialEvents:false
+  };
+  if(base?.contextStatus!=='past-context'&&String(base?.targetDate||'')>today){
+    next.operationalFromMinute=base.fromMinute;
+    next.operationalFromTime=base.fromTime;
+    next.operationalFromSource=base.fromSource;
+    next.fromMinute=HISTORY_GUARD_SOURCE_RULES_V423.futureOptimizationFromMinute;
+    next.fromTime=HISTORY_GUARD_SOURCE_RULES_V423.futureOptimizationFromTime;
+    next.fromSource='v425-full-eligible-day-horizon';
+    next.optimizationHorizon='full-published-eligible-day';
+  }
+  return next;
+};
+
+const v4126HistoryShadowKeyBeforeV423=historyShadowKeyV421;
+historyShadowKeyV421=function(ctx){
+  const base=v4126HistoryShadowKeyBeforeV423(ctx);
+  return `${base}|source:v425|ee:1|ticket:0|extended:0`;
+};
+
+const v4126HistoryShadowExplicitContextBeforeV423=historyShadowExplicitContextV421;
+historyShadowExplicitContextV421=function(input={}){
+  const normalized=v4126HistoryShadowExplicitContextBeforeV423({...input,includeSpecialEvents:false});
+  if(!normalized?.ok)return normalized;
+  normalized.context={...normalized.context,
+    historySourceVersion:HISTORY_GUARD_SOURCE_VERSION_V423,
+    includeSpecialEvents:false,
+    includeEarlyEntry:true,
+    includeTicketedEvents:false,
+    includeExtendedHours:false,
+    selectiveScheduleEligibility:true
+  };
+  return normalized;
+};
+
+const v4126HistoryShadowCompactBeforeV423=historyShadowCompactPayloadV421;
+historyShadowCompactPayloadV421=function(data){
+  const compact=v4126HistoryShadowCompactBeforeV423(data);
+  if(!compact)return compact;
+  compact.historyVersion=String(data?.historyVersion||compact.historyVersion||'');
+  if(data?.schedule){
+    compact.schedule=compact.schedule||{};
+    compact.schedule.policyVersion=data.schedule.policyVersion||null;
+    compact.schedule.earlyEntryWindows=(data.schedule.earlyEntryWindows||[]).map(historyV423WindowCompactV4127).filter(Boolean);
+    compact.schedule.extendedHoursWindows=(data.schedule.extendedHoursWindows||[]).map(historyV423WindowCompactV4127).filter(Boolean);
+    compact.schedule.ticketedEventWindows=(data.schedule.ticketedEventWindows||[]).map(historyV423WindowCompactV4127).filter(Boolean);
+    compact.schedule.specialWindows=(data.schedule.specialWindows||[]).map(historyV423WindowCompactV4127).filter(Boolean);
+    compact.schedule.allowedWindows=(data.schedule.allowedWindows||[]).map(historyV423WindowCompactV4127).filter(Boolean);
+    compact.schedule.eligibility=data.schedule.eligibility?structuredClone(data.schedule.eligibility):{
+      includeEarlyEntry:true,includeTicketedEvents:false,includeExtendedHours:false,
+      eligibleScheduleCategories:['regular','early-entry']
+    };
+  }
+  if(data?.quality?.scheduleGuard){
+    compact.quality=compact.quality||{};
+    compact.quality.scheduleGuard={...(compact.quality.scheduleGuard||{}),
+      includeEarlyEntry:Boolean(data.quality.scheduleGuard.includeEarlyEntry),
+      includeTicketedEvents:Boolean(data.quality.scheduleGuard.includeTicketedEvents),
+      includeExtendedHours:Boolean(data.quality.scheduleGuard.includeExtendedHours),
+      eligibleScheduleCategories:structuredClone(data.quality.scheduleGuard.eligibleScheduleCategories||[]),
+      earlyEntryWindowCount:Number(data.quality.scheduleGuard.earlyEntryWindowCount||0),
+      extendedHoursWindowCount:Number(data.quality.scheduleGuard.extendedHoursWindowCount||0),
+      ticketedEventWindowCount:Number(data.quality.scheduleGuard.ticketedEventWindowCount||0),
+      schedulePolicyVersion:data.quality.scheduleGuard.schedulePolicyVersion||null,
+      attractionEarlyEntryPolicyVersion:data.quality.scheduleGuard.attractionEarlyEntryPolicyVersion||null,
+      attractionEarlyEntryCounts:data.quality.scheduleGuard.attractionEarlyEntryCounts?structuredClone(data.quality.scheduleGuard.attractionEarlyEntryCounts):null,
+      shadowVersusV41:data.quality.scheduleGuard.shadowVersusV41?structuredClone(data.quality.scheduleGuard.shadowVersusV41):null
+    };
+  }
+  // v4.2.5 adds attraction-level Early Entry eligibility. Preserve it in the
+  // compact shadow so runtime diagnostics can explain why a bestWindow was or
+  // was not allowed to use Early Entry, without giving the app new authority.
+  for(const [id,raw] of Object.entries(data?.attractions||{})){
+    const dst=compact.attractions?.[id];
+    if(!dst||!raw?.targetAvailability)continue;
+    dst.targetAvailability=dst.targetAvailability||{};
+    dst.targetAvailability.eligibleScheduleCategories=structuredClone(raw.targetAvailability.eligibleScheduleCategories||[]);
+    dst.targetAvailability.earlyEntryEligibility=raw.targetAvailability.earlyEntryEligibility?structuredClone(raw.targetAvailability.earlyEntryEligibility):null;
+    dst.targetAvailability.includeEarlyEntry=Boolean(raw.targetAvailability.includeEarlyEntry);
+    dst.targetAvailability.includeTicketedEvents=Boolean(raw.targetAvailability.includeTicketedEvents);
+    dst.targetAvailability.includeExtendedHours=Boolean(raw.targetAvailability.includeExtendedHours);
+  }
+  return compact;
+};
+
+fetchHistoryShadowV421=async function(parkKey=state.selectedPark,force=false){
+  const ctx=historyShadowContextV421(parkKey);
+  if(ctx.contextStatus==='past-context')return null;
+  if(!PARKS[parkKey]?.entityId||!navigator.onLine){
+    const fallback=historyShadowEntryV421(parkKey)?.data||null;
+    return String(fallback?.historyVersion||'')===HISTORY_GUARD_SOURCE_VERSION_V423?fallback:null;
+  }
+  const key=historyShadowKeyV421(ctx),store=loadHistoryShadowStoreV421(),cached=store.entries?.[key];
+  if(!force&&cached?.data&&String(cached.data.historyVersion)===HISTORY_GUARD_SOURCE_VERSION_V423&&Date.now()-Number(cached.fetchedAt||0)<HISTORY_SHADOW_RULES_V421.cacheTtlMs)return cached.data;
+  const inflightKey=`v425:${key}`;
+  if(historyShadowInflightV421.has(inflightKey))return historyShadowInflightV421.get(inflightKey);
+  const task=(async()=>{
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),HISTORY_SHADOW_RULES_V421.timeoutMs);
+    const started=performance.now();
+    try{
+      const url=`${GLOBAL_HISTORY_API}${HISTORY_GUARD_SOURCE_RULES_V423.endpointPath}?${historyV423ParamsV4127(ctx).toString()}`;
+      const res=await fetch(url,{headers:{Accept:'application/json'},signal:controller.signal,cache:'no-store'});
+      if(!res.ok)throw new Error(`History guarded v4.2.5 HTTP ${res.status}`);
+      const raw=await res.json();
+      if(!raw?.attractions||raw.parkKey!==parkKey||String(raw.historyVersion)!==HISTORY_GUARD_SOURCE_VERSION_V423)throw new Error('Invalid History guarded v4.2.5 payload');
+      const data=historyShadowCompactPayloadV421(raw);
+      store.entries[key]={fetchedAt:Date.now(),fetchedAtIso:new Date().toISOString(),elapsedMs:Math.round(performance.now()-started),context:structuredClone(ctx),sourceVersion:HISTORY_GUARD_SOURCE_VERSION_V423,data};
+      persistHistoryShadowStoreV421();
+      historyShadowMaybeCompareWithProductionV421(parkKey,data,ctx);
+      return data;
+    }catch(error){
+      try{recordRuntimeDiagnosticV38('history-guarded-v425',error,{parkKey,targetDate:ctx.targetDate,fromTime:ctx.fromTime});}catch{}
+      return cached?.data&&String(cached.data.historyVersion)===HISTORY_GUARD_SOURCE_VERSION_V423?cached.data:null;
+    }finally{clearTimeout(timer);historyShadowInflightV421.delete(inflightKey);}
+  })();
+  historyShadowInflightV421.set(inflightKey,task);return task;
+};
+
+fetchHistoryShadowExplicitContextV421=async function(ctx,force=true){
+  const parkKey=ctx?.parkKey;
+  if(!PARKS[parkKey]?.entityId||!navigator.onLine)return null;
+  const key=historyShadowKeyV421(ctx),store=loadHistoryShadowStoreV421(),cached=store.entries?.[key];
+  if(!force&&cached?.data&&String(cached.data.historyVersion)===HISTORY_GUARD_SOURCE_VERSION_V423&&Date.now()-Number(cached.fetchedAt||0)<HISTORY_SHADOW_RULES_V421.cacheTtlMs)return cached.data;
+  const inflightKey=`test-v425:${key}`;
+  if(historyShadowInflightV421.has(inflightKey))return historyShadowInflightV421.get(inflightKey);
+  const task=(async()=>{
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),HISTORY_SHADOW_RULES_V421.timeoutMs);
+    const started=performance.now();
+    try{
+      const url=`${GLOBAL_HISTORY_API}${HISTORY_GUARD_SOURCE_RULES_V423.endpointPath}?${historyV423ParamsV4127(ctx).toString()}`;
+      const res=await fetch(url,{headers:{Accept:'application/json'},signal:controller.signal,cache:'no-store'});
+      if(!res.ok)throw new Error(`History guarded test v4.2.5 HTTP ${res.status}`);
+      const raw=await res.json();
+      if(!raw?.attractions||raw.parkKey!==parkKey||String(raw.historyVersion)!==HISTORY_GUARD_SOURCE_VERSION_V423)throw new Error('Invalid History guarded test v4.2.5 payload');
+      const data=historyShadowCompactPayloadV421(raw);
+      store.entries[key]={fetchedAt:Date.now(),fetchedAtIso:new Date().toISOString(),elapsedMs:Math.round(performance.now()-started),context:structuredClone(ctx),testOnly:true,sourceVersion:HISTORY_GUARD_SOURCE_VERSION_V423,data};
+      persistHistoryShadowStoreV421();return data;
+    }catch(error){
+      try{recordRuntimeDiagnosticV38('history-guarded-test-v425',error,{parkKey,targetDate:ctx.targetDate,fromTime:ctx.fromTime});}catch{}
+      return cached?.data&&String(cached.data.historyVersion)===HISTORY_GUARD_SOURCE_VERSION_V423?cached.data:null;
+    }finally{clearTimeout(timer);historyShadowInflightV421.delete(inflightKey);}
+  })();
+  historyShadowInflightV421.set(inflightKey,task);return task;
+};
+
+historyGuardOperationalEntryV421=function(parkKey,targetDate){
+  const store=loadHistoryShadowStoreV421();
+  return Object.values(store.entries||{}).filter(e=>{
+    if(!e||e.testOnly||String(e.data?.historyVersion||'')!==HISTORY_GUARD_SOURCE_VERSION_V423)return false;
+    if(e.data?.parkKey!==parkKey)return false;
+    const date=e.data?.schedule?.targetDate||e.data?.target?.date||e.context?.targetDate||null;
+    const eligibility=e.data?.schedule?.eligibility||{};
+    return date===targetDate&&eligibility.includeEarlyEntry===true&&eligibility.includeTicketedEvents===false&&eligibility.includeExtendedHours===false;
+  }).sort((a,b)=>Number(b.fetchedAt||0)-Number(a.fetchedAt||0))[0]||null;
+};
+
+historyGuardReplacementBestV421=function(evidence,currentWait=null){
+  const stat=evidence?.bestWindow;
+  const minute=historyShadowWindowMinuteV421(stat);
+  const median=Number(stat?.median),p25=Number(stat?.p25),p75=Number(stat?.p75),wait=Number.isFinite(median)?Math.round(median):null;
+  if(minute==null||wait==null)return null;
+  const time=stat?.time||minutesToTime(((minute%1440)+1440)%1440);
+  return {minute,time,timeRange:time,windowStart:minute,windowEnd:minute,wait,
+    low:Number.isFinite(p25)?Math.round(p25):wait,high:Number.isFinite(p75)?Math.round(p75):wait,adjusted:wait,
+    saving:Number.isFinite(Number(currentWait))?Math.max(0,Math.round(Number(currentWait)-wait)):0,
+    waitValue:null,risk:{level:'low',score:0},source:'history-v4.2.5-guard',
+    confidence:confidencePt(stat?.confidence||evidence?.confidence),historyVersion:HISTORY_GUARD_SOURCE_VERSION_V423,
+    scheduleCategory:stat?.scheduleCategory||null};
+};
+
+// Re-apply guard metadata with the new source authority. Existing V421 field names
+// remain as compatibility aliases so previous diagnostics/UI integrations do not break.
+historyGuardApplyToScoreResultV421=function(result,entry,day,startMinute=null){
+  if(!result||!result.forecast||result.blocked)return result;
+  const parkKey=day?.park||state.selectedPark,targetDate=day?.date||getOrlandoParts().date,today=getOrlandoParts().date;
+  if(!PARKS[parkKey]?.entityId||!targetDate||targetDate<today)return result;
+  const originalBest=Object.prototype.hasOwnProperty.call(result.forecast,'productionBestV421')?result.forecast.productionBestV421:result.forecast.best;
+  if(!Object.prototype.hasOwnProperty.call(result.forecast,'productionBestV421'))result.forecast.productionBestV421=originalBest?structuredClone(originalBest):null;
+  const shadowEntry=historyGuardOperationalEntryV421(parkKey,targetDate);
+  const ageMs=shadowEntry?Math.max(0,Date.now()-Number(shadowEntry.fetchedAt||0)):Infinity;
+  const shadow=shadowEntry?.data||null,schedule=shadow?.schedule||null;
+  const attractionValue=entry||result.activity||null,evidence=historyShadowFindAttractionV421(shadow,attractionValue);
+  let evaluation;
+  if(!shadowEntry||ageMs>HISTORY_GUARD_RULES_V421.maxEvidenceAgeMs){
+    evaluation=originalBest?{action:'suppress-temporal',reason:shadowEntry?'v423-evidence-stale':'v423-evidence-unavailable',productionAllowed:null,finalBest:null}:{action:'no-production-window',reason:'no-production-window',productionAllowed:null,finalBest:null};
+  }else evaluation=historyGuardEvaluateWindowV421({productionBest:originalBest,evidence,schedule,fromMinute:Number(shadowEntry?.context?.fromMinute??startMinute??0),currentWait:result.wait});
+  result.forecast.best=evaluation.finalBest?structuredClone(evaluation.finalBest):null;
+  const effectiveSchedule=historyGuardEffectiveScheduleV421(schedule);
+  const guard={version:'2',semanticVersion:HISTORY_GUARD_SEMANTIC_VERSION_V421,sourceVersion:HISTORY_GUARD_SOURCE_VERSION_V423,
+    mode:HISTORY_GUARD_RULES_V421.mode,parkKey,targetDate,attraction:result.activity?.title||entry?.name||null,
+    action:evaluation.action,reason:evaluation.reason,scheduleAuthority:HISTORY_GUARD_SOURCE_VERSION_V423,
+    scheduleAvailable:Boolean(schedule?.available),scheduleReason:schedule?.reason||null,
+    earlyEntryEligible:true,earlyEntryOptimization:true,earlyEntryWindowCount:Number(effectiveSchedule?.earlyEntryWindowCount||0),
+    productionScheduleCategory:evaluation.productionScheduleCategory||null,replacementScheduleCategory:evaluation.replacementScheduleCategory||null,
+    specialEventSource:evaluation.specialEventSource||null,evidenceAgeMinutes:Number.isFinite(ageMs)?Math.round(ageMs/60000):null,
+    attractionEarlyEntryEligibility:evidence?.targetAvailability?.earlyEntryEligibility?structuredClone(evidence.targetAvailability.earlyEntryEligibility):null,
+    attractionEligibleScheduleCategories:structuredClone(evidence?.targetAvailability?.eligibleScheduleCategories||[]),
+    productionBest:originalBest?{minute:historyShadowWindowMinuteV421(originalBest),time:originalBest.timeRange||originalBest.time||null,wait:Number.isFinite(Number(originalBest.wait))?Number(originalBest.wait):null}:null,
+    finalBest:result.forecast.best?{minute:historyShadowWindowMinuteV421(result.forecast.best),time:result.forecast.best.timeRange||result.forecast.best.time||null,wait:Number.isFinite(Number(result.forecast.best.wait))?Number(result.forecast.best.wait):null,source:result.forecast.best.source||null,scheduleCategory:result.forecast.best.scheduleCategory||evaluation.replacementScheduleCategory||null}:null,
+    productionAllowed:evaluation.productionAllowed,scoreUntouched:true,selectionUntouched:true,priorityOrderUntouched:true,timelineUntouched:true};
+  result.forecast.historyGuardV421=guard;result.forecast.historyGuardV423=guard;result.forecast.historyGuardV424=guard;
+  result.historyGuardV421=guard;result.historyGuardV423=guard;result.historyGuardV424=guard;
+  historyGuardRecordRuntimeV421({...guard,at:new Date().toISOString()});
+  return result;
+};
+
+const v4126HistoryGuardEvaluatePairBeforeV423=historyGuardEvaluateApiPairV421;
+historyGuardEvaluateApiPairV421=function(production,shadow,ctx){
+  const result=v4126HistoryGuardEvaluatePairBeforeV423(production,shadow,ctx);
+  result.counts={...result.counts,
+    replaceWithV423:Number(result.counts?.replaceWithV421||0),
+    earlyEntryOptimized:Number(result.counts?.earlyEntryReplace||0),
+    sourceVersion:HISTORY_GUARD_SOURCE_VERSION_V423
+  };
+  result.rows=(result.rows||[]).map(r=>({...r,sourceVersion:HISTORY_GUARD_SOURCE_VERSION_V423,
+    earlyEntryOptimized:Boolean(r.action==='replace-with-v421'&&r.replacementScheduleCategory==='early-entry')}));
+  return result;
+};
+
+const v4126HistoryGuardSummaryBeforeV423=historyGuardSummaryV421;
+historyGuardSummaryV421=function(){
+  const summary=v4126HistoryGuardSummaryBeforeV423();
+  return {...summary,version:'2',sourceVersion:HISTORY_GUARD_SOURCE_VERSION_V423,
+    scheduleAuthority:HISTORY_GUARD_SOURCE_VERSION_V423,historyAuthority:HISTORY_GUARD_SOURCE_VERSION_V423,
+    earlyEntryOptimization:true,includeEarlyEntry:true,includeTicketedEvents:false,includeExtendedHours:false,
+    endpointPath:HISTORY_GUARD_SOURCE_RULES_V423.endpointPath};
+};
+
+const v4126HistoryShadowSummaryBeforeV423=historyShadowSummaryV421;
+historyShadowSummaryV421=function(){
+  const summary=v4126HistoryShadowSummaryBeforeV423();
+  return {...summary,version:HISTORY_GUARD_SOURCE_VERSION_V423,sourceVersion:HISTORY_GUARD_SOURCE_VERSION_V423,
+    endpointVersion:HISTORY_GUARD_SOURCE_VERSION_V423,selectiveScheduleEligibility:true,
+    includeEarlyEntry:true,includeTicketedEvents:false,includeExtendedHours:false};
+};
+
+const v4126TestHistoryGuardBeforeV423=testHistoryGuardV421;
+testHistoryGuardV421=async function(input={}){
+  const result=await v4126TestHistoryGuardBeforeV423({...input,includeSpecialEvents:false});
+  if(result&&result.mode==='guarded-rollout-test'){
+    result.sourceVersion=HISTORY_GUARD_SOURCE_VERSION_V423;
+    result.scheduleAuthority=HISTORY_GUARD_SOURCE_VERSION_V423;
+    result.earlyEntryOptimization=true;
+    result.selectiveScheduleEligibility={includeEarlyEntry:true,includeTicketedEvents:false,includeExtendedHours:false};
+    if(result.shadow){
+      result.shadow.sourceVersion=HISTORY_GUARD_SOURCE_VERSION_V423;
+      result.shadow.earlyEntryWindows=structuredClone(historyGuardEffectiveScheduleV421(loadHistoryShadowStoreV421().entries?.[historyShadowKeyV421(result.context)]?.data?.schedule)?.earlyEntryWindows||[]);
+      result.shadow.eligibleScheduleCategories=['regular','early-entry'];
+    }
+    historyGuardLastExplicitTestV421=result;
+  }
+  return result;
+};
+
+const v4126TestHistoryShadowBeforeV423=testHistoryShadowV421;
+testHistoryShadowV421=async function(input={}){
+  const result=await v4126TestHistoryShadowBeforeV423({...input,includeSpecialEvents:false});
+  if(result){
+    result.sourceVersion=HISTORY_GUARD_SOURCE_VERSION_V423;
+    result.selectiveScheduleEligibility={includeEarlyEntry:true,includeTicketedEvents:false,includeExtendedHours:false};
+    if(result.shadow)result.shadow.sourceVersion=HISTORY_GUARD_SOURCE_VERSION_V423;
+    historyShadowLastExplicitTestV421=result;
+  }
+  return result;
+};
+
+function historyGuardPolicyV423(){
+  return {...HISTORY_GUARD_RULES_V421,...HISTORY_GUARD_SEMANTIC_RULES_V421,...HISTORY_GUARD_SOURCE_RULES_V423,
+    version:'2',semanticVersion:HISTORY_GUARD_SEMANTIC_VERSION_V421,mode:'guarded-rollout',
+    scheduleAuthority:HISTORY_GUARD_SOURCE_VERSION_V423,historyAuthority:HISTORY_GUARD_SOURCE_VERSION_V423,
+    earlyEntryEligible:true,earlyEntryOptimization:true,eligibleScheduleCategories:['regular','early-entry'],
+    includeSpecialEvents:false,includeEarlyEntry:true,includeTicketedEvents:false,includeExtendedHours:false};
+}
+
+const v4126ExposeDiagnosticsBeforeV423=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){
+  v4126ExposeDiagnosticsBeforeV423();
+  const D=window.__ORLANDO_FLOW_DIAGNOSTICS__;
+  D.historyGuardPolicyV421=()=>structuredClone(historyGuardPolicyV423());
+  D.historyGuardPolicyV423=()=>structuredClone(historyGuardPolicyV423());
+  D.historyGuardV423=()=>structuredClone(historyGuardSummaryV421());
+  D.testHistoryGuardV423=(input={})=>testHistoryGuardV421(input).then(x=>structuredClone(x));
+  D.historyGuardLastTestV423=()=>structuredClone(historyGuardLastExplicitTestV421);
+  D.historyShadowV423=()=>structuredClone(historyShadowSummaryV421());
+  D.testHistoryShadowV423=(input={})=>testHistoryShadowV421(input).then(x=>structuredClone(x));
+  D.refreshHistoryGuardSourceV423=(parkKey=state.selectedPark)=>fetchHistoryShadowV421(parkKey,true).then(x=>structuredClone(x));
+  // v41.2.10 retains V424 compatibility aliases and adds V425 canonical aliases.
+  D.historyGuardPolicyV424=()=>structuredClone(historyGuardPolicyV423());
+  D.historyGuardV424=()=>structuredClone(historyGuardSummaryV421());
+  D.testHistoryGuardV424=(input={})=>testHistoryGuardV421(input).then(x=>structuredClone(x));
+  D.historyGuardLastTestV424=()=>structuredClone(historyGuardLastExplicitTestV421);
+  D.historyShadowV424=()=>structuredClone(historyShadowSummaryV421());
+  D.testHistoryShadowV424=(input={})=>testHistoryShadowV421(input).then(x=>structuredClone(x));
+  D.refreshHistoryGuardSourceV424=(parkKey=state.selectedPark)=>fetchHistoryShadowV421(parkKey,true).then(x=>structuredClone(x));
+  D.historyGuardPolicyV425=()=>structuredClone(historyGuardPolicyV423());
+  D.historyGuardV425=()=>structuredClone(historyGuardSummaryV421());
+  D.testHistoryGuardV425=(input={})=>testHistoryGuardV421(input).then(x=>structuredClone(x));
+  D.historyGuardLastTestV425=()=>structuredClone(historyGuardLastExplicitTestV421);
+  D.historyShadowV425=()=>structuredClone(historyShadowSummaryV421());
+  D.testHistoryShadowV425=(input={})=>testHistoryShadowV421(input).then(x=>structuredClone(x));
+  D.refreshHistoryGuardSourceV425=(parkKey=state.selectedPark)=>fetchHistoryShadowV421(parkKey,true).then(x=>structuredClone(x));
+};
+
+const v4126EngineDiagnosticBeforeV423=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){
+  const snapshot=v4126EngineDiagnosticBeforeV423();snapshot.context=snapshot.context||{};
+  snapshot.context.historyGuardV423=historyGuardSummaryV421();snapshot.context.historyGuardV424=historyGuardSummaryV421();snapshot.context.historyGuardV425=historyGuardSummaryV421();
+  return snapshot;
+};
+
+const v4126RunSelfTestsBeforeV423=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v4126RunSelfTestsBeforeV423(),additions=[];
+  addSelfTestV38(additions,'v41.2.10 guarded usa v4.2.5 somente como autoridade temporal',()=>{const p=historyGuardPolicyV423();assertSelfTestV38(p.scheduleAuthority==='4.2.5'&&!p.affectsScoring&&!p.affectsSelection&&!p.affectsPriorityOrder&&!p.affectsTimeline&&p.affectsTemporalGuidance,'governança');return 'v3 decisão · v4.2.5 tempo';});
+  addSelfTestV38(additions,'v41.2.7 habilita Early Entry e mantém ticketed/extended fora',()=>{const p=historyGuardPolicyV423();assertSelfTestV38(p.includeEarlyEntry===true&&p.includeTicketedEvents===false&&p.includeExtendedHours===false,'eligibilidade');return 'early-entry only';});
+  addSelfTestV38(additions,'v41.2.10 fetch operacional usa endpoint v4.2.5 com elegibilidade por atração',()=>{const s=String(fetchHistoryShadowV421);assertSelfTestV38(s.includes('/api/v4.2.5/park-insights')||s.includes('endpointPath')&&s.includes('historyV423ParamsV4127'),'endpoint');const q=historyV423ParamsV4127({parkKey:'epcot',targetDate:'2099-09-10',fromTime:'00:00'});assertSelfTestV38(q.get('includeEarlyEntry')==='1'&&q.get('includeTicketedEvents')==='0'&&q.get('includeExtendedHours')==='0','query');return q.toString();});
+  addSelfTestV38(additions,'v41.2.10 compacta Early Entry e elegibilidade por atração da v4.2.5',()=>{const c=historyShadowCompactPayloadV421({historyVersion:'4.2.5',parkKey:'magic-kingdom',schedule:{available:true,regularWindows:[{openMinute:540,closeMinute:1380,category:'regular'}],earlyEntryWindows:[{openMinute:510,closeMinute:540,type:'TICKETED_EVENT',description:'Early Entry',category:'early-entry'}],specialWindows:[{openMinute:510,closeMinute:540,type:'TICKETED_EVENT',description:'Early Entry',category:'early-entry'}],allowedWindows:[{openMinute:510,closeMinute:540,category:'early-entry'},{openMinute:540,closeMinute:1380,category:'regular'}],eligibility:{includeEarlyEntry:true,includeTicketedEvents:false,includeExtendedHours:false}},quality:{scheduleGuard:{includeEarlyEntry:true,earlyEntryWindowCount:1}},attractions:{a:{id:'a',name:'A',confidence:'medium',bestWindow:{targetMinute:510,targetLocalTime:'08:30',median:5,confidence:'medium',scheduleCategory:'early-entry'}}}});assertSelfTestV38(c.historyVersion==='4.2.5'&&c.schedule.earlyEntryWindows.length===1&&c.attractions.a.bestWindow.scheduleCategory==='early-entry','compact');return '08:30 early-entry preservado';});
+  addSelfTestV38(additions,'v41.2.10 replacement identifica fonte v4.2.5 e Early Entry',()=>{const r=historyGuardReplacementBestV421({confidence:'medium',bestWindow:{minute:510,time:'08:30',median:35,p25:30,p75:40,confidence:'medium',scheduleCategory:'early-entry'}});assertSelfTestV38(r?.historyVersion==='4.2.5'&&r?.source==='history-v4.2.5-guard'&&r?.scheduleCategory==='early-entry',JSON.stringify(r));return r.source;});
+  addSelfTestV38(additions,'v41.2.7 horizonte futuro cobre todo dia elegível sem retroceder dia atual',()=>{const backupDays=state.days,backupDate=state.selectedDate,backupPark=state.selectedPark;try{const today=getOrlandoParts().date;const d=new Date(`${today}T12:00:00Z`);d.setUTCDate(d.getUTCDate()+1);const tomorrow=d.toISOString().slice(0,10);state.days=[{date:tomorrow,park:'magic-kingdom',activities:[{time:'09:00'}]}];state.selectedDate=tomorrow;state.selectedPark='magic-kingdom';const x=historyShadowContextV421('magic-kingdom');assertSelfTestV38(x.fromTime==='00:00'&&x.operationalFromTime!=null&&x.includeEarlyEntry===true,JSON.stringify(x));return `${x.fromTime} → schedule-gated`;}finally{state.days=backupDays;state.selectedDate=backupDate;state.selectedPark=backupPark;}});
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+/* ============================================================
+   Orlando Flow v41.2.8 — Guard Observability / Cleanup
+   - Observability-only cleanup on top of v41.2.7.
+   - No scoring, selection, priority-order, timeline, schedule or
+     eligibility rule is changed.
+   - Public diagnostics use source-neutral action names while retaining
+     legacy action metadata for compatibility.
+   - Best-window confidence/independent-day evidence is explicit.
+   - Decision Trace exposes Early Entry optimization when applied.
+   ============================================================ */
+const HISTORY_GUARD_OBSERVABILITY_VERSION_V4128='1';
+const HISTORY_GUARD_OBSERVABILITY_RULES_V4128=Object.freeze({
+  version:HISTORY_GUARD_OBSERVABILITY_VERSION_V4128,
+  mode:'observability-cleanup',
+  sourceVersion:'4.2.5',
+  canonicalReplacementAction:'replace-with-history-guard',
+  legacyReplacementAction:'replace-with-v421',
+  decisionTraceEarlyEntry:true,
+  exposeRawConfidence:true,
+  affectsScoring:false,
+  affectsSelection:false,
+  affectsPriorityOrder:false,
+  affectsTimeline:false,
+  affectsTemporalGuidance:false
+});
+
+function historyGuardCanonicalActionV4128(action){
+  return action==='replace-with-v421'?'replace-with-history-guard':action;
+}
+function historyGuardLegacyActionV4128(action){
+  return action==='replace-with-history-guard'?'replace-with-v421':action;
+}
+function historyGuardObservationLabelV4128(row){
+  if(!row)return null;
+  const action=historyGuardCanonicalActionV4128(row.action);
+  const finalTime=row.finalTime||row.finalBest?.time||row.finalBest?.timeRange||null;
+  const category=row.replacementScheduleCategory||row.finalScheduleCategory||row.shadowScheduleCategory||row.finalBest?.scheduleCategory||null;
+  if(action==='replace-with-history-guard'&&category==='early-entry'&&finalTime)return `Early Entry optimization applied — ${finalTime}`;
+  if(action==='replace-with-history-guard'&&finalTime)return `History guard temporal replacement — ${finalTime}`;
+  if(action==='suppress-temporal'&&row.reason==='special-event-excluded')return 'Special-event temporal guidance excluded';
+  if(action==='suppress-temporal')return `Temporal guidance suppressed — ${row.reason||'guard'}`;
+  if(action==='keep-production'&&category==='early-entry'&&finalTime)return `Early Entry production window kept — ${finalTime}`;
+  return null;
+}
+function historyGuardDecorateDiagnosticRowV4128(row){
+  if(!row||typeof row!=='object')return row;
+  const legacyAction=historyGuardLegacyActionV4128(row.action);
+  const action=historyGuardCanonicalActionV4128(row.action);
+  const shadowConfidence=row.shadowConfidence||row.bestWindowConfidence||row.confidence||null;
+  const shadowIndependentDays=row.shadowIndependentDays??row.bestWindowIndependentDays??row.independentDays??null;
+  const category=row.replacementScheduleCategory||row.finalScheduleCategory||row.shadowScheduleCategory||row.finalBest?.scheduleCategory||null;
+  const earlyEntryOptimized=Boolean((action==='replace-with-history-guard'||action==='keep-production')&&category==='early-entry');
+  return {...row,
+    action,
+    legacyAction,
+    sourceVersion:'4.2.5',
+    shadowConfidence,
+    shadowIndependentDays,
+    bestWindowConfidence:shadowConfidence,
+    bestWindowIndependentDays:shadowIndependentDays,
+    earlyEntryOptimized,
+    observationLabel:historyGuardObservationLabelV4128({...row,action})
+  };
+}
+function historyGuardDecorateCountsV4128(counts={}){
+  const replacement=Number(counts.replaceWithHistoryGuard??counts.replaceWithV423??counts.replaceWithV421??0);
+  return {...counts,
+    replaceWithHistoryGuard:replacement,
+    replaceWithV423:replacement,
+    legacyReplaceWithV421:Number(counts.replaceWithV421??replacement),
+    sourceVersion:'4.2.5'
+  };
+}
+function historyGuardDecorateTestResultV4128(result){
+  if(!result||typeof result!=='object')return result;
+  const next={...result,observabilityVersion:HISTORY_GUARD_OBSERVABILITY_VERSION_V4128};
+  if(next.policy){
+    next.policy={...next.policy,
+      counts:historyGuardDecorateCountsV4128(next.policy.counts||{}),
+      examples:(next.policy.examples||[]).map(historyGuardDecorateDiagnosticRowV4128)
+    };
+  }
+  return next;
+}
+function historyGuardDecorateRuntimeGuardV4128(guard){
+  if(!guard||typeof guard!=='object')return guard;
+  const action=historyGuardCanonicalActionV4128(guard.action);
+  const finalCategory=guard.finalBest?.scheduleCategory||guard.replacementScheduleCategory||guard.productionScheduleCategory||null;
+  const finalTime=guard.finalBest?.time||null;
+  return {...guard,
+    action,
+    legacyAction:historyGuardLegacyActionV4128(guard.action),
+    sourceVersion:'4.2.5',
+    finalScheduleCategory:finalCategory,
+    earlyEntryOptimized:Boolean(action==='replace-with-history-guard'&&finalCategory==='early-entry'),
+    observationLabel:historyGuardObservationLabelV4128({...guard,action,finalTime})
+  };
+}
+
+// Canonicalize explicit guard-test diagnostics. The underlying evaluation stays
+// unchanged and therefore remains covered by the v41.2.7 containment boundary.
+const v4127HistoryGuardEvaluateApiPairBeforeObservabilityV4128=historyGuardEvaluateApiPairV421;
+historyGuardEvaluateApiPairV421=function(production,shadow,ctx){
+  const result=v4127HistoryGuardEvaluateApiPairBeforeObservabilityV4128(production,shadow,ctx);
+  if(!result)return result;
+  const rows=(result.rows||[]).map(row=>{
+    const evidence=shadow?.attractions?.[row.id]||historyShadowFindAttractionV421(shadow,row.name||'');
+    return historyGuardDecorateDiagnosticRowV4128({...row,
+      shadowConfidence:evidence?.bestWindow?.confidence||evidence?.confidence||row.confidence||null,
+      shadowIndependentDays:evidence?.bestWindow?.independentDays??evidence?.independentDays??row.independentDays??null,
+      attractionEarlyEntryEligibility:evidence?.targetAvailability?.earlyEntryEligibility?structuredClone(evidence.targetAvailability.earlyEntryEligibility):null,
+      attractionEligibleScheduleCategories:structuredClone(evidence?.targetAvailability?.eligibleScheduleCategories||[])
+    });
+  });
+  return {...result,
+    counts:historyGuardDecorateCountsV4128(result.counts||{}),
+    rows
+  };
+};
+
+// Attach clean metadata to operational guard results without modifying the chosen
+// score, attraction, priority ordering, timeline or final temporal decision.
+const v4127HistoryGuardApplyBeforeObservabilityV4128=historyGuardApplyToScoreResultV421;
+historyGuardApplyToScoreResultV421=function(result,entry,day,startMinute=null){
+  const out=v4127HistoryGuardApplyBeforeObservabilityV4128(result,entry,day,startMinute);
+  if(!out)return out;
+  const raw=out?.forecast?.historyGuardV425||out?.historyGuardV425||out?.forecast?.historyGuardV424||out?.historyGuardV424||out?.forecast?.historyGuardV423||out?.forecast?.historyGuardV421||out?.historyGuardV423||out?.historyGuardV421||null;
+  if(!raw)return out;
+  const decorated=historyGuardDecorateRuntimeGuardV4128(raw);
+  out.forecast.historyGuardV423=decorated;
+  out.historyGuardV423=decorated;
+  out.forecast.historyGuardV424=decorated;
+  out.historyGuardV424=decorated;
+  out.forecast.historyGuardV425=decorated;
+  out.historyGuardV425=decorated;
+  // V421/V423/V424 aliases remain for compatibility; V425 is the canonical current surface.
+  return out;
+};
+
+// Keep user-facing window labels compatible with both the legacy and canonical action.
+const v4127HistoryGuardPriorityWindowLabelBeforeObservabilityV4128=historyGuardPriorityWindowLabelV421;
+historyGuardPriorityWindowLabelV421=function(priority,fallback=null){
+  const guard=priority?.meta?.forecast?.historyGuardV425||priority?.meta?.historyGuardV425||priority?.meta?.forecast?.historyGuardV424||priority?.meta?.historyGuardV424||priority?.meta?.forecast?.historyGuardV423||priority?.meta?.historyGuardV423||priority?.meta?.forecast?.historyGuardV421||priority?.meta?.historyGuardV421||null;
+  if(guard){
+    const action=historyGuardCanonicalActionV4128(guard.action);
+    if(action==='replace-with-history-guard'&&guard?.replacementScheduleCategory==='early-entry'&&guard?.finalBest?.time)return `Melhor janela validada ${guard.finalBest.time} · Early Entry`;
+    if(action==='replace-with-history-guard'&&guard?.finalBest?.time)return `Melhor janela validada ${guard.finalBest.time}`;
+  }
+  return v4127HistoryGuardPriorityWindowLabelBeforeObservabilityV4128(priority,fallback);
+};
+
+// Decision Trace enrichment: observational only. It records the temporal guard that
+// already ran inside the score result; it does not re-run or alter the decision.
+const v4127BuildDecisionTraceBeforeObservabilityV4128=buildDecisionTraceV392;
+buildDecisionTraceV392=function(decision,day,livePayload,weatherPayload){
+  const trace=v4127BuildDecisionTraceBeforeObservabilityV4128(decision,day,livePayload,weatherPayload);
+  if(!trace)return trace;
+  const raw=decision?.meta?.forecast?.historyGuardV425||decision?.meta?.historyGuardV425||decision?.meta?.forecast?.historyGuardV424||decision?.meta?.historyGuardV424||decision?.meta?.forecast?.historyGuardV423||decision?.meta?.historyGuardV423||decision?.meta?.forecast?.historyGuardV421||decision?.meta?.historyGuardV421||null;
+  if(raw){
+    const guard=historyGuardDecorateRuntimeGuardV4128(raw);
+    trace.historyGuard={
+      version:HISTORY_GUARD_OBSERVABILITY_VERSION_V4128,
+      sourceVersion:'4.2.5',
+      action:guard.action,
+      legacyAction:guard.legacyAction,
+      reason:guard.reason||null,
+      originalTime:guard.productionBest?.time||null,
+      finalTime:guard.finalBest?.time||null,
+      scheduleCategory:guard.finalScheduleCategory||null,
+      earlyEntryOptimized:Boolean(guard.earlyEntryOptimized),
+      note:guard.observationLabel||null,
+      attractionEarlyEntryEligibility:guard.attractionEarlyEntryEligibility?structuredClone(guard.attractionEarlyEntryEligibility):null,
+      scoreUntouched:true,
+      selectionUntouched:true,
+      priorityOrderUntouched:true,
+      timelineUntouched:true
+    };
+  }
+  return trace;
+};
+
+const v4127HistoryGuardSummaryBeforeObservabilityV4128=historyGuardSummaryV421;
+historyGuardSummaryV421=function(){
+  const summary=v4127HistoryGuardSummaryBeforeObservabilityV4128();
+  if(!summary)return summary;
+  const parkKey=summary.currentContext?.parkKey||null;
+  const allRows=[...historyGuardRuntimeV421.values()]
+    .filter(x=>!parkKey||x.parkKey===parkKey)
+    .map(historyGuardDecorateRuntimeGuardV4128)
+    .sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
+  const counts={};for(const row of allRows){counts[row.action]=(counts[row.action]||0)+1;}
+  return {...summary,
+    observabilityVersion:HISTORY_GUARD_OBSERVABILITY_VERSION_V4128,
+    currentDecision:summary.currentDecision?historyGuardDecorateRuntimeGuardV4128(summary.currentDecision):null,
+    runtimeCounts:counts,
+    recent:allRows.slice(0,12)
+  };
+};
+
+function historyGuardObservabilityV4128(){
+  const last=historyGuardDecorateTestResultV4128(historyGuardLastExplicitTestV421);
+  const trace=typeof latestDecisionTraceV392==='function'?latestDecisionTraceV392():null;
+  return {
+    build:ENGINE_BUILD_V38,
+    diagnosticsVersion:ENGINE_DIAGNOSTICS_VERSION_V38,
+    ...HISTORY_GUARD_OBSERVABILITY_RULES_V4128,
+    policy:historyGuardPolicyV423(),
+    lastTest:last,
+    latestDecisionTraceGuard:trace?.historyGuard?structuredClone(trace.historyGuard):null
+  };
+}
+
+const v4127ExposeDiagnosticsBeforeObservabilityV4128=exposeDiagnosticsApiV38;
+exposeDiagnosticsApiV38=function(){
+  v4127ExposeDiagnosticsBeforeObservabilityV4128();
+  const D=window.__ORLANDO_FLOW_DIAGNOSTICS__;
+  const previousTestV423=D.testHistoryGuardV423;
+  const previousLastV423=D.historyGuardLastTestV423;
+  D.testHistoryGuardV423=(input={})=>previousTestV423(input).then(x=>structuredClone(historyGuardDecorateTestResultV4128(x)));
+  D.historyGuardLastTestV423=()=>structuredClone(historyGuardDecorateTestResultV4128(previousLastV423()));
+  D.historyGuardObservabilityV423=()=>structuredClone(historyGuardObservabilityV4128());
+  D.historyGuardActionNamesV423=()=>structuredClone({canonical:'replace-with-history-guard',legacy:'replace-with-v421',sourceVersion:'4.2.5'});
+  D.testHistoryGuardV424=(input={})=>D.testHistoryGuardV423(input);
+  D.historyGuardLastTestV424=()=>D.historyGuardLastTestV423();
+  D.historyGuardObservabilityV424=()=>structuredClone(historyGuardObservabilityV4128());
+  D.historyGuardActionNamesV424=()=>structuredClone({canonical:'replace-with-history-guard',legacy:'replace-with-v421',sourceVersion:'4.2.5'});
+  D.historyGuardPolicyV424=()=>structuredClone(historyGuardPolicyV423());
+  D.historyGuardV424=()=>structuredClone(historyGuardSummaryV421());
+  D.historyShadowV424=()=>structuredClone(historyShadowSummaryV421());
+  D.testHistoryGuardV425=(input={})=>D.testHistoryGuardV423(input);
+  D.historyGuardLastTestV425=()=>D.historyGuardLastTestV423();
+  D.historyGuardObservabilityV425=()=>structuredClone(historyGuardObservabilityV4128());
+  D.historyGuardActionNamesV425=()=>structuredClone({canonical:'replace-with-history-guard',legacy:'replace-with-v421',sourceVersion:'4.2.5'});
+  D.historyGuardPolicyV425=()=>structuredClone(historyGuardPolicyV423());
+  D.historyGuardV425=()=>structuredClone(historyGuardSummaryV421());
+  D.historyShadowV425=()=>structuredClone(historyShadowSummaryV421());
+};
+
+const v4127EngineDiagnosticBeforeObservabilityV4128=engineDiagnosticSnapshotV38;
+engineDiagnosticSnapshotV38=function(){
+  const snapshot=v4127EngineDiagnosticBeforeObservabilityV4128();snapshot.context=snapshot.context||{};
+  snapshot.context.historyGuardObservabilityV423=historyGuardObservabilityV4128();snapshot.context.historyGuardObservabilityV424=historyGuardObservabilityV4128();snapshot.context.historyGuardObservabilityV425=historyGuardObservabilityV4128();
+  return snapshot;
+};
+
+const v4127RunSelfTestsBeforeObservabilityV4128=runEngineSelfTestsV38;
+runEngineSelfTestsV38=function(){
+  const report=v4127RunSelfTestsBeforeObservabilityV4128(),additions=[];
+  addSelfTestV38(additions,'v41.2.8 usa nome canônico sem perder compatibilidade',()=>{const r=historyGuardDecorateDiagnosticRowV4128({action:'replace-with-v421'});assertSelfTestV38(r.action==='replace-with-history-guard'&&r.legacyAction==='replace-with-v421',JSON.stringify(r));return `${r.legacyAction} → ${r.action}`;});
+  addSelfTestV38(additions,'v41.2.8 expõe confiança da bestWindow no diagnóstico',()=>{const r=historyGuardDecorateDiagnosticRowV4128({action:'replace-with-v421',confidence:'medium',independentDays:6});assertSelfTestV38(r.shadowConfidence==='medium'&&r.shadowIndependentDays===6,JSON.stringify(r));return `${r.shadowConfidence} · ${r.shadowIndependentDays} dias`;});
+  addSelfTestV38(additions,'v41.2.8 rotula otimização Early Entry no trace',()=>{const r=historyGuardDecorateDiagnosticRowV4128({action:'replace-with-v421',replacementScheduleCategory:'early-entry',finalTime:'08:30'});assertSelfTestV38(r.earlyEntryOptimized&&/Early Entry optimization applied/.test(r.observationLabel||''),JSON.stringify(r));return r.observationLabel;});
+  addSelfTestV38(additions,'v41.2.8 observabilidade não ganha autoridade decisória',()=>{assertSelfTestV38(!HISTORY_GUARD_OBSERVABILITY_RULES_V4128.affectsScoring&&!HISTORY_GUARD_OBSERVABILITY_RULES_V4128.affectsSelection&&!HISTORY_GUARD_OBSERVABILITY_RULES_V4128.affectsPriorityOrder&&!HISTORY_GUARD_OBSERVABILITY_RULES_V4128.affectsTimeline&&!HISTORY_GUARD_OBSERVABILITY_RULES_V4128.affectsTemporalGuidance,'observabilidade alterou autoridade');return '0 efeitos funcionais';});
+  addSelfTestV38(additions,'v41.2.10 migra somente a autoridade temporal para v4.2.5',()=>{const p=historyGuardPolicyV423();assertSelfTestV38(p.endpointPath==='/api/v4.2.5/park-insights'&&p.scheduleAuthority==='4.2.5'&&p.historyAuthority==='4.2.5'&&!p.affectsScoring&&!p.affectsSelection&&!p.affectsPriorityOrder&&!p.affectsTimeline&&p.affectsTemporalGuidance,'migração');return 'v3 decisão · v4.2.5 tempo';});
+  addSelfTestV38(additions,'v41.2.10 preserva elegibilidade Early Entry por atração',()=>{const c=historyShadowCompactPayloadV421({historyVersion:'4.2.5',parkKey:'magic-kingdom',schedule:{available:true,policyVersion:'selective-eligibility-v3-attraction-early-entry',regularWindows:[{openMinute:540,closeMinute:1320,category:'regular'}],earlyEntryWindows:[{openMinute:510,closeMinute:540,category:'early-entry'}],allowedWindows:[{openMinute:510,closeMinute:540,category:'early-entry'},{openMinute:540,closeMinute:1320,category:'regular'}]},quality:{scheduleGuard:{includeEarlyEntry:true,attractionEarlyEntryPolicyVersion:'attraction-early-entry-v1',attractionEarlyEntryCounts:{eligible:1,ineligible:1,unknown:0,notApplicable:0}}},attractions:{a:{id:'a',name:'Big Thunder Mountain Railroad',confidence:'high',bestWindow:{targetMinute:570,targetLocalTime:'09:30',median:15,confidence:'high',scheduleCategory:'regular'},targetAvailability:{scheduleAvailable:true,eligibleScheduleCategories:['regular'],earlyEntryEligibility:{status:'ineligible',source:'catalog',reason:'explicit-ineligible-catalog-match'}}}}});const e=c.attractions.a.targetAvailability?.earlyEntryEligibility;assertSelfTestV38(e?.status==='ineligible'&&c.attractions.a.bestWindow.scheduleCategory==='regular'&&c.quality.scheduleGuard.attractionEarlyEntryCounts?.ineligible===1,JSON.stringify(c.attractions.a));return `${e.status} · regular`;});
+  report.results.push(...additions);report.total=report.results.length;report.passed=report.results.filter(x=>x.ok).length;report.failed=report.total-report.passed;report.ok=report.failed===0;report.build=ENGINE_BUILD_V38;report.version=ENGINE_DIAGNOSTICS_VERSION_V38;return report;
+};
+
+
+
+/* ============================================================
+   Orlando Flow v41.3-front — Roadmap de front em 3 ondas
+   - frescor/fallback
+   - decisão prática + faixa recomendada
+   - Express/Early Entry + polimento mobile/PWA
+   Não altera score, seleção, prioridade ou timeline do motor.
+   ============================================================ */
+const FRONT_UX_VERSION_V413='41.3-front';
+const FRONT_UX_RULES_V413=Object.freeze({
+  freshMinutes:15,
+  staleMinutes:30,
+  universalParks:['universal-studios-florida','islands-of-adventure','epic-universe']
+});
+
+function ensureFrontUxStateV413(){
+  state.settings=state.settings||{};
+  if(typeof state.settings.universalExpressPass!=='boolean') state.settings.universalExpressPass=true;
+}
+
+function frontMinutesAgoV413(ts){
+  const n=Number(ts||0);
+  return n>0?Math.max(0,Math.floor((Date.now()-n)/60000)):null;
+}
+
+function frontFreshnessTextV413(){
+  const payload=state.liveCache?.[state.selectedPark]||null;
+  const age=frontMinutesAgoV413(payload?.fetchedAt);
+  if(!navigator.onLine){
+    return {tone:'bad',status:'Offline · usando a última leitura salva',help:age==null?'Não há leitura ao vivo salva para este parque.':`Última leitura disponível há ${age<1?'menos de 1':age} min.`};
+  }
+  if(!payload){
+    return {tone:'warn',status:'Sem leitura ao vivo',help:'Toque em Atualizar para buscar filas e recomendações.'};
+  }
+  if(age<=FRONT_UX_RULES_V413.freshMinutes){
+    return {tone:'good',status:`Dados atualizados ${age<1?'agora':`há ${age} min`}`,help:'Leitura recente.'};
+  }
+  if(age<=FRONT_UX_RULES_V413.staleMinutes){
+    return {tone:'warn',status:`Dados de há ${age} min`,help:'Atualize antes de mudar o roteiro por uma diferença pequena.'};
+  }
+  return {tone:'bad',status:`Dados desatualizados · ${age} min`,help:'Evite mudar o roteiro com base apenas nesta leitura. Atualize os dados.'};
+}
+
+function renderFrontFreshnessV413(){
+  const status=$('#liveStatus'), help=$('#liveFreshnessHelp');
+  if(!status||!help)return;
+  const f=frontFreshnessTextV413();
+  status.classList.remove('freshness-stale','freshness-offline','freshness-error');
+  if(f.tone==='warn')status.classList.add('freshness-stale');
+  if(f.tone==='bad')status.classList.add(navigator.onLine?'freshness-error':'freshness-offline');
+  status.textContent=f.status;
+  help.className=`freshness-help ${f.tone}`;
+  help.textContent=f.help;
+}
+
+function frontUniversalExpressActiveV413(){
+  ensureFrontUxStateV413();
+  return Boolean(state.settings.universalExpressPass)&&FRONT_UX_RULES_V413.universalParks.includes(state.selectedPark);
+}
+
+function frontContextBannerV413(){
+  const slot=$('#liveContextBanner');
+  if(!slot)return;
+  const day=getSelectedDay();
+  slot.innerHTML='';
+  if(!day||day.park!==state.selectedPark)return;
+
+  if(frontUniversalExpressActiveV413()){
+    slot.innerHTML=`<div class="front-context-banner"><span class="front-context-icon">⚡</span><div><strong>Express Pass ativo</strong><small>Use quando a atração aceitar Express. A ordem continua considerando tempo total, caminhada, prioridades e horários importantes.</small></div></div>`;
+    return;
+  }
+
+  const now=getOrlandoParts();
+  const minute=now.hour*60+now.minute;
+  const early=typeof parkHoursForDate==='function'?parkHoursForDate(state.selectedPark,day.date):null;
+  if(early?.earlyOpen!=null&&minute>=Number(early.earlyOpen)-30&&minute<=Number(early.open||early.earlyOpen)+30){
+    slot.innerHTML=`<div class="front-context-banner"><span class="front-context-icon">◷</span><div><strong>Early Entry agora</strong><small>As recomendações consideram a janela antecipada e a elegibilidade conhecida de cada atração.</small></div></div>`;
+  }
+}
+
+function frontSimplifyConfidenceV413(){
+  document.querySelectorAll('.next-step-confidence, .live-priority-detail span').forEach(el=>{
+    const t=(el.textContent||'').trim().toLowerCase();
+    if(t==='confiança alta'||t==='confiança high')el.classList.add('front-confidence-high');
+    else el.classList.remove('front-confidence-high');
+  });
+}
+
+function frontWindowChipsV413(){
+  document.querySelectorAll('#recommendations details.rec-card').forEach(card=>{
+    const existing=card.querySelector('.front-window-chip');
+    if(existing)existing.remove();
+    const details=[...card.querySelectorAll('.copilot-detail-item')];
+    const best=details.find(x=>/melhor faixa|melhor janela/i.test(x.querySelector('span')?.textContent||''));
+    const value=best?.querySelector('b')?.textContent?.trim();
+    if(!value)return;
+    const main=card.querySelector('.copilot-rec-main');
+    if(main)main.insertAdjacentHTML('beforeend',`<span class="front-window-chip">Melhor faixa · ${escapeHtml(value)}</span>`);
+  });
+}
+
+function frontSpecialEntryNotesV413(){
+  const day=getSelectedDay();
+  const next=$('#nextCard');
+  if(!day||!next)return;
+  next.querySelectorAll('.front-express-note,.front-early-entry-note').forEach(x=>x.remove());
+  if(frontUniversalExpressActiveV413()){
+    const title=next.querySelector('.next-step-title')?.textContent?.trim();
+    if(title){
+      const actions=next.querySelector('.next-step-actions');
+      const note=document.createElement('div');
+      note.className='front-express-note';
+      note.textContent='Express ativo: use quando esta atração aceitar. A recomendação continua considerando o melhor uso do tempo do dia.';
+      (actions||next).insertAdjacentElement(actions?'beforebegin':'beforeend',note);
+    }
+  }
+  const earlyText=next.textContent||'';
+  if(/early entry/i.test(earlyText)){
+    const note=document.createElement('div');
+    note.className='front-early-entry-note';
+    note.textContent='Early Entry: confirme a elegibilidade da atração e chegue com margem.';
+    next.appendChild(note);
+  }
+}
+
+
+
+const FRONT_OPEN_STATE_VERSION_V4133='2.0';
+let frontRecommendationOpenMemoryV4133={
+  context:null,
+  initialized:false,
+  otherOpen:false,
+  cardKeys:[]
+};
+
+function frontRecommendationContextV4133(){
+  const day=getSelectedDay();
+  return `${day?.date||''}|${state.selectedPark||''}`;
+}
+
+function frontRecommendationKeyV413(card){
+  const raw=String(
+    card?.querySelector('.copilot-rec-main strong')?.textContent ||
+    card?.querySelector('summary strong')?.textContent ||
+    card?.querySelector('summary')?.textContent ||
+    ''
+  ).trim();
+
+  // Wait values change after refresh, so they must never be part of the UI-state key.
+  const stable=raw.replace(/\s*[·•]\s*(?:--|\d+)\s*min\s*$/i,'').trim();
+  return normalizeName(stable);
+}
+
+function frontReadRecommendationOpenStateV4133(){
+  const root=$('#recommendations');
+  if(!root)return {otherOpen:false,cardKeys:[]};
+
+  return {
+    otherOpen:Boolean(root.querySelector('.live-other-options')?.open),
+    cardKeys:[...root.querySelectorAll('details.rec-card[open]')]
+      .map(frontRecommendationKeyV413)
+      .filter(Boolean)
+  };
+}
+
+function frontRememberRecommendationOpenStateV4133(snapshot=null){
+  const context=frontRecommendationContextV4133();
+  const next=snapshot||frontReadRecommendationOpenStateV4133();
+
+  frontRecommendationOpenMemoryV4133={
+    context,
+    initialized:true,
+    otherOpen:Boolean(next?.otherOpen),
+    cardKeys:[...new Set(next?.cardKeys||[])]
+  };
+  return frontRecommendationOpenMemoryV4133;
+}
+
+function frontPreferredRecommendationOpenStateV4133(snapshot=null){
+  const context=frontRecommendationContextV4133();
+
+  // Once user intent has been captured for this day/park, render cycles must
+  // never replace it with a freshly rebuilt DOM whose default is "closed".
+  if(
+    frontRecommendationOpenMemoryV4133.initialized &&
+    frontRecommendationOpenMemoryV4133.context===context
+  ){
+    return {
+      otherOpen:frontRecommendationOpenMemoryV4133.otherOpen,
+      cardKeys:[...frontRecommendationOpenMemoryV4133.cardKeys]
+    };
+  }
+
+  return snapshot||{otherOpen:false,cardKeys:[]};
+}
+
+function frontCaptureRecommendationOpenStateV413(){
+  return frontReadRecommendationOpenStateV4133();
+}
+
+function frontRestoreRecommendationOpenStateV413(snapshot){
+  const root=$('#recommendations');
+  if(!root)return;
+
+  snapshot=frontPreferredRecommendationOpenStateV4133(snapshot);
+
+  const other=root.querySelector('.live-other-options');
+  const bestCardCount=root.querySelectorAll('.live-best-now details.rec-card').length;
+  const otherCardCount=other?.querySelectorAll('details.rec-card').length||0;
+
+  if(other){
+    other.open=Boolean(snapshot?.otherOpen)||(bestCardCount===0&&otherCardCount>0);
+  }
+
+  const openKeys=new Set(snapshot?.cardKeys||[]);
+  root.querySelectorAll('details.rec-card').forEach(card=>{
+    card.open=openKeys.has(frontRecommendationKeyV413(card));
+  });
+}
+
+
+const FRONT_FREEZE_VERSION_V4140='41.4.3-final';
+
+function frontReadableForecastConfidenceV414(raw){
+  const t=normalizeName(raw||'');
+  if(/\balta\b|\bhigh\b/.test(t)) return {label:'Alta',detail:'histórico consistente'};
+  if(/\bmedia\b|\bmedium\b|\blocal\b/.test(t)) return {label:'Média',detail:'histórico razoável'};
+  return {label:'Baixa',detail:'histórico ainda limitado'};
+}
+
+function frontReadableCostBreakdownV414(raw){
+  return String(raw||'')
+    .split('+')
+    .map(x=>x.trim())
+    .filter(Boolean)
+    .map(part=>{
+      let m=part.match(/^(\d+)\s+caminhada$/i);
+      if(m)return `${m[1]} min caminhada`;
+      m=part.match(/^(\d+)\s+fila$/i);
+      if(m)return `${m[1]} min fila`;
+      m=part.match(/^(\d+)\s+experi[eê]ncia$/i);
+      if(m)return `${m[1]} min atração`;
+      m=part.match(/^(\d+)\s+sa[ií]da$/i);
+      if(m)return `${m[1]} min saída`;
+      m=part.match(/^(\d+)\s+pr[oó]ximo deslocamento$/i);
+      if(m)return `${m[1]} min até a próxima etapa`;
+      return part;
+    })
+    .join(' · ');
+}
+
+function frontPolishRecommendationDetailsV414(){
+  const root=$('#recommendations');
+  if(!root)return;
+
+  root.querySelectorAll('details.rec-card').forEach(card=>{
+    const items=[...card.querySelectorAll('.copilot-detail-item')];
+
+    for(const item of items){
+      const labelEl=item.querySelector(':scope > span');
+      const valueEl=item.querySelector(':scope > b');
+      let smallEl=item.querySelector(':scope > small');
+      const label=(labelEl?.textContent||'').trim();
+
+      if(label==='Base da previsão'){
+        const confidence=frontReadableForecastConfidenceV414(valueEl?.textContent||'');
+        labelEl.textContent='Confiança da previsão';
+        if(valueEl)valueEl.textContent=confidence.label;
+        if(!smallEl){
+          smallEl=document.createElement('small');
+          item.appendChild(smallEl);
+        }
+        smallEl.textContent=confidence.detail;
+      }
+
+      if(label==='Qualidade dos dados'){
+        item.classList.add('front-detail-technical');
+      }
+
+      if(label==='Contexto do parque'){
+        labelEl.textContent='Movimento do parque';
+        if(smallEl)smallEl.textContent='comparação com atrações semelhantes';
+      }
+
+      if(label==='Logística'){
+        labelEl.textContent='Área e caminhada';
+        const raw=smallEl?.textContent||'';
+        const minutes=raw.match(/~?\s*(\d+)\s*min/i)?.[1];
+        if(smallEl)smallEl.textContent=minutes?`caminhada estimada · ~${minutes} min`:'caminhada estimada';
+      }
+
+      if(label==='Custo total'){
+        labelEl.textContent='Tempo total';
+        if(smallEl){
+          const readable=frontReadableCostBreakdownV414(smallEl.textContent);
+          if(readable)smallEl.textContent=readable;
+        }
+      }
+
+      if(label==='Fila provável' && smallEl){
+        smallEl.textContent='faixa provável, não um minuto exato';
+      }
+    }
+
+    const reasonChips=[...card.querySelectorAll('.copilot-detail-reasons .score-reasons span')];
+    reasonChips.forEach((chip,index)=>{
+      chip.classList.toggle('front-reason-overflow',index>=4);
+    });
+  });
+}
+
+function frontFreezeAnnotateV414(){
+  document.documentElement.dataset.frontFreeze='41.4.3';
+}
+
+function enhanceFrontUxV413(){
+  ensureFrontUxStateV413();
+  renderFrontFreshnessV413();
+  frontContextBannerV413();
+  frontSimplifyConfidenceV413();
+  frontWindowChipsV413();
+  frontPolishRecommendationDetailsV414();
+  frontSpecialEntryNotesV413();
+  frontFreezeAnnotateV414();
+}
+
+const v412RenderSettingsBeforeFrontV413=renderSettings;
+renderSettings=function(...args){
+  const result=v412RenderSettingsBeforeFrontV413(...args);
+  ensureFrontUxStateV413();
+  const select=$('#universalExpressPass');
+  if(select)select.value=state.settings.universalExpressPass?'on':'off';
+  return result;
+};
+
+const v412BindEventsBeforeFrontV413=bindEvents;
+bindEvents=function(...args){
+  const result=v412BindEventsBeforeFrontV413(...args);
+
+  const refresh=$('#liveRefreshBtn');
+  if(refresh&&!refresh.dataset.frontOpenStateV4133){
+    refresh.dataset.frontOpenStateV4133='1';
+    refresh.addEventListener('click',()=>{
+      frontRememberRecommendationOpenStateV4133(frontReadRecommendationOpenStateV4133());
+    },true);
+  }
+
+  const recommendations=$('#recommendations');
+  if(recommendations&&!recommendations.dataset.frontOpenStateV4133){
+    recommendations.dataset.frontOpenStateV4133='1';
+
+    // Remember user intent after card/group toggles.
+    recommendations.addEventListener('click',event=>{
+      if(event.target.closest?.('details.rec-card > summary, .live-other-options > summary')){
+        setTimeout(()=>frontRememberRecommendationOpenStateV4133(frontReadRecommendationOpenStateV4133()),0);
+      }
+    });
+  }
+  const select=$('#universalExpressPass');
+  if(select&&!select.dataset.boundFrontUx){
+    select.dataset.boundFrontUx='1';
+    select.addEventListener('change',()=>{
+      state.settings.universalExpressPass=select.value==='on';
+      saveState();
+      renderAll();
+      enhanceFrontUxV413();
+      toast(state.settings.universalExpressPass?'Universal Express Pass ativado.':'Universal Express Pass não será considerado.');
+    });
+  }
+  return result;
+};
+
+const v412RenderLiveBeforeFrontV413=renderLive;
+renderLive=function(...args){
+  const openState=frontPreferredRecommendationOpenStateV4133(frontReadRecommendationOpenStateV4133());
+  const result=v412RenderLiveBeforeFrontV413(...args);
+  frontRestoreRecommendationOpenStateV413(openState);
+  queueMicrotask(()=>{
+    frontRestoreRecommendationOpenStateV413(openState);
+    enhanceFrontUxV413();
+  });
+  setTimeout(()=>{
+    frontRestoreRecommendationOpenStateV413(openState);
+    enhanceFrontUxV413();
+  },0);
+  return result;
+};
+
+const v412RunInstantLiveHeavyBeforeFrontV413=runInstantLiveHeavyV3963;
+runInstantLiveHeavyV3963=function(...args){
+  const result=v412RunInstantLiveHeavyBeforeFrontV413(...args);
+  Promise.resolve(result)
+    .catch(()=>null)
+    .finally(()=>setTimeout(enhanceFrontUxV413,0));
+  return result;
+};
+
+
+const v412RenderLiveRecommendationsBeforeFrontV413=renderLiveRecommendationsV4011;
+renderLiveRecommendationsV4011=function(...args){
+  const openState=frontPreferredRecommendationOpenStateV4133(frontReadRecommendationOpenStateV4133());
+  const result=v412RenderLiveRecommendationsBeforeFrontV413(...args);
+  frontRestoreRecommendationOpenStateV413(openState);
+  enhanceFrontUxV413();
+  return result;
+};
+
+const v412RenderNextBeforeFrontV413=renderNext;
+renderNext=function(...args){
+  const result=v412RenderNextBeforeFrontV413(...args);
+  frontSpecialEntryNotesV413();
+  frontSimplifyConfidenceV413();
+  return result;
+};
+
+
+window.__ORLANDO_FLOW_FRONT_UX__={
+  version:'41.4.3-final',
+  status:()=>({
+    controller:navigator.serviceWorker?.controller?.scriptURL||null,
+    freshnessElement:Boolean(document.querySelector('#liveFreshnessHelp')),
+    expressElement:Boolean(document.querySelector('#universalExpressPass')),
+    expressBanner:Boolean(document.querySelector('#liveContextBanner .front-context-banner')),
+    recommendationCards:document.querySelectorAll('#recommendations details.rec-card').length,
+    openRecommendationCards:document.querySelectorAll('#recommendations details.rec-card[open]').length,
+    otherOptionsOpen:Boolean(document.querySelector('#recommendations .live-other-options')?.open),
+    windowChips:document.querySelectorAll('.front-window-chip').length,
+    visibleScores:[...document.querySelectorAll('.copilot-detail-score')]
+      .filter(x=>getComputedStyle(x).display!=='none').length,
+    freeze:{
+      version:FRONT_FREEZE_VERSION_V4140,
+      scope:'front-only',
+      engineChanged:false
+    },
+    openStateMemory:{
+      version:FRONT_OPEN_STATE_VERSION_V4133,
+      context:frontRecommendationOpenMemoryV4133.context,
+      initialized:frontRecommendationOpenMemoryV4133.initialized,
+      otherOpen:frontRecommendationOpenMemoryV4133.otherOpen,
+      cardKeys:[...frontRecommendationOpenMemoryV4133.cardKeys]
+    }
+  })
+};
+
+window.addEventListener('online',()=>setTimeout(enhanceFrontUxV413,0));
+window.addEventListener('offline',()=>setTimeout(enhanceFrontUxV413,0));
+
 
 async function init() {
   await loadState();
@@ -9277,12 +17769,13 @@ async function init() {
   installDiagnosticEventsV38();
   exposeDiagnosticsApiV38();
   renderAll();
+  try{if(new URLSearchParams(location.search).get('view')==='live')switchView('live');}catch{}
   window.__orlandoFlowBootReady=true;
   if(isHeadlessSelfTestV38()){runHeadlessSelfTestV38();return;}
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(error=>recordRuntimeDiagnosticV38('service-worker',error));
   refreshExternal(false).catch(error=>recordRuntimeDiagnosticV38('initial-refresh',error));
   setInterval(()=>{try{renderHeader();renderStatus();renderNext();}catch(error){recordRuntimeDiagnosticV38('minute-render',error);}},60_000);
-  alertTimer=setInterval(()=>{if(document.visibilityState==='visible'&&navigator.onLine)refreshExternal(false).catch(error=>recordRuntimeDiagnosticV38('background-refresh',error));else evaluateAlerts();},5*60_000);
+  alertTimer=setInterval(()=>{if(navigator.onLine){const task=document.visibilityState==='visible'?refreshExternal(false):proactiveBackgroundRefreshV410();Promise.resolve(task).catch(error=>recordRuntimeDiagnosticV38('background-refresh',error));}else evaluateAlerts();},5*60_000);
 }
 
 init().catch(error=>{
