@@ -1,5 +1,5 @@
-const STATIC_CACHE = 'orlando-flow-static-v41-4-4-final';
-const RUNTIME_CACHE = 'orlando-flow-runtime-v41-4-4-final';
+const STATIC_CACHE = 'orlando-flow-static-v41-4-4-route-20260901';
+const RUNTIME_CACHE = 'orlando-flow-runtime-v41-4-4-route-20260901';
 const STATIC_ASSETS = [
   './',
   './index.html',
