@@ -1,10 +1,11 @@
-const STATIC_CACHE = 'orlando-flow-static-v41-4-3-final';
-const RUNTIME_CACHE = 'orlando-flow-runtime-v41-4-3-final';
+const STATIC_CACHE = 'orlando-flow-static-v41-4-4-final';
+const RUNTIME_CACHE = 'orlando-flow-runtime-v41-4-4-final';
 const STATIC_ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './diagnostics-hotfix.js',
   './manifest.webmanifest',
   './data/sample-itinerary.json',
   './icons/icon-192.png',
@@ -50,6 +51,9 @@ self.addEventListener('fetch', event => {
     // HTML de navegação deve preferir a versão atual da rede; evita '/' preso
     // em uma cópia antiga enquanto /index.html já foi atualizado.
     event.respondWith(navigationNetworkFirst(req));
+  } else if (url.origin === self.location.origin && /\/app\.js$/.test(url.pathname)) {
+    // v41.4.4: aplica somente a correção diagnóstica ao módulo congelado.
+    event.respondWith(appModuleWithDiagnosticsHotfix(req));
   } else if (url.origin === self.location.origin) {
     event.respondWith(cacheFirst(req));
   }
@@ -70,6 +74,28 @@ async function navigationNetworkFirst(req) {
     if (indexCached) return indexCached;
     throw new Error('Offline and no cached navigation response');
   }
+}
+
+async function appModuleWithDiagnosticsHotfix(req) {
+  const cache = await caches.open(STATIC_CACHE);
+  let res = null;
+  try {
+    res = await fetch(req, { cache:'no-store' });
+    if (res.ok) await cache.put(req, res.clone());
+  } catch {}
+
+  if (!res || !res.ok) res = await cache.match(req) || await caches.match(req);
+  if (!res) throw new Error('Offline and no cached app.js response');
+
+  const source = await res.text();
+  const importLine = "\nimport './diagnostics-hotfix.js';\n";
+  const patched = source.includes("diagnostics-hotfix.js") ? source : source + importLine;
+  const headers = new Headers(res.headers);
+  headers.delete('content-length');
+  headers.delete('content-encoding');
+  headers.set('content-type', 'text/javascript; charset=utf-8');
+  headers.set('cache-control', 'no-cache');
+  return new Response(patched, {status:res.status, statusText:res.statusText, headers});
 }
 
 async function cacheFirst(req) {
